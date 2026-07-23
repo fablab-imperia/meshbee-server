@@ -500,7 +500,7 @@ command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 
 ## 📄 Licenza
 
-Questo progetto è rilasciato sotto licenza MIT.
+Questo progetto è rilasciato sotto [licenza APGL-3.0](LICENSE).
 
 ## 👥 Contributi
 
