@@ -1,5 +1,7 @@
 # 🐝 Meshbee Backend
 
+[![Latest release](https://img.shields.io/github/v/release/fablab-imperia/meshbee-server?sort=semver)](https://github.com/fablab-imperia/meshbee-server/releases/latest)
+
 This is the **backend** code for the [Meshbee project](https://github.com/fablab-imperia/meshbee). Implements FastAPI REST API, MQTT handler, Mosquitto broker and PostgreSQL, via Docker Compose.
 
 Other parts of the Meshbee project include:
