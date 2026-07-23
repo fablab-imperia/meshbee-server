@@ -521,9 +521,11 @@ Questo progetto è rilasciato sotto [licenza APGL-3.0](LICENSE).
 Contributi, issues e feature requests sono benvenuti!
 
 Releases follow [![SemVer 2.0.0](https://img.shields.io/badge/SemVer-2.0.0-blue.svg)](https://semver.org/spec/v2.0.0.html).
+
 Commits follow [![Conventional Commits 1.0.0](https://img.shields.io/badge/Conventional%20Commits-1.0.0-blue.svg)](https://www.conventionalcommits.org/en/v1.0.0/).
+
 See [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md)
-and the [compatibility matrix](https://fablab-imperia.github.io/meshbee/compatibility/).
+and the [compatibility matrix](https://fablab-imperia.github.io/meshbee/contract/compatibility/).
 
 ## 📞 Supporto
 
