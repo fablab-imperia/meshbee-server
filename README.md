@@ -13,6 +13,7 @@ Other parts of the Meshbee project include:
 | **[meshbee-hardware](https://github.com/fablab-imperia/meshbee-hardware)** | Hardware design: PCB schematics and 3D-printed enclosures. |
 
 📖 **Documentation:** <https://fablab-imperia.github.io/meshbee/>
+
 🛠️ **Built by:** [Fablab Imperia APS](https://www.fablabimperia.org)
 
 ## 📋 Indice
@@ -515,9 +516,14 @@ command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 
 Questo progetto è rilasciato sotto [licenza APGL-3.0](LICENSE).
 
-## 👥 Contributi
+## 👥 Versioning & contributing
 
 Contributi, issues e feature requests sono benvenuti!
+
+Releases follow [![SemVer 2.0.0](https://img.shields.io/badge/SemVer-2.0.0-blue.svg)](https://semver.org/spec/v2.0.0.html).
+Commits follow [![Conventional Commits 1.0.0](https://img.shields.io/badge/Conventional%20Commits-1.0.0-blue.svg)](https://www.conventionalcommits.org/en/v1.0.0/).
+See [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md)
+and the [compatibility matrix](https://fablab-imperia.github.io/meshbee/compatibility/).
 
 ## 📞 Supporto
 
