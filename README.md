@@ -1,6 +1,19 @@
-# 🐝 Beehive IoT System
+# 🐝 Meshbee Backend
 
-Sistema completo per la gestione e monitoraggio di arnie tramite sensori IoT.
+This is the **backend** code for the [Meshbee project](https://github.com/fablab-imperia/meshbee). Implements FastAPI REST API, MQTT handler, Mosquitto broker and PostgreSQL, via Docker Compose.
+
+Other parts of the Meshbee project include:
+
+| Repository | What it is |
+|---|---|
+| **[meshbee](https://github.com/fablab-imperia/meshbee)**  | Umbrella repo: documentation, architecture and the versioned MQTT/API contract. |
+| **[meshbee-firmware](https://github.com/fablab-imperia/meshbee-firmware)** | ESP32 firmware for the sensor and gateway nodes (Meshtastic + MQTT). |
+| **[meshbee-server](https://github.com/fablab-imperia/meshbee-server)** (this one) | Backend: FastAPI REST API, MQTT handler, Mosquitto broker and PostgreSQL, via Docker Compose. |
+| **[meshbee-app](https://github.com/fablab-imperia/meshbee-app)** | Mobile app in React Native / Expo — dashboards, charts and push alerts. |
+| **[meshbee-hardware](https://github.com/fablab-imperia/meshbee-hardware)** | Hardware design: PCB schematics and 3D-printed enclosures. |
+
+📖 **Documentation:** <https://fablab-imperia.github.io/meshbee/>
+🛠️ **Built by:** [Fablab Imperia APS](https://www.fablabimperia.org)
 
 ## 📋 Indice
 
@@ -355,7 +368,7 @@ Esempi:
 ### Struttura Directory
 
 ```
-beehive-iot/
+meshbee-server/
 ├── api/                    # FastAPI REST API
 │   ├── main.py            # Applicazione principale
 │   ├── auth.py            # Autenticazione JWT
