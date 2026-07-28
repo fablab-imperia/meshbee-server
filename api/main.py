@@ -4,7 +4,7 @@ Beehive IoT API - Applicazione principale
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import logging
 import json
