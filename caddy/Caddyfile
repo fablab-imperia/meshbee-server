@@ -1,0 +1,18 @@
+# TLS terminator in front of the FastAPI/uvicorn API, which is HTTP-only.
+# Gives HTTPS access locally with a browser-trusted cert (mkcert), so cookie
+# `Secure`, mixed-content and absolute-URL issues surface in development.
+{
+	# Caddy's own ACME/internal issuance would produce a cert the browser
+	# doesn't trust. We mount an mkcert-issued cert instead — mkcert's CA is
+	# already in the system trust store, so the padlock is real and green.
+	auto_https off
+	admin off
+}
+
+:8443 {
+	tls /certs/localhost.pem /certs/localhost-key.pem
+
+	# reverse_proxy upgrades WebSockets transparently. `api` is the FastAPI
+	# service (uvicorn), started automatically by `docker compose up`.
+	reverse_proxy api:8000
+}

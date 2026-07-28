@@ -95,14 +95,15 @@ Sistema IoT completo per il monitoraggio di arnie che include:
 ### Software
 - Docker & Docker Compose
 - (Opzionale) Git per clonare il repository
+- (Opzionale) [mkcert](https://github.com/FiloSottile/mkcert) per il certificato HTTPS locale (`make certs`)
 
 ## 🚀 Installazione
 
 ### 1. Clona il Repository
 
 ```bash
-git clone <repository-url>
-cd beehive-iot
+git clone https://github.com/fablab-imperia/meshbee-server.git
+cd meshbee-server
 ```
 
 ### 2. Crea File di Configurazione
@@ -113,12 +114,15 @@ cp .env.example .env
 
 ### 3. Modifica Configurazione
 
-Edita il file `.env` e modifica almeno:
+Edita il file `.env` e imposta valori sicuri per **tutte** le credenziali:
 
 ```bash
 # IMPORTANTE: Cambia queste password!
-POSTGRES_PASSWORD=tua-password-sicura
-JWT_SECRET_KEY=genera-chiave-con-openssl-rand-hex-32
+POSTGRES_PASSWORD=tua-password-sicura        # password del database
+JWT_SECRET_KEY=genera-chiave-con-openssl     # firma dei token JWT
+MQTT_PASSWORD=tua-password-mqtt              # autenticazione broker/handler MQTT
+ADMIN_PASSWORD=tua-password-admin           # utente admin creato al primo avvio
+USER_PASSWORD=tua-password-utente           # utente di test creato al primo avvio
 ```
 
 Per generare una chiave JWT sicura:
@@ -127,13 +131,41 @@ Per generare una chiave JWT sicura:
 openssl rand -hex 32
 ```
 
-### 4. Avvia i Servizi
+### 4. Genera il File Password per Mosquitto
+
+Il broker richiede autenticazione (`allow_anonymous false`), quindi va generato
+il file password a partire dalle credenziali in `.env`. **Senza questo passo il
+container Mosquitto non si avvia.**
 
 ```bash
-docker-compose up -d
+make mqtt-passwd
 ```
 
-### 5. Verifica il Funzionamento
+> Se in seguito cambi `MQTT_PASSWORD` nel `.env`, riesegui `make mqtt-passwd`.
+
+### 5. (Opzionale) Abilita HTTPS
+
+Lo stack include un proxy **Caddy** che espone l'API in HTTPS con un certificato
+attendibile localmente. Genera il certificato una volta (richiede
+[mkcert](https://github.com/FiloSottile/mkcert)):
+
+```bash
+make certs
+```
+
+Se salti questo passo, Caddy stampa un avviso ed esce: il resto dello stack e
+l'HTTP su `:8000` continuano a funzionare.
+
+### 6. Avvia i Servizi
+
+```bash
+docker-compose up -d      # oppure: make start
+```
+
+> **Scorciatoia:** `make setup` esegue in sequenza la copia di `.env`,
+> `make mqtt-passwd` e l'avvio dei servizi (esclusi i certificati HTTPS).
+
+### 7. Verifica il Funzionamento
 
 ```bash
 # Verifica che tutti i container siano in esecuzione
@@ -143,8 +175,11 @@ docker-compose ps
 docker-compose logs -f
 ```
 
-L'API sarà disponibile su: `http://localhost:8000`  
-La documentazione interattiva: `http://localhost:8000/docs`
+- **HTTP**:  <http://localhost:8000/docs>
+- **HTTPS**: <https://localhost:8443/docs> (se hai eseguito `make certs`)
+
+> Il container `meshbee-seed` crea gli utenti iniziali e poi termina: vederlo
+> come `Exited (0)` è normale, non è un errore.
 
 ## ⚙️ Configurazione
 
@@ -450,6 +485,34 @@ uvicorn main:app --reload
 cd ../mqtt-handler
 python mqtt_handler.py
 ```
+
+### HTTPS locale (proxy Caddy)
+
+L'ambiente di sviluppo è già isolato: ogni servizio gira nel proprio container
+con le dipendenze fissate in `requirements.txt`, quindi sull'host serve solo
+Docker. In più, lo stack include un proxy **Caddy** che espone l'API in
+**HTTPS** con un certificato attendibile localmente, così problemi legati a
+`Secure` cookie, mixed-content e URL assoluti emergono già in sviluppo.
+
+Genera il certificato una volta (richiede [mkcert](https://github.com/FiloSottile/mkcert),
+su macOS: `brew install mkcert`):
+
+```bash
+make certs   # = ./caddy/make-certs.sh
+```
+
+Poi avvia (o riavvia) lo stack come al solito:
+
+```bash
+make start   # oppure: docker-compose up -d
+```
+
+- **HTTPS**: <https://localhost:8443/docs>
+- **HTTP**:  <http://localhost:8000/docs>
+
+Se i certificati non ci sono, il container Caddy stampa le istruzioni ed esce
+senza errori: il resto dello stack e l'HTTP su `:8000` continuano a funzionare.
+La configurazione del proxy è in [`caddy/Caddyfile`](caddy/Caddyfile).
 
 ## 🔒 Sicurezza
 
