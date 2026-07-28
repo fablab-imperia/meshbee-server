@@ -16,8 +16,8 @@ help: ## Mostra questo messaggio di aiuto
 start: ## Avvia tutti i servizi
 	$(COMPOSE) up -d
 	@echo "✓ Servizi avviati!"
-	@echo "API: http://localhost:8000"
-	@echo "Docs: http://localhost:8000/docs"
+	@echo "API HTTPS: https://localhost:8443/docs (requires 'make certs')"
+	@echo "API HTTP:  http://localhost:8000/docs"
 
 stop: ## Ferma tutti i servizi
 	$(COMPOSE) stop
@@ -64,6 +64,10 @@ clean-all: ## Ferma e rimuove tutto (CANCELLA ANCHE I DATI!)
 	else \
 		echo "Operazione annullata"; \
 	fi
+
+# HTTPS Commands
+certs: ## Generate the local HTTPS certificate for the Caddy proxy (requires mkcert)
+	./caddy/make-certs.sh
 
 # Database Commands
 db-shell: ## Accedi alla shell PostgreSQL
@@ -162,8 +166,10 @@ endpoints: ## Mostra endpoints disponibili
 	@echo "=== Beehive IoT - Endpoints ==="
 	@echo ""
 	@echo "Web:"
-	@echo "  http://localhost:8000          - API Root"
-	@echo "  http://localhost:8000/docs     - Swagger UI"
+	@echo "  https://localhost:8443         - API Root (HTTPS, requires 'make certs')"
+	@echo "  https://localhost:8443/docs    - Swagger UI (HTTPS)"
+	@echo "  http://localhost:8000          - API Root (HTTP)"
+	@echo "  http://localhost:8000/docs     - Swagger UI (HTTP)"
 	@echo "  http://localhost:8000/redoc    - ReDoc"
 	@echo "  http://localhost:8000/health   - Health Check"
 	@echo ""
