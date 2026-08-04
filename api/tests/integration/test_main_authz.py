@@ -4,15 +4,14 @@ One table, three sweeps: no credentials, a non-admin on admin routes, and a user
 with no association on arnia-scoped routes. A gate that goes missing during the
 refactor fails here, whatever else still works.
 
-Note on the unauthenticated status: FastAPI's HTTPBearer answers a missing
-Authorization header with **403 "Not authenticated"**, not 401. That is the
-framework default, asserted here as the current contract rather than endorsed.
+The two failure modes are deliberately distinct: **401** means "authenticate and
+try again", **403** means "you are authenticated but not allowed".
 """
 import pytest
 
-# Every endpoint reachable without a token.
-PUBLIC = [
-    ("post", "/api/auth/login", {"email": "a@b.org", "password": "x"}),
+# Reachable without a token and always 200. Login is public too, but answers 401
+# on bad credentials, so it gets its own test below.
+PUBLIC_OPEN = [
     ("get", "/", None),
     ("get", "/health", None),
 ]
@@ -82,14 +81,48 @@ def ids(rows):
 
 @pytest.mark.parametrize("method, path, body", PROTECTED, ids=ids(PROTECTED))
 def test_protected_endpoints_reject_anonymous_requests(client, method, path, body):
-    """Every non-public endpoint refuses a request with no Authorization header."""
-    assert call(client, method, path, body).status_code == 403
+    """Every non-public endpoint answers 401 to a request with no Authorization header."""
+    assert call(client, method, path, body).status_code == 401
 
 
-@pytest.mark.parametrize("method, path, body", PUBLIC, ids=ids(PUBLIC))
+def test_an_anonymous_request_advertises_how_to_authenticate(client):
+    """401 carries WWW-Authenticate, so a client knows which scheme to use."""
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["Basic dXNlcjpwYXNz", "Bearer", "nonsense", "Token abc123"],
+)
+def test_a_non_bearer_authorization_header_is_unauthorized(client, header):
+    """A header that is not a Bearer token is treated as no credentials at all."""
+    response = client.get("/api/auth/me", headers={"Authorization": header})
+
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize("method, path, body", PUBLIC_OPEN, ids=ids(PUBLIC_OPEN))
 def test_public_endpoints_do_not_require_a_token(client, method, path, body):
-    """Login, root and health stay reachable without credentials."""
-    assert call(client, method, path, body).status_code != 403
+    """Root and health stay reachable without credentials."""
+    assert call(client, method, path, body).status_code == 200
+
+
+def test_login_is_reachable_without_a_token(client):
+    """
+    Login runs its handler rather than being turned away for lack of a token.
+
+    It answers 401 here because the account does not exist — the detail is what
+    distinguishes "bad credentials" from "authenticate first".
+    """
+    response = client.post(
+        "/api/auth/login", json={"email": "nobody@example.org", "password": "secret123"}
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Email o password non corretti"
 
 
 # ============================================

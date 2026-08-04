@@ -16,8 +16,12 @@ from models import TokenData, UserResponse
 
 logger = logging.getLogger(__name__)
 
-# Security scheme
-security = HTTPBearer()
+# Security scheme.
+# auto_error=False so a missing or malformed Authorization header reaches
+# get_current_user, which answers 401 with a WWW-Authenticate header. Left to
+# itself HTTPBearer raises a bare 403, which tells a client it is forbidden
+# rather than that it needs to authenticate.
+security = HTTPBearer(auto_error=False)
 
 
 def database_unavailable_error(exc: Exception) -> HTTPException:
@@ -160,7 +164,9 @@ def authenticate_user(email: str, password: str) -> Optional[Dict]:
         raise database_unavailable_error(e)
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Dict:
     """
     Dependency per ottenere l'utente corrente dal token JWT
     
@@ -178,7 +184,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         detail="Credenziali non valide",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
+    # auto_error=False: no header, or one that is not a Bearer token.
+    if credentials is None:
+        raise credentials_exception
+
     try:
         token = credentials.credentials
         payload = decode_token(token)
