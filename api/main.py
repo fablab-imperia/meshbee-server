@@ -8,6 +8,7 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import logging
 import json
+import psycopg2
 
 from config import settings
 from database import init_db_pool, close_db_pool, get_db_cursor
@@ -570,7 +571,7 @@ async def create_user(
             cursor.execute("SELECT id_utente FROM utenti WHERE email = %s", (user.email,))
             if cursor.fetchone():
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail="Email già registrata"
                 )
             
@@ -667,6 +668,11 @@ async def update_user(
             return dict(updated_user)
     except HTTPException:
         raise
+    except psycopg2.errors.UniqueViolation:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email già registrata"
+        )
     except Exception as e:
         logger.error(f"Errore aggiornamento utente: {e}")
         raise HTTPException(status_code=500, detail="Errore interno del server")
@@ -753,6 +759,16 @@ async def create_arnia(
             
             new_arnia = cursor.fetchone()
             return dict(new_arnia)
+    except psycopg2.errors.UniqueViolation:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Sensore '{arnia.id_sensore_fisico}' già registrato per il nodo '{arnia.id_nodo}'"
+        )
+    except psycopg2.errors.ForeignKeyViolation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nodo '{arnia.id_nodo}' non trovato"
+        )
     except Exception as e:
         logger.error(f"Errore creazione arnia: {e}")
         raise HTTPException(status_code=500, detail="Errore interno del server")
@@ -788,6 +804,11 @@ async def associate_user_arnia(
             )
             
             return {"message": "Associazione creata con successo"}
+    except psycopg2.errors.ForeignKeyViolation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utente o arnia non trovati"
+        )
     except Exception as e:
         logger.error(f"Errore associazione utente-arnia: {e}")
         raise HTTPException(status_code=500, detail="Errore interno del server")
@@ -879,7 +900,10 @@ async def create_nodo(
         with get_db_cursor() as cursor:
             cursor.execute("SELECT id_nodo FROM nodi WHERE id_nodo = %s", (nodo.id_nodo,))
             if cursor.fetchone():
-                raise HTTPException(status_code=400, detail=f"Nodo '{nodo.id_nodo}' già esistente")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Nodo '{nodo.id_nodo}' già esistente"
+                )
 
             cursor.execute(
                 """
@@ -1323,6 +1347,11 @@ async def create_lettura_manuale(
                 )
             )
             return dict(cursor.fetchone())
+    except psycopg2.errors.ForeignKeyViolation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Arnia {lettura.id_arnia} non trovata"
+        )
     except Exception as e:
         logger.error(f"Errore inserimento lettura: {e}")
         raise HTTPException(status_code=500, detail="Errore interno del server")
