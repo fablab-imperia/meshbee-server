@@ -21,6 +21,7 @@ from models import (
     PasswordChange,
     Token,
     UserCreate,
+    UserLogin,
     UserResponse,
     UserUpdate,
     UtenteArniaCreate,
@@ -84,6 +85,18 @@ def test_email_validation_is_inherited_by_the_response_model():
     )
 
     assert user.email == "apicoltore@example.org"
+
+
+def test_login_email_is_normalised():
+    """UserLogin shares UserBase's normalisation so the lookup matches what was stored."""
+    assert UserLogin(email="  ApiColtore@Example.ORG  ", password="x").email == (
+        "apicoltore@example.org"
+    )
+
+
+def test_login_email_format_is_not_validated():
+    """Normalisation only: a malformed address must reach the 401, not raise here."""
+    assert UserLogin(email="not-an-email", password="x").email == "not-an-email"
 
 
 def test_userupdate_does_not_validate_the_email():

@@ -11,10 +11,24 @@ from decimal import Decimal
 # Modelli Autenticazione
 # ============================================
 
+def normalize_email(value: str) -> str:
+    """Trim and lowercase an address, so stored and submitted values match."""
+    return value.strip().lower()
+
+
 class UserLogin(BaseModel):
     """Dati per login utente"""
     email: str
     password: str
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email_case(cls, v):
+        """
+        Normalize exactly like UserBase, but without rejecting a bad format:
+        a malformed address must fail authentication (401), not validation (422).
+        """
+        return normalize_email(v)
 
 
 class Token(BaseModel):
@@ -45,7 +59,7 @@ class UserBase(BaseModel):
     @classmethod
     def validate_email_format(cls, v):
         """Validazione email minimale: deve contenere @ e un dominio"""
-        v = v.strip().lower()
+        v = normalize_email(v)
         if '@' not in v:
             raise ValueError('Email non valida: manca @')
         local, _, domain = v.partition('@')

@@ -79,16 +79,38 @@ def test_login_does_not_distinguish_unknown_from_wrong(client, utente, known_pas
     assert wrong.json()["detail"] == unknown.json()["detail"]
 
 
-def test_login_email_is_case_insensitive_only_if_stored_that_way(client, utente, known_password):
+def test_login_email_is_case_insensitive(client, utente, known_password):
     """
-    The lookup is a plain `WHERE email = %s`, so it is case-sensitive.
-
-    UserBase lowercases on the way in, but UserLogin does not inherit that
-    validator, so a mixed-case login does not match a stored address.
+    Addresses are stored lowercase by UserBase, and UserLogin normalises the
+    same way, so the casing a user types does not matter.
     """
     response = client.post(
         "/api/auth/login",
         json={"email": utente["email"].upper(), "password": known_password},
+    )
+
+    assert response.status_code == 200
+
+
+def test_login_ignores_surrounding_whitespace(client, utente, known_password):
+    """A pasted address with stray spaces still matches."""
+    response = client.post(
+        "/api/auth/login",
+        json={"email": f"  {utente['email']}  ", "password": known_password},
+    )
+
+    assert response.status_code == 200
+
+
+def test_a_malformed_login_email_fails_authentication_not_validation(client, known_password):
+    """
+    UserLogin normalises but does not validate the format.
+
+    Garbage in the email field must look like a failed login (401), not a
+    validation error (422) that tells a caller which field was malformed.
+    """
+    response = client.post(
+        "/api/auth/login", json={"email": "not-an-email", "password": known_password}
     )
 
     assert response.status_code == 401
