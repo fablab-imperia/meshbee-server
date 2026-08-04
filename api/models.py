@@ -1,7 +1,7 @@
 """
 Modelli Pydantic per validazione e serializzazione
 """
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from decimal import Decimal
@@ -139,8 +139,7 @@ class UserResponse(UserBase):
     ultimo_accesso: Optional[datetime] = None
     attivo: bool
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
@@ -167,8 +166,7 @@ class NodoResponse(NodoBase):
     attivo: bool
     configurazione: Optional[Dict[str, Any]] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
@@ -212,8 +210,7 @@ class ArniaResponse(ArniaBase):
     latitudine: Optional[Decimal] = None
     longitudine: Optional[Decimal] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ArniaConStato(ArniaResponse):
@@ -274,8 +271,7 @@ class LetturaResponse(LetturaBase):
     timestamp: datetime
     dati_raw: Optional[Dict[str, Any]] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SerieTemperaturaResponse(BaseModel):
@@ -283,8 +279,7 @@ class SerieTemperaturaResponse(BaseModel):
     timestamp: datetime
     temperatura: Decimal
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SerieUmiditaResponse(BaseModel):
@@ -292,8 +287,7 @@ class SerieUmiditaResponse(BaseModel):
     timestamp: datetime
     umidita: Decimal
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SeriePesoResponse(BaseModel):
@@ -301,8 +295,7 @@ class SeriePesoResponse(BaseModel):
     timestamp: datetime
     peso: Decimal
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
@@ -337,8 +330,7 @@ class AttivitaResponse(AttivitaBase):
     id_arnia: int
     timestamp: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
@@ -362,8 +354,7 @@ class UtenteArniaResponse(BaseModel):
     permessi: str
     attivo: bool
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
