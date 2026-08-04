@@ -15,17 +15,26 @@ beehive-iot/
 ├── 📁 database/
 │   └── init.sql                    # Schema database PostgreSQL completo
 │
-├── 📁 api/                         # Servizio API FastAPI
-│   ├── main.py                     # Applicazione principale
+├── 📁 meshbee_core/                # Libreria condivisa (importata, non distribuita)
+│   ├── config.py                   # CoreSettings: campi database
+│   ├── db.py                       # Pool connessioni + get_db_cursor
+│   ├── schemas.py                  # Modelli Pydantic
+│   ├── security.py                 # Hashing password
+│   ├── errors.py                   # NotFound / Conflict / InvalidData
+│   ├── repository/                 # Solo SQL
+│   └── services/                   # Logica di business
+│
+├── 📁 api/                         # Entry point FastAPI
+│   ├── main.py                     # Rotte sottili (nessun SQL)
 │   ├── auth.py                     # Autenticazione JWT
-│   ├── models.py                   # Modelli Pydantic
-│   ├── database.py                 # Gestione connessione DB
-│   ├── config.py                   # Configurazione
+│   ├── config.py                   # Settings(CoreSettings) + JWT/CORS
 │   ├── requirements.txt            # Dipendenze Python
 │   └── Dockerfile                  # Immagine Docker
 │
-├── 📁 mqtt-handler/                # Servizio gestione MQTT
-│   ├── mqtt_handler.py             # Handler messaggi MQTT
+├── 📁 mqtt_handler/                # Entry point MQTT
+│   ├── handler.py                  # Callback sottile (nessun SQL)
+│   ├── payload.py                  # Decodifica messaggi dei nodi
+│   ├── config.py                   # Settings(CoreSettings) + MQTT_*
 │   ├── requirements.txt            # Dipendenze Python
 │   └── Dockerfile                  # Immagine Docker
 │
@@ -58,7 +67,7 @@ beehive-iot/
   - CORS configurabile
 
 ### 3. MQTT Handler
-- **Directory**: `mqtt-handler/`
+- **Directory**: `mqtt_handler/`
 - **Cosa fa**: Riceve dati MQTT e li salva nel database
 - **Topic pattern**: `beehive/{ID_NODO}/data`
 - **Features**:

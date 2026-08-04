@@ -80,7 +80,7 @@ docker-compose up -d postgres mosquitto
 
 ### Debug MQTT Handler
 
-1. Apri `mqtt-handler/mqtt_handler.py`
+1. Apri `mqtt_handler/handler.py`
 2. Imposta breakpoint
 3. Seleziona "Python: MQTT Handler"
 4. Premi `F5`
@@ -176,14 +176,18 @@ beehive-iot/
 ├── 📄 Makefile                     ← Comandi rapidi
 ├── 📄 api_tests.http               ← Test API
 │
+├── 📁 meshbee_core/     ← Libreria condivisa
+│   ├── schemas.py       ← Modelli dati
+│   ├── repository/      ← Solo SQL
+│   └── services/        ← Logica di business
+│
 ├── 📁 api/
 │   ├── main.py          ← Entry point API
 │   ├── auth.py          ← Autenticazione
-│   ├── models.py        ← Modelli dati
 │   └── ...
 │
-├── 📁 mqtt-handler/
-│   └── mqtt_handler.py  ← Gestore MQTT
+├── 📁 mqtt_handler/
+│   └── handler.py       ← Gestore MQTT
 │
 └── 📁 database/
     └── init.sql         ← Schema DB

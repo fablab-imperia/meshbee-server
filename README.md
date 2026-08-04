@@ -55,35 +55,82 @@ Sistema IoT completo per il monitoraggio di arnie che include:
 
 ## 🏗️ Architettura
 
-```
-┌─────────────────┐
-│  Dispositivi    │
-│  IoT (Arnie)    │
-└────────┬────────┘
-         │ MQTT
-         ▼
-┌─────────────────┐     ┌──────────────┐
-│   Mosquitto     │────▶│  PostgreSQL  │
-│  MQTT Broker    │     │   Database   │
-└────────┬────────┘     └──────▲───────┘
-         │                     │
-         │                     │
-┌────────▼────────┐           │
-│  MQTT Handler   │───────────┘
-│  (Python)       │
-└─────────────────┘
+Due processi Python scrivono e leggono lo **stesso** database, e condividono la
+stessa logica importandola da `meshbee_core`.
 
-┌─────────────────┐     ┌──────────────┐
-│   FastAPI       │────▶│  PostgreSQL  │
-│   REST API      │     │   Database   │
-└────────┬────────┘     └──────────────┘
-         │
-         ▼
-┌─────────────────┐
-│  App Mobile/Web │
-│   (Client)      │
-└─────────────────┘
 ```
+   Nodi ESP32                                              App Mobile/Web
+   (arnie)                                                    (client)
+       │                                                          │
+       │ MQTT                                                HTTPS │
+       ▼                                                          ▼
+┌──────────────┐      ┌─────────────────┐      ┌─────────────────────┐
+│  Mosquitto   │─────▶│  MQTT Handler   │      │   FastAPI  (api/)   │
+│    broker    │      │ (mqtt_handler/) │      │                     │
+└──────────────┘      └────────┬────────┘      └──────────┬──────────┘
+                               │                          │
+                     import    │        ┌─────────────────┘  import
+                               ▼        ▼
+                        ┌────────────────────────┐
+                        │     meshbee_core       │   ← libreria, non un servizio
+                        │  services/  (logica)   │
+                        │  repository/  (SQL)    │
+                        └───────────┬────────────┘
+                                    │
+                                    ▼
+                            ┌──────────────┐
+                            │  PostgreSQL  │
+                            └──────────────┘
+```
+
+### I due entry point
+
+| Processo | Cosa fa |
+|---|---|
+| **`api/`** — FastAPI | Serve l'app mobile: login JWT, arnie, letture, log attività, endpoint admin. |
+| **`mqtt_handler/`** — subscriber MQTT | Riceve le letture dei sensori dai nodi ESP32 via Mosquitto (topic `beehive/+/data`) e le salva. |
+
+Restano **due processi separati**, due container, due comandi di avvio. Il
+handler MQTT non chiama l'API via HTTP: parla al database attraverso la libreria
+condivisa, esattamente come fa l'API.
+
+### `meshbee_core` è una libreria, non un servizio
+
+È il punto che si fraintende più spesso: `meshbee_core` **viene importato, non
+distribuito**. Non c'è un container `meshbee-core`, non c'è una porta, non c'è
+una chiamata di rete. Ciascuno dei due processi ne tiene una propria copia in
+memoria; sono due istanze indipendenti dello stesso codice.
+
+Il pacchetto è installato in modalità *editable* (`pip install -e .`, vedi
+`pyproject.toml`) in entrambe le immagini, così l'import funziona allo stesso
+modo nei container e nei test.
+
+### Il confine fra i livelli
+
+| Livello | Responsabilità |
+|---|---|
+| `meshbee_core/repository/` | Solo persistenza: tabelle e query. Nessuna regola di business. |
+| `meshbee_core/services/` | La logica di Meshbee: validazione, permessi, provisioning dei nodi. Chiama il repository. |
+| `api/`, `mqtt_handler/` | Sottili: validano l'input, chiamano **un** service, traducono l'esito. |
+
+Regola sul ciclo di vita: **il cursore lo apre chi chiama**. Service e repository
+lo ricevono come argomento e non lo creano mai — l'API ne apre uno per richiesta,
+il handler MQTT uno per messaggio. Stessa funzione, due strategie diverse, perché
+una richiesta HTTP e un messaggio MQTT hanno durate diverse.
+
+Gli errori attraversano il confine tramite `meshbee_core/errors.py`
+(`NotFound`, `Conflict`, `InvalidData`): i service non conoscono gli status code,
+è `api/main.py` a tradurli in 404/409/400.
+
+### Dove va il codice nuovo
+
+- Nuova **logica di business** → un service in `meshbee_core/services/`.
+- Nuova **query SQL** → una funzione nel repository corrispondente.
+- Nuova **rotta HTTP** o nuova **sottoscrizione a un topic** → una chiamata
+  sottile a un service che esiste già.
+
+Se ti ritrovi a scrivere SQL dentro `api/` o `mqtt_handler/`, sta andando nel
+posto sbagliato.
 
 ## 💻 Requisiti
 
@@ -395,33 +442,50 @@ Esempi:
 
 ```
 meshbee-server/
-├── api/                    # FastAPI REST API
-│   ├── main.py            # Applicazione principale
-│   ├── auth.py            # Autenticazione JWT
-│   ├── models.py          # Modelli Pydantic
-│   ├── database.py        # Connessione DB
-│   ├── config.py          # Configurazione
-│   ├── tests/             # Test suite (pytest)
-│   │   ├── conftest.py    # Fixture condivise
-│   │   ├── unit/          # Logica pura, senza database
-│   │   └── integration/   # Query SQL su postgres-test
-│   ├── pytest.ini
+├── meshbee_core/           # Libreria condivisa (importata dai due entry point)
+│   ├── config.py          # CoreSettings: solo i campi del database
+│   ├── db.py              # Pool di connessioni + get_db_cursor
+│   ├── schemas.py         # Modelli Pydantic
+│   ├── security.py        # Hashing password (bcrypt)
+│   ├── errors.py          # NotFound / Conflict / InvalidData
+│   ├── repository/        # Solo SQL: utenti, nodi, arnie, letture, attivita, accessi
+│   └── services/          # Logica di business, incluso ingest.py (percorso MQTT)
+├── api/                    # Entry point FastAPI
+│   ├── main.py            # Rotte sottili (nessun SQL)
+│   ├── auth.py            # JWT e dipendenze FastAPI
+│   ├── config.py          # Settings(CoreSettings) + JWT/CORS
+│   ├── seed.py            # Utenti iniziali (one-shot)
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── requirements-dev.txt
-├── mqtt-handler/          # Handler messaggi MQTT
-│   ├── mqtt_handler.py
+├── mqtt_handler/           # Entry point MQTT
+│   ├── handler.py         # Callback sottile (nessun SQL)
+│   ├── payload.py         # Decodifica del messaggio dei nodi
+│   ├── config.py          # Settings(CoreSettings) + MQTT_*
 │   ├── Dockerfile
 │   └── requirements.txt
+├── tests/                  # Test suite (pytest)
+│   ├── conftest.py        # Fixture condivise
+│   ├── unit/              # Logica pura, senza database
+│   │   ├── api/  core/  mqtt_handler/
+│   └── integration/       # Query SQL su postgres-test
+│       ├── api/  core/
+│       └── test_ingest_parity.py   # API e MQTT scrivono righe equivalenti
 ├── database/              # Schema database
 │   └── init.sql
 ├── mosquitto/             # Configurazione MQTT
 │   └── config/
 │       └── mosquitto.conf
+├── pyproject.toml         # Pacchetto meshbee-core
+├── pytest.ini
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
 ```
+
+I due `Dockerfile` usano la **radice del repository** come build context (non
+`./api` o `./mqtt_handler`): entrambe le immagini devono poter copiare
+`meshbee_core/` e installarlo.
 
 ### Comandi Utili
 
@@ -450,17 +514,28 @@ docker-compose down -v
 
 ### Test
 
-I test dell'API sono scritti con [pytest](https://docs.pytest.org/) e vivono in
-`api/tests/`. Girano **dentro il container** `api`: l'immagine ha già tutte le
-dipendenze e la directory `api/` è montata in `/app`, quindi le modifiche ai file
-di test sono immediatamente visibili senza ricostruire nulla.
+I test sono scritti con [pytest](https://docs.pytest.org/) e vivono in `tests/`,
+nella radice del repository. Coprono **entrambi** gli entry point e la libreria
+condivisa, e girano tutti **dentro il container** `api`: l'immagine ha già tutte
+le dipendenze, e `api/`, `mqtt_handler/`, `meshbee_core/` e `tests/` sono montate
+in `/app`, quindi le modifiche sono subito visibili senza ricostruire nulla.
 
 La suite è divisa in due livelli:
 
 | Livello | Cosa verifica | Database |
 |---|---|---|
-| `tests/unit/` | logica pura: configurazione, validatori, JWT, password, permessi | no |
+| `tests/unit/` | logica pura: configurazione, validatori, JWT, password, permessi, parsing dei payload MQTT | no |
 | `tests/integration/` | le query SQL vere: nomi colonne, join, vincoli dello schema | sì |
+
+Dentro ciascun livello i file rispecchiano la struttura del codice
+(`unit/api/`, `unit/core/`, `unit/mqtt_handler/`, …), così ogni modulo ha il suo
+file di test nella posizione corrispondente.
+
+Un test merita una menzione a parte:
+`tests/integration/test_ingest_parity.py` verifica che **la stessa lettura,
+arrivata via API e via MQTT, produca righe identiche** in `letture`. È la
+regressione che l'estrazione di `meshbee_core` esiste per prevenire: prima
+ciascun percorso aveva la sua copia della INSERT.
 
 I test di integrazione usano il servizio `postgres-test`, un database usa-e-getta
 con i dati in tmpfs. Va avviato una volta (non parte con un normale `up`):
@@ -484,28 +559,31 @@ docker-compose exec api pytest -m "not integration"
 docker-compose exec api pytest -m integration
 
 # Un solo file
-docker-compose exec api pytest tests/unit/test_config.py
+docker-compose exec api pytest tests/unit/core/test_config.py
 
 # Una sola funzione (node id: file::funzione)
-docker-compose exec api pytest tests/unit/test_config.py::test_database_url_escapes_special_characters
+docker-compose exec api pytest tests/unit/core/test_config.py::test_database_url_escapes_special_characters
 
 # Un caso di un test parametrizzato
-docker-compose exec api pytest "tests/unit/test_config.py::test_missing_secret_fails_loudly[DB_PASSWORD]"
+docker-compose exec api pytest "tests/unit/api/test_config.py::test_missing_secret_fails_loudly[DB_PASSWORD]"
 
 # Tutti i test il cui nome contiene una stringa
 docker-compose exec api pytest -k database_url
+
+# Solo il test di parità fra i due percorsi di scrittura
+docker-compose exec api pytest tests/integration/test_ingest_parity.py
 
 # Output verboso, fermati al primo fallimento
 docker-compose exec api pytest -v -x
 ```
 
-I percorsi sono relativi a `/app` (cioè alla directory `api/`).
+I percorsi sono relativi a `/app`, che corrisponde alla radice del repository.
 Per comodità `make test` esegue l'intera suite; per tutto il resto si usa
 direttamente `pytest` con i suoi argomenti.
 
 I file di test sono separati per modulo e rispecchiano la struttura del codice
-(`config.py` → `tests/unit/test_config.py`): la suite cresce in modo incrementale
-aggiungendo nuovi file, senza toccare quelli esistenti.
+(`meshbee_core/config.py` → `tests/unit/core/test_config.py`): la suite cresce in
+modo incrementale aggiungendo nuovi file, senza toccare quelli esistenti.
 
 > **Nota:** dopo aver aggiunto una dipendenza in `api/requirements-dev.txt` serve
 > ricostruire l'immagine, perché il bind mount copre solo il codice:
@@ -518,19 +596,22 @@ aggiungendo nuovi file, senza toccare quelli esistenti.
 
 Per sviluppare senza Docker:
 
+Tutti i comandi si eseguono dalla **radice del repository**: è lì che vivono
+`pyproject.toml` e i pacchetti importabili.
+
 ```bash
 # Setup Python environment
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # oppure: venv\Scripts\activate  # Windows
 
-# Installa dipendenze API
-cd api
-pip install -r requirements.txt
+# Installa le dipendenze dei due entry point
+pip install -r api/requirements.txt -r api/requirements-dev.txt
+pip install -r mqtt_handler/requirements.txt
 
-# Installa dipendenze MQTT handler
-cd ../mqtt-handler
-pip install -r requirements.txt
+# Installa la libreria condivisa in modalità editable.
+# Senza questo passo `import meshbee_core` non risolve.
+pip install -e .
 
 # Configura variabili d'ambiente
 export DB_HOST=localhost
@@ -538,13 +619,14 @@ export MQTT_BROKER=localhost
 # ... altre variabili
 
 # Avvia API
-cd ../api
-uvicorn main:app --reload
+uvicorn api.main:app --reload
 
 # Avvia MQTT handler (in un altro terminale)
-cd ../mqtt-handler
-python mqtt_handler.py
+python -m mqtt_handler
 ```
+
+Le stesse operazioni sono automatizzate da `make dev-setup`, `make dev-api` e
+`make dev-mqtt`.
 
 ### HTTPS locale (proxy Caddy)
 
