@@ -2,7 +2,9 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Union
 
-from meshbee_core.errors import InvalidData
+import psycopg2
+
+from meshbee_core.errors import InvalidData, NotFound
 from meshbee_core.repository import letture
 from meshbee_core.schemas import LetturaCreate
 
@@ -43,16 +45,19 @@ def record_reading(cursor, data: Union[LetturaCreate, Dict[str, Any]]) -> Dict[s
             # the reading was simply lost. Refusing here says what was wrong.
             raise InvalidData(f"Lettura non valida: {exc}") from exc
 
-    return letture.insert(
-        cursor,
-        id_arnia=lettura.id_arnia,
-        id_nodo=lettura.id_nodo,
-        timestamp=lettura.timestamp,
-        temperatura=lettura.temperatura,
-        umidita=lettura.umidita,
-        peso=lettura.peso,
-        dati_raw=lettura.dati_raw,
-    )
+    try:
+        return letture.insert(
+            cursor,
+            id_arnia=lettura.id_arnia,
+            id_nodo=lettura.id_nodo,
+            timestamp=lettura.timestamp,
+            temperatura=lettura.temperatura,
+            umidita=lettura.umidita,
+            peso=lettura.peso,
+            dati_raw=lettura.dati_raw,
+        )
+    except psycopg2.errors.ForeignKeyViolation as exc:
+        raise NotFound(f"Arnia {lettura.id_arnia} non trovata") from exc
 
 
 def list_for_arnia(cursor, id_arnia: int, data_inizio, data_fine,

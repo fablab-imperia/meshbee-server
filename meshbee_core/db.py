@@ -82,3 +82,8 @@ def get_db_cursor():
             yield cursor
         finally:
             cursor.close()
+
+
+def ping(cursor) -> None:
+    """Cheapest possible round-trip, for health checks."""
+    cursor.execute("SELECT 1")
