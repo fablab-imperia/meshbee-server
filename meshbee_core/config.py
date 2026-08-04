@@ -7,7 +7,7 @@ no use for. A required field added here must exist in the environment of
 *every* service, so add sparingly.
 """
 from functools import lru_cache
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,9 +35,21 @@ class CoreSettings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """Build the database URL"""
-        user = quote_plus(self.DB_USER)
-        password = quote_plus(self.DB_PASSWORD.get_secret_value())
+        """Build the database URL.
+
+        Nothing calls this today: `db.py` configures psycopg2's connection pool
+        with discrete host/port/database/user/password arguments, never a DSN.
+        It is kept because a DSN is what `create_engine()` takes, so this is the
+        seam SQLAlchemy will plug into when it arrives.
+
+        `quote`, not `quote_plus`: the latter is form encoding and renders a
+        space as `+`, which every DSN parser (urllib, SQLAlchemy's make_url,
+        libpq) reads back as a literal plus rather than a space. A credential
+        containing a space would silently authenticate as the wrong user. The
+        two agree on every other metacharacter.
+        """
+        user = quote(self.DB_USER, safe="")
+        password = quote(self.DB_PASSWORD.get_secret_value(), safe="")
         return f"postgresql://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 

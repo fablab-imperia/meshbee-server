@@ -1,4 +1,6 @@
 """Tests for the shared database settings (meshbee_core/config.py)."""
+from urllib.parse import unquote, urlsplit
+
 import pytest
 from pydantic import ValidationError
 
@@ -74,8 +76,27 @@ def test_database_url_escapes_special_characters(build_core_settings):
     )
 
     assert settings.database_url == (
-        "postgresql://beehive+user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
+        "postgresql://beehive%20user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
     )
+
+
+@pytest.mark.parametrize("credential", ["beehive user", "p@ss:w/rd#1", "pa+ss", "a b+c%d"])
+def test_credentials_survive_the_round_trip_through_the_dsn(build_core_settings, credential):
+    """
+    What a DSN parser reads back must be the credential we were given.
+
+    Asserted as a round-trip rather than a fixed string because the failure this
+    guards is subtle: `quote_plus` renders a space as `+`, and unquoting gives
+    back a literal plus, so a password with a space would authenticate as
+    something else. Nothing calls database_url yet, so only a test can catch it
+    before SQLAlchemy makes it load-bearing.
+    """
+    settings = build_core_settings(DB_USER=credential, DB_PASSWORD=credential)
+
+    parsed = urlsplit(settings.database_url)
+
+    assert unquote(parsed.username) == credential
+    assert unquote(parsed.password) == credential
 
 
 def test_environment_lookup_is_case_sensitive(monkeypatch, required_env):
