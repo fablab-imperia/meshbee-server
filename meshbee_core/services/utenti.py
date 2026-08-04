@@ -1,5 +1,5 @@
 """User accounts: creation, updates, deactivation and passwords."""
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import psycopg2
 
@@ -28,6 +28,21 @@ def create_utente(cursor, user) -> Dict[str, Any]:
         cognome=user.cognome,
         ruolo=user.ruolo,
     ))
+
+
+def ensure_utente(cursor, user) -> Tuple[Dict[str, Any], bool]:
+    """
+    Create the account only if the address is not taken. Returns (row, created).
+
+    The idempotent counterpart of `create_utente`, for bootstrapping: the seed
+    runs on every `docker-compose up` and must not fail, nor reset a password an
+    operator has since changed.
+    """
+    existing = utenti.find_id_by_email(cursor, user.email)
+    if existing:
+        return dict(existing), False
+
+    return create_utente(cursor, user), True
 
 
 def update_utente(cursor, id_utente: int, user_update) -> Dict[str, Any]:

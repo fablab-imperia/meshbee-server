@@ -30,6 +30,24 @@ def upsert(cursor, id_utente: int, id_arnia: int, permessi: str) -> None:
     )
 
 
+def insert_if_absent(cursor, id_utente: int, id_arnia: int, permessi: str) -> None:
+    """
+    Grant access only where none was ever recorded, leaving existing rows alone.
+
+    Deliberately not `upsert`: this is for bootstrapping, which re-runs on every
+    `docker-compose up`. Reviving an association an admin had revoked, on every
+    restart, would be a silent authorization change.
+    """
+    cursor.execute(
+        """
+        INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo)
+        VALUES (%s, %s, %s, true)
+        ON CONFLICT (id_utente, id_arnia) DO NOTHING
+        """,
+        (id_utente, id_arnia, permessi)
+    )
+
+
 def deactivate(cursor, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
     cursor.execute(
         """

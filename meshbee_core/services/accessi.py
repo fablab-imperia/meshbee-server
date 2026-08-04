@@ -23,6 +23,16 @@ def grant(cursor, associazione) -> None:
         raise NotFound("Utente o arnia non trovati") from exc
 
 
+def grant_if_absent(cursor, id_utente: int, id_arnia: int, permessi: str) -> None:
+    """
+    Grant access without touching an association that already exists.
+
+    See `repository.accessi.insert_if_absent` for why bootstrapping must not use
+    the reviving upsert.
+    """
+    accessi.insert_if_absent(cursor, id_utente, id_arnia, permessi)
+
+
 def revoke(cursor, id_utente: int, id_arnia: int) -> None:
     """
     Raises:

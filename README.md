@@ -172,6 +172,10 @@ ADMIN_PASSWORD=tua-password-admin           # utente admin creato al primo avvio
 USER_PASSWORD=tua-password-utente           # utente di test creato al primo avvio
 ```
 
+`ADMIN_PASSWORD` e `USER_PASSWORD` sono **obbligatorie e di almeno 8 caratteri**:
+se mancano, il servizio `seed` si ferma con un errore esplicito invece di creare
+account utilizzabili con password vuota.
+
 Per generare una chiave JWT sicura:
 
 ```bash
@@ -454,7 +458,6 @@ meshbee-server/
 │   ├── main.py            # Rotte sottili (nessun SQL)
 │   ├── auth.py            # JWT e dipendenze FastAPI
 │   ├── config.py          # Settings(CoreSettings) + JWT/CORS
-│   ├── seed.py            # Utenti iniziali (one-shot)
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── requirements-dev.txt
@@ -464,6 +467,8 @@ meshbee-server/
 │   ├── config.py          # Settings(CoreSettings) + MQTT_*
 │   ├── Dockerfile
 │   └── requirements.txt
+├── scripts/                # Script one-shot (non fanno parte dei servizi)
+│   └── seed.py            # Utenti iniziali — idempotente, nessun SQL
 ├── tests/                  # Test suite (pytest)
 │   ├── conftest.py        # Fixture condivise
 │   ├── unit/              # Logica pura, senza database

@@ -17,6 +17,11 @@ def list_all(cursor, limit: int) -> List[Dict[str, Any]]:
     return [dict(row) for row in attivita.list_all(cursor, limit)]
 
 
+def count_for_arnia(cursor, id_arnia: int) -> int:
+    """How many entries an arnia already has — used to keep seeding idempotent."""
+    return attivita.count_for_arnia(cursor, id_arnia)
+
+
 def create_attivita(cursor, id_utente: int, id_arnia: int, nuova) -> Dict[str, Any]:
     """
     Record an activity against an arnia.

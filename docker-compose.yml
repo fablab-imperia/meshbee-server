@@ -82,14 +82,14 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       USER_PASSWORD: ${USER_PASSWORD}
-      # Unused by seed.py, but it shares the api image and its Settings model
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      # No JWT_SECRET_KEY: the seed reads SeedSettings, which extends
+      # CoreSettings (database only) and knows nothing about tokens.
     networks:
       - beehive-network
     volumes:
-      - ./api:/app/api
+      - ./scripts:/app/scripts
       - ./meshbee_core:/app/meshbee_core
-    command: python -m api.seed
+    command: python -m scripts.seed
 
   # MQTT Data Handler
   mqtt-handler:
@@ -148,8 +148,9 @@ services:
       - ./api:/app/api
       # Bind-mounted over the editable install, so library edits reload too.
       - ./meshbee_core:/app/meshbee_core
-      # Only so the suite can exercise the MQTT entry point too.
+      # Only so the suite can exercise the MQTT entry point and the seed too.
       - ./mqtt_handler:/app/mqtt_handler
+      - ./scripts:/app/scripts
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini:ro
       # Schema letto dai test di integrazione per ricreare il DB di test

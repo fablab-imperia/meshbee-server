@@ -26,6 +26,11 @@ def list_all(cursor) -> List[Dict[str, Any]]:
     return [dict(row) for row in arnie.list_stato(cursor)]
 
 
+def list_ids(cursor) -> List[int]:
+    """Every arnia id, oldest first — for callers that only need to iterate."""
+    return [row["id_arnia"] for row in arnie.list_ids(cursor)]
+
+
 def get_arnia(cursor, id_arnia: int) -> Dict[str, Any]:
     """
     Raises:

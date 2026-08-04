@@ -44,6 +44,13 @@ def list_all(cursor, limit: int) -> List[Dict[str, Any]]:
     return cursor.fetchall()
 
 
+def count_for_arnia(cursor, id_arnia: int) -> int:
+    cursor.execute(
+        "SELECT COUNT(*) AS n FROM log_attivita WHERE id_arnia = %s", (id_arnia,)
+    )
+    return cursor.fetchone()["n"]
+
+
 def insert(cursor, *, id_utente: Optional[int], id_arnia: int, timestamp,
            tipo_attivita: str, descrizione: Optional[str],
            dati: Optional[dict]) -> Dict[str, Any]:
