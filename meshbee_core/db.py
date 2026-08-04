@@ -1,14 +1,16 @@
 """
 Gestione connessione database
+
+Shared by both entry points. `init_db_pool` takes its settings as an argument
+rather than importing a singleton, so the library never decides where its
+configuration comes from — the process that owns the pool does.
 """
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
 from contextlib import contextmanager
-from typing import Generator
 import logging
 
-from api.config import settings
+from meshbee_core.config import CoreSettings
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +18,13 @@ logger = logging.getLogger(__name__)
 db_pool: SimpleConnectionPool = None
 
 
-def init_db_pool():
+def init_db_pool(settings: CoreSettings, *, maxconn: int = 20):
     """Inizializza il pool di connessioni al database"""
     global db_pool
     try:
         db_pool = SimpleConnectionPool(
             minconn=1,
-            maxconn=20,
+            maxconn=maxconn,
             host=settings.DB_HOST,
             port=settings.DB_PORT,
             database=settings.DB_NAME,

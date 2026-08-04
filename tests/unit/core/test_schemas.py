@@ -1,4 +1,4 @@
-"""Tests for the pydantic models (api/models.py).
+"""Tests for the pydantic schemas (meshbee_core/schemas.py).
 
 Scope: the validation *we* declare — the custom email/lettura validators, the
 Field bounds, and the defaults that have to agree with database/init.sql.
@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from api.models import (
+from meshbee_core.schemas import (
     BCRYPT_MAX_BYTES,
     ArniaBase,
     ArniaResponse,

@@ -22,7 +22,8 @@ def hash_password(password: str) -> str:
 
 
 def seed():
-    from api.database import init_db_pool, get_db_cursor
+    from api.config import settings
+    from meshbee_core.db import init_db_pool, get_db_cursor
 
     default_users = [
         {
@@ -41,7 +42,7 @@ def seed():
         },
     ]
 
-    init_db_pool()
+    init_db_pool(settings)
     user_ids = {}
 
     # 1. Crea utenti

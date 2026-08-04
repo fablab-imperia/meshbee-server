@@ -1,4 +1,9 @@
-"""Tests for the application settings (api/config.py)."""
+"""Tests for the API settings (api/config.py).
+
+The database half lives in meshbee_core and is covered by
+tests/unit/core/test_config.py; what matters here is the API-only fields and
+that subclassing really does carry the shared ones through.
+"""
 import pytest
 from pydantic import ValidationError
 
@@ -9,25 +14,26 @@ def test_defaults_are_applied(build_settings):
     """Without any environment variable, the declared defaults are used."""
     settings = build_settings()
 
-    assert settings.DB_HOST == "localhost"
-    assert settings.DB_PORT == 5432
-    assert settings.DB_NAME == "beehive_iot"
-    assert settings.DB_USER == "beehive_user"
     assert settings.JWT_ALGORITHM == "HS256"
     assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == 30
     assert settings.REFRESH_TOKEN_EXPIRE_DAYS == 7
     assert settings.CORS_ORIGINS == ["*"]
 
 
-def test_environment_overrides_defaults(monkeypatch, required_env):
-    """Environment variables win over the defaults and are coerced to the field type."""
-    monkeypatch.setenv("DB_HOST", "pg.example")
-    monkeypatch.setenv("DB_PORT", "5544")
+def test_the_shared_database_settings_are_inherited(build_settings):
+    """
+    Settings subclasses CoreSettings, so the API keeps one settings object.
 
-    settings = Settings(_env_file=None)
+    Asserted here because the split is invisible at the call site: `database.py`
+    and every DB_* reference in the API rely on these fields still being present.
+    """
+    settings = build_settings()
 
-    assert settings.DB_HOST == "pg.example"
-    assert settings.DB_PORT == 5544
+    assert settings.DB_HOST == "localhost"
+    assert settings.DB_PORT == 5432
+    assert settings.DB_NAME == "beehive_iot"
+    assert settings.DB_USER == "beehive_user"
+    assert settings.database_url.startswith("postgresql://")
 
 
 @pytest.mark.parametrize("missing_field", ["DB_PASSWORD", "JWT_SECRET_KEY"])
@@ -47,35 +53,7 @@ def test_secrets_are_not_exposed_by_repr(build_settings):
 
     assert "s3cr3t-db" not in repr(settings)
     assert "s3cr3t-jwt" not in repr(settings)
-    assert settings.DB_PASSWORD.get_secret_value() == "s3cr3t-db"
-
-
-def test_database_url_is_built_from_the_db_settings(build_settings):
-    """database_url assembles the psycopg2 DSN from the single DB_* settings."""
-    settings = build_settings(
-        DB_HOST="db.local",
-        DB_PORT=6543,
-        DB_NAME="apiario",
-        DB_USER="beehive_user",
-        DB_PASSWORD="pw",
-    )
-
-    assert settings.database_url == "postgresql://beehive_user:pw@db.local:6543/apiario"
-
-
-def test_database_url_escapes_special_characters(build_settings):
-    """Credentials containing URL metacharacters must not corrupt the DSN."""
-    settings = build_settings(
-        DB_HOST="db.local",
-        DB_PORT=6543,
-        DB_NAME="apiario",
-        DB_USER="beehive user",
-        DB_PASSWORD="p@ss:w/rd#1",
-    )
-
-    assert settings.database_url == (
-        "postgresql://beehive+user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
-    )
+    assert settings.JWT_SECRET_KEY.get_secret_value() == "s3cr3t-jwt"
 
 
 def test_cors_origins_is_read_as_a_json_list(monkeypatch, required_env):

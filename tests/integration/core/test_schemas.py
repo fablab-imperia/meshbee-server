@@ -1,7 +1,8 @@
 """Agreement between the pydantic models and the database schema.
 
-The same rules are written twice — as Field bounds / validators in models.py and
-as CHECK constraints in database/init.sql — with nothing linking them. These
+The same rules are written twice — as Field bounds / validators in
+meshbee_core/schemas.py and as CHECK constraints in database/init.sql — with
+nothing linking them. These
 tests assert both halves reject the same value, so widening one without the
 other fails here instead of in production.
 """
@@ -12,7 +13,7 @@ import psycopg2
 import pytest
 from pydantic import ValidationError
 
-from api.models import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
+from meshbee_core.schemas import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
 
 # (model, field, value just outside the allowed range)
 OUT_OF_RANGE = [

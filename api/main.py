@@ -8,17 +8,17 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import logging
 import json
-import bcrypt
 import psycopg2
 
 from api.config import settings
-from api.database import init_db_pool, close_db_pool, get_db_cursor
 from api.auth import (
     authenticate_user, create_access_token, create_refresh_token,
-    get_current_active_user, get_current_admin_user, get_password_hash,
+    get_current_active_user, get_current_admin_user,
     check_user_arnia_access
 )
-from api.models import (
+from meshbee_core.db import init_db_pool, close_db_pool, get_db_cursor
+from meshbee_core.security import get_password_hash, verify_password
+from meshbee_core.schemas import (
     UserLogin, Token, UserCreate, UserResponse, UserUpdate,
     NodoCreate, NodoResponse, ArniaCreate, ArniaResponse, ArniaUpdate, ArniaConStato,
     LetturaCreate, LetturaResponse, AttivitaCreate, AttivitaUpdate, AttivitaResponse,
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     """Gestione startup e shutdown dell'applicazione"""
     # Startup
     logger.info("Avvio applicazione...")
-    init_db_pool()
+    init_db_pool(settings)
     yield
     # Shutdown
     logger.info("Chiusura applicazione...")
@@ -1191,7 +1191,7 @@ async def reset_user_password(
     Reset password di un utente (solo admin).
     """
     try:
-        hashed = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt(rounds=12)).decode()
+        hashed = get_password_hash(body.new_password)
         with get_db_cursor() as cursor:
             cursor.execute(
                 "UPDATE utenti SET password_hash = %s WHERE id_utente = %s RETURNING id_utente",
@@ -1300,10 +1300,10 @@ async def change_own_password(
                 (current_user["id_utente"],)
             )
             row = cursor.fetchone()
-            if not bcrypt.checkpw(body.current_password.encode(), row["password_hash"].encode()):
+            if not verify_password(body.current_password, row["password_hash"]):
                 raise HTTPException(status_code=400, detail="Password attuale non corretta")
 
-            hashed = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt(rounds=12)).decode()
+            hashed = get_password_hash(body.new_password)
             cursor.execute(
                 "UPDATE utenti SET password_hash = %s WHERE id_utente = %s",
                 (hashed, current_user["id_utente"])

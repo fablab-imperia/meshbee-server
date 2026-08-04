@@ -4,15 +4,15 @@ Autenticazione e gestione JWT
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from jose import JWTError, jwt
-import bcrypt
 import psycopg2
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 
 from api.config import settings
-from api.database import get_db_cursor
-from api.models import Permesso, TokenData, UserResponse
+from meshbee_core.db import get_db_cursor
+from meshbee_core.schemas import Permesso, TokenData, UserResponse
+from meshbee_core.security import get_password_hash, verify_password
 
 logger = logging.getLogger(__name__)
 
@@ -42,24 +42,6 @@ def database_unavailable_error(exc: Exception) -> HTTPException:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Servizio temporaneamente non disponibile",
     )
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una password contro il suo hash bcrypt"""
-    try:
-        return bcrypt.checkpw(
-            plain_password.encode('utf-8'),
-            hashed_password.encode('utf-8')
-        )
-    except Exception as e:
-        logger.error(f"Errore verifica password: {e}")
-        return False
-
-
-def get_password_hash(password: str) -> str:
-    """Genera hash bcrypt di una password"""
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12))
-    return hashed.decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

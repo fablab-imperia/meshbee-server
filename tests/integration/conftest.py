@@ -20,7 +20,7 @@ def known_password():
 @pytest.fixture(scope="session")
 def password_hash():
     """A real bcrypt hash of KNOWN_PASSWORD, computed once (12 rounds is slow)."""
-    from api.auth import get_password_hash
+    from meshbee_core.security import get_password_hash
 
     return get_password_hash(KNOWN_PASSWORD)
 

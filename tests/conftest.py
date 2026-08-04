@@ -8,6 +8,7 @@ import pytest
 from psycopg2.extras import RealDictCursor
 
 from api.config import Settings, get_settings
+from meshbee_core.config import CoreSettings, get_core_settings
 
 # Connection to the throwaway database defined as `postgres-test` in
 # docker-compose.yml. Defaults match that service, so nothing needs configuring
@@ -32,11 +33,10 @@ def anyio_backend():
     """
     return "asyncio"
 
-# The only settings without a default: every Settings instance needs them.
-REQUIRED_ENV = {
-    "DB_PASSWORD": "test-db-password",
-    "JWT_SECRET_KEY": "test-jwt-secret",
-}
+# The only settings without a default: every instance needs them. CoreSettings
+# requires just the database password; the API adds the JWT signing key.
+CORE_REQUIRED_ENV = {"DB_PASSWORD": "test-db-password"}
+REQUIRED_ENV = {**CORE_REQUIRED_ENV, "JWT_SECRET_KEY": "test-jwt-secret"}
 
 
 @pytest.fixture(autouse=True)
@@ -47,14 +47,19 @@ def isolated_settings_env(monkeypatch):
     The api container is started by docker-compose with DB_HOST=postgres,
     DB_PASSWORD, JWT_SECRET_KEY... already exported, so without this the tests
     would assert against the compose values instead of the declared defaults.
-    `get_settings` is lru_cached, so the cache is dropped on both sides of the
-    test to keep results independent of execution order.
+    Both `get_settings` helpers are lru_cached, so the caches are dropped on
+    both sides of the test to keep results independent of execution order.
+
+    `Settings` subclasses `CoreSettings`, so its model_fields is the superset
+    and stripping it covers the database variables too.
     """
     for field_name in Settings.model_fields:
         monkeypatch.delenv(field_name, raising=False)
     get_settings.cache_clear()
+    get_core_settings.cache_clear()
     yield
     get_settings.cache_clear()
+    get_core_settings.cache_clear()
 
 
 @pytest.fixture
@@ -79,9 +84,18 @@ def build_settings():
     return _build
 
 
+@pytest.fixture
+def build_core_settings():
+    """Build a CoreSettings instance — the database half, without the API extras."""
+    def _build(**overrides):
+        return CoreSettings(_env_file=None, **{**CORE_REQUIRED_ENV, **overrides})
+
+    return _build
+
+
 class FakeCursor:
     """
-    Stand-in for the RealDictCursor yielded by `database.get_db_cursor`.
+    Stand-in for the RealDictCursor yielded by `meshbee_core.db.get_db_cursor`.
 
     Only the surface the application actually uses is implemented: `execute`,
     `fetchone` and `fetchall`. Rows are handed out by successive `fetchone`
@@ -110,9 +124,12 @@ def fake_db(monkeypatch):
     """
     Replace `get_db_cursor` in the module under test with an in-memory fake.
 
-    Patching targets the *importing* module (`auth`, `main`), not `database`,
-    because both do `from database import get_db_cursor` and hold their own
-    reference. Pass `error=` to simulate the database being unreachable.
+    Patching targets the *importing* module (`auth`, `main`), not
+    `meshbee_core.db`, because both do `from meshbee_core.db import
+    get_db_cursor` and hold their own reference. The cursor then flows on into
+    the repository and service functions they call, so this one seam still
+    covers the whole request. Pass `error=` to simulate the database being
+    unreachable.
 
         cursor = fake_db(auth, rows=[{"ruolo": "admin"}])
         assert cursor.queries[0][1] == (42,)
