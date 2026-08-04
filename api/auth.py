@@ -12,9 +12,14 @@ import logging
 
 from config import settings
 from database import get_db_cursor
-from models import TokenData, UserResponse
+from models import Permesso, TokenData, UserResponse
 
 logger = logging.getLogger(__name__)
+
+# Livelli di permesso (admin > write > read).
+# Keys must match the Permesso literal, and therefore the CHECK constraint on
+# utenti_arnie.permessi — tests/integration/test_models.py asserts it.
+PERMISSION_LEVELS = {"read": 1, "write": 2, "admin": 3}
 
 # Security scheme.
 # auto_error=False so a missing or malformed Authorization header reaches
@@ -272,18 +277,28 @@ async def get_current_admin_user(current_user: Dict = Depends(get_current_active
     return current_user
 
 
-def check_user_arnia_access(id_utente: int, id_arnia: int, required_permission: str = "read") -> bool:
+def check_user_arnia_access(
+    id_utente: int, id_arnia: int, required_permission: Permesso = "read"
+) -> bool:
     """
     Verifica se un utente ha accesso a un'arnia
-    
+
     Args:
         id_utente: ID dell'utente
         id_arnia: ID dell'arnia
         required_permission: Permesso richiesto (read, write, admin)
-    
+
     Returns:
         True se l'utente ha accesso, False altrimenti
+
+    Raises:
+        ValueError: Se required_permission non è un permesso conosciuto
     """
+    # Fail closed and loudly on an unknown requirement. Defaulting it to level 0
+    # would make `user_level >= 0` true for everyone, silently granting access.
+    if required_permission not in PERMISSION_LEVELS:
+        raise ValueError(f"Permesso richiesto sconosciuto: {required_permission!r}")
+
     try:
         with get_db_cursor() as cursor:
             # Prima verifica se l'utente è admin
@@ -307,12 +322,9 @@ def check_user_arnia_access(id_utente: int, id_arnia: int, required_permission: 
             
             if not result:
                 return False
-            
-            # Mappa dei permessi (admin > write > read)
-            permission_levels = {"read": 1, "write": 2, "admin": 3}
-            user_level = permission_levels.get(result['permessi'], 0)
-            required_level = permission_levels.get(required_permission, 0)
-            
-            return user_level >= required_level
+
+            # `permessi` is constrained by a CHECK in init.sql to exactly these
+            # keys, so index directly instead of masking an unexpected value.
+            return PERMISSION_LEVELS[result['permessi']] >= PERMISSION_LEVELS[required_permission]
     except psycopg2.Error as e:
         raise database_unavailable_error(e)

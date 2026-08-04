@@ -263,13 +263,18 @@ def test_arnia_access_reports_a_database_outage_as_unavailable(fake_db):
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
-def test_an_unknown_permission_value_denies_access(fake_db):
+def test_an_unknown_required_permission_is_rejected(fake_db):
     """
-    An unrecognised permessi value ranks below read instead of granting access.
+    Asking for a permission that does not exist raises instead of granting access.
 
-    Defensive: init.sql constrains permessi to read/write/admin, so this state is
-    unreachable through the schema and can only be reproduced with a fake.
+    The previous `.get(required_permission, 0)` made the comparison
+    `user_level >= 0`, which is true for everyone — a typo at a call site would
+    have quietly opened the arnia to any associated user.
     """
-    fake_db(auth, rows=[{"ruolo": "user"}, {"permessi": "superuser"}])
+    cursor = fake_db(auth, rows=[{"ruolo": "user"}, {"permessi": "read"}])
 
-    assert check_user_arnia_access(7, 99, "read") is False
+    with pytest.raises(ValueError, match="sconosciuto"):
+        check_user_arnia_access(7, 99, "superuser")
+
+    # Rejected before touching the database.
+    assert cursor.queries == []

@@ -139,6 +139,20 @@ def test_model_literals_match_the_schema_check(db, literal, table, column):
     assert set(get_args(literal)) == check_constraint_values(db, table, column)
 
 
+def test_auth_ranks_exactly_the_permissions_the_schema_allows(db):
+    """
+    auth.PERMISSION_LEVELS, the Permesso literal and the CHECK all agree.
+
+    A level present in the schema but missing from the map would raise a KeyError
+    mid-request; one present only in the map would never be reachable.
+    """
+    from auth import PERMISSION_LEVELS
+
+    schema_values = check_constraint_values(db, "utenti_arnie", "permessi")
+
+    assert set(PERMISSION_LEVELS) == schema_values == set(get_args(Permesso))
+
+
 def test_ruolo_values_accepted_by_the_schema(db, make_utente):
     """
     `utenti.ruolo` is CHECK (ruolo IN ('user','admin')) — 'utente' is not valid.
