@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict
 from jose import JWTError, jwt
 import bcrypt
+import psycopg2
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
@@ -17,6 +18,21 @@ logger = logging.getLogger(__name__)
 
 # Security scheme
 security = HTTPBearer()
+
+
+def database_unavailable_error(exc: Exception) -> HTTPException:
+    """
+    Translate a database failure into 503 rather than an authentication verdict.
+
+    A connection problem must not be reported as wrong credentials or a missing
+    permission: clients would log the user out and retry the login, hammering the
+    database exactly when it is already struggling.
+    """
+    logger.error(f"Database non raggiungibile: {exc}")
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Servizio temporaneamente non disponibile",
+    )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -140,9 +156,8 @@ def authenticate_user(email: str, password: str) -> Optional[Dict]:
             )
             
             return user
-    except Exception as e:
-        logger.error(f"Errore autenticazione: {e}")
-        return None
+    except psycopg2.Error as e:
+        raise database_unavailable_error(e)
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
@@ -197,11 +212,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             
             if user is None or not user['attivo']:
                 raise credentials_exception
-            
+
             return dict(user)
-    except Exception as e:
-        logger.error(f"Errore recupero utente: {e}")
-        raise credentials_exception
+    except HTTPException:
+        raise
+    except psycopg2.Error as e:
+        raise database_unavailable_error(e)
 
 
 async def get_current_active_user(current_user: Dict = Depends(get_current_user)) -> Dict:
@@ -288,6 +304,5 @@ def check_user_arnia_access(id_utente: int, id_arnia: int, required_permission: 
             required_level = permission_levels.get(required_permission, 0)
             
             return user_level >= required_level
-    except Exception as e:
-        logger.error(f"Errore verifica accesso arnia: {e}")
-        return False
+    except psycopg2.Error as e:
+        raise database_unavailable_error(e)

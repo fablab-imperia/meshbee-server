@@ -1,4 +1,5 @@
 """The authentication endpoints in api/main.py."""
+import psycopg2
 import pytest
 
 from auth import decode_token
@@ -139,3 +140,28 @@ def test_me_returns_the_authenticated_user(as_user, utente):
 def test_me_never_exposes_the_password_hash(as_user, utente):
     """UserResponse has no password_hash field — confirm none leaks through."""
     assert "password_hash" not in as_user(utente).get("/api/auth/me").json()
+
+
+# ============================================
+# Database outage
+# ============================================
+
+
+def test_login_during_a_database_outage_is_service_unavailable(client, fake_db, known_password):
+    """
+    An unreachable database answers 503, not 401.
+
+    A 401 would tell the user their password is wrong and send the client
+    straight back to the login form, retrying against a database in trouble.
+    """
+    import auth
+    import main
+
+    fake_db(auth, error=psycopg2.OperationalError("could not connect to server"))
+    fake_db(main, error=psycopg2.OperationalError("could not connect to server"))
+
+    response = client.post(
+        "/api/auth/login", json={"email": "a@b.org", "password": known_password}
+    )
+
+    assert response.status_code == 503

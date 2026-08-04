@@ -1,6 +1,7 @@
 """Tests for authentication and JWT handling (api/auth.py)."""
 from datetime import datetime, timedelta
 
+import psycopg2
 import pytest
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
@@ -200,12 +201,33 @@ async def test_get_current_admin_user_rejects_a_regular_user(active_user):
 # Only the "database is unreachable" branches stay here: they need an injected
 # failure, which is far easier to stage with a fake than with a live server.
 
+OUTAGE = psycopg2.OperationalError("could not connect to server")
 
-def test_authenticate_user_returns_none_when_the_database_fails(fake_db):
-    """A database outage denies the login instead of surfacing the exception."""
-    fake_db(auth, error=RuntimeError("connection refused"))
 
-    assert authenticate_user("apicoltore@example.org", PASSWORD) is None
+def test_authenticate_user_reports_a_database_outage_as_unavailable(fake_db):
+    """
+    An outage is 503, not "wrong credentials".
+
+    Returning None here would tell a user their password is wrong and send the
+    client back to the login form, retrying against a database already in trouble.
+    """
+    fake_db(auth, error=OUTAGE)
+
+    with pytest.raises(HTTPException) as exc_info:
+        authenticate_user("apicoltore@example.org", PASSWORD)
+
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+@pytest.mark.anyio
+async def test_get_current_user_reports_a_database_outage_as_unavailable(fake_db):
+    """A valid token during an outage is 503, not an invalid-credentials 401."""
+    fake_db(auth, error=OUTAGE)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(bearer(create_access_token({"sub": "a@b.org"})))
+
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
 @pytest.mark.anyio
@@ -230,11 +252,14 @@ async def test_get_current_user_rejects_a_token_without_a_subject(fake_db):
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-def test_arnia_access_is_denied_when_the_database_fails(fake_db):
-    """A database outage denies access rather than surfacing the exception."""
-    fake_db(auth, error=RuntimeError("connection refused"))
+def test_arnia_access_reports_a_database_outage_as_unavailable(fake_db):
+    """An outage is 503, not "you lack permission on this arnia"."""
+    fake_db(auth, error=OUTAGE)
 
-    assert check_user_arnia_access(7, 99) is False
+    with pytest.raises(HTTPException) as exc_info:
+        check_user_arnia_access(7, 99)
+
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
 def test_an_unknown_permission_value_denies_access(fake_db):
