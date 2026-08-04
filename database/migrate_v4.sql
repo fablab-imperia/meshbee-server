@@ -2,6 +2,7 @@
 -- MIGRAZIONE: rimozione di schema non utilizzato
 --   1. tabella `sensori`
 --   2. viste `v_serie_temperatura`, `v_serie_umidita`, `v_serie_peso`
+--   3. vista `v_letture_recenti`
 -- Esegui questo script se hai già il database attivo
 -- e non vuoi perdere i dati esistenti.
 --
@@ -69,13 +70,25 @@ DROP TABLE IF EXISTS sensori;
 --
 -- Si rimuovono perché inducono in errore: chi le vede assume che gli endpoint
 -- le usino. La query parametrica resta l'unica implementazione.
---
--- NB: `v_arnie_stato` è usata (repository/arnie.py) e non va toccata.
--- `v_letture_recenti` è anch'essa inutilizzata ma resta: vedi discussione.
 
 DROP VIEW IF EXISTS v_serie_temperatura;
 DROP VIEW IF EXISTS v_serie_umidita;
 DROP VIEW IF EXISTS v_serie_peso;
+
+-- --------------------------------------------
+-- 3. Vista `v_letture_recenti`
+-- --------------------------------------------
+-- Stesso caso delle `v_serie_*`, e stessi difetti: mai interrogata da alcuna
+-- query, finestra temporale fissa (INTERVAL '7 days') che nessun chiamante può
+-- cambiare, e JOIN su `arnie` e `nodi` per `nome_arnia`/`nome_nodo` che le
+-- risposte dell'API non contengono. Le letture si leggono con
+-- `meshbee_core/repository/letture.py::list_by_arnia`, che prende arnia,
+-- intervallo e LIMIT come parametri.
+--
+-- NB: `v_arnie_stato` resta: è l'unica vista realmente usata dal codice
+-- (`meshbee_core/repository/arnie.py`), e non va toccata.
+
+DROP VIEW IF EXISTS v_letture_recenti;
 
 COMMIT;
 
@@ -85,4 +98,4 @@ WHERE schemaname = 'public' AND tablename = 'sensori'
 UNION ALL
 SELECT 'vista: ' || viewname FROM pg_views
 WHERE schemaname = 'public' AND viewname IN
-    ('v_serie_temperatura', 'v_serie_umidita', 'v_serie_peso');
+    ('v_serie_temperatura', 'v_serie_umidita', 'v_serie_peso', 'v_letture_recenti');

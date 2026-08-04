@@ -437,14 +437,14 @@ Esempi:
 
 ### Viste Utili
 
-- `v_arnie_stato` - Arnie con ultime letture — **l'unica usata dal codice**
-  (`meshbee_core/repository/arnie.py`)
-- `v_letture_recenti` - Letture ultimi 7 giorni — definita ma non interrogata
+- `v_arnie_stato` - Arnie con le ultime letture. **È l'unica vista dello schema**,
+  usata da `meshbee_core/repository/arnie.py`.
 
-Non esistono viste `v_serie_*`: le serie storiche per i grafici sono una query
-parametrica in `meshbee_core/repository/letture.py::series`. Una vista non
-accetta parametri (arnia, intervallo, LIMIT), quindi non incapsulerebbe la parte
-che conta. Sono state rimosse da `migrate_v4.sql`.
+Le altre (`v_letture_recenti`, `v_serie_temperatura`, `v_serie_umidita`,
+`v_serie_peso`) sono state rimosse da `migrate_v4.sql`: nessuna query le leggeva.
+Le letture e le serie storiche si ottengono da
+`meshbee_core/repository/letture.py` (`list_by_arnia`, `series`), che prendono
+arnia, intervallo e LIMIT come parametri — cosa che una vista non può fare.
 
 ## 🔧 Sviluppo
 

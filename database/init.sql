@@ -242,24 +242,11 @@ VALUES
 -- VISTE UTILI
 -- ============================================
 
--- Vista per letture recenti con info arnia
-CREATE OR REPLACE VIEW v_letture_recenti AS
-SELECT 
-    l.id_lettura,
-    l.timestamp,
-    a.id_arnia,
-    a.nome_arnia,
-    a.id_nodo,
-    n.nome_nodo,
-    l.temperatura,
-    l.umidita,
-    l.peso,
-    l.dati_raw
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-JOIN nodi n ON a.id_nodo = n.id_nodo
-WHERE l.timestamp > CURRENT_TIMESTAMP - INTERVAL '7 days'
-ORDER BY l.timestamp DESC;
+-- Nota: non esiste una vista `v_letture_recenti`. Le letture si leggono con
+-- `meshbee_core/repository/letture.py::list_by_arnia`, che prende arnia,
+-- intervallo e LIMIT come parametri: una vista con finestra fissa a 7 giorni
+-- non li accetta. È esistita fino a migrate_v4.sql, senza mai essere
+-- interrogata.
 
 -- Vista per arnie con ultime letture e coordinate
 CREATE OR REPLACE VIEW v_arnie_stato AS
