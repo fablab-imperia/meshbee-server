@@ -1,0 +1,7 @@
+# Development / test dependencies.
+# Installed into the same image as the runtime deps (see Dockerfile): this is a
+# single-host hobby deployment, there is no separate production image to keep lean.
+pytest==7.4.4
+# Required by fastapi.testclient (starlette). Pinned <0.27: httpx 0.28 dropped the
+# `app=` shortcut that the starlette version shipped with fastapi 0.109 still uses.
+httpx==0.26.0

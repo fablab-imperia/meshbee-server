@@ -90,7 +90,7 @@ db-restore: ## Ripristina database (richiede FILE=path/to/backup.sql)
 dev-setup: ## Setup ambiente di sviluppo locale
 	$(PYTHON) -m venv venv
 	./venv/bin/pip install --upgrade pip
-	./venv/bin/pip install -r api/requirements.txt
+	./venv/bin/pip install -r api/requirements.txt -r api/requirements-dev.txt
 	./venv/bin/pip install -r mqtt-handler/requirements.txt
 	@echo "✓ Virtual environment creato in venv/"
 	@echo "Attiva con: source venv/bin/activate"
@@ -102,6 +102,9 @@ dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
 	cd mqtt-handler && $(PYTHON) mqtt_handler.py
 
 # Test Commands
+test: ## Esegue i test dell'API nel container (ARGS="..." per un singolo test)
+	$(COMPOSE) exec api pytest $(ARGS)
+
 test-mqtt: ## Test publisher MQTT
 	$(PYTHON) test_mqtt_publisher.py
 
