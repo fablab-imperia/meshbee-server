@@ -10,7 +10,6 @@ beehive-iot/
 ├── 📄 docker-compose.yml           # Orchestrazione container Docker
 ├── 📄 .env.example                 # Template variabili d'ambiente
 ├── 📄 .gitignore                   # File da ignorare in Git
-├── 📄 example_api_client.py        # Client Python esempio per API (eseguibile)
 │
 ├── 📁 database/
 │   └── init.sql                    # Schema database PostgreSQL completo
@@ -115,14 +114,6 @@ Il database viene inizializzato con:
 - ✅ 1 nodo esempio: `NODE001`
 - ✅ 2 arnie esempio con letture
 - ✅ Associazioni utente-arnie
-
-## 🧪 Script di Test
-
-### example_api_client.py
-```bash
-# Esempio uso API
-python example_api_client.py
-```
 
 ## 🔌 Endpoints API Principali
 

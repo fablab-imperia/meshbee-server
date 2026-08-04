@@ -88,19 +88,16 @@ docker-compose up -d postgres mosquitto
 
 ## 📡 Test API in VS Code
 
-### Opzione A: Thunder Client (Consigliato)
+### Opzione A: Swagger UI (Consigliato)
 
-1. Installa l'estensione **Thunder Client**
-2. Importa la collection da `api_tests.http`
-3. Testa gli endpoint visualmente
+1. Apri <http://localhost:8000/docs>
+2. "Authorize" con il token restituito da `/api/auth/login`
+3. Prova gli endpoint direttamente dal browser
 
-### Opzione B: REST Client
+È generata dal codice, quindi copre sempre tutti gli endpoint ed è sempre
+aggiornata — a differenza di una collection salvata a mano.
 
-1. Apri `api_tests.http`
-2. Clicca su "Send Request" sopra ogni richiesta HTTP
-3. I risultati appariranno in un nuovo pannello
-
-### Opzione C: Terminale Integrato
+### Opzione B: Terminale Integrato
 
 ```bash
 # Test health
@@ -174,7 +171,6 @@ make help       # Lista comandi
 beehive-iot/
 ├── 📄 beehive-iot.code-workspace  ← Apri questo!
 ├── 📄 Makefile                     ← Comandi rapidi
-├── 📄 api_tests.http               ← Test API
 │
 ├── 📁 meshbee_core/     ← Libreria condivisa
 │   ├── schemas.py       ← Modelli dati
@@ -254,14 +250,16 @@ Accedi con: `Ctrl+Shift+U`
 
 ## 🧪 Testing
 
-### Esegui Script di Test
+### Esegui la Suite
 
-1. Apri `example_api_client.py`
-2. Click destro → "Run Python File in Terminal"
+La suite gira nel container `api` (vedi README, sezione Test):
 
-### Test Unitari (Futuri)
+```bash
+docker-compose --profile test up -d postgres-test   # una volta per boot
+docker-compose exec api pytest
+```
 
-Per aggiungere test unitari:
+### Aggiungere test
 
 ```bash
 # Installa pytest

@@ -106,9 +106,6 @@ dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
 test: ## Esegue tutti i test dell'API nel container
 	$(COMPOSE) exec api pytest
 
-test-api: ## Test API client
-	$(PYTHON) example_api_client.py
-
 test-health: ## Test health endpoint
 	@curl -s http://localhost:8000/health | python -m json.tool
 
