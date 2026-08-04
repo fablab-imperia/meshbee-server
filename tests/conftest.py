@@ -120,6 +120,20 @@ class FakeCursor:
 
 
 @pytest.fixture
+def fake_cursor():
+    """
+    A bare FakeCursor to hand to a repository or service function.
+
+    Those take the cursor as an argument rather than opening one, so unlike the
+    entry points they need no patching — just something to pass in.
+    """
+    def _make(rows=None):
+        return FakeCursor(rows)
+
+    return _make
+
+
+@pytest.fixture
 def fake_db(monkeypatch):
     """
     Replace `get_db_cursor` in the module under test with an in-memory fake.

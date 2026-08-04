@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir -e .
 
 # Copia il codice dell'applicazione
 COPY api ./api
+# The test suite covers both entry points from this container (see
+# tests/integration/test_ingest_parity.py); the API itself never imports it.
+COPY mqtt_handler ./mqtt_handler
 COPY tests ./tests
 COPY pytest.ini ./
 

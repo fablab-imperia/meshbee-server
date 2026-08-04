@@ -148,6 +148,8 @@ services:
       - ./api:/app/api
       # Bind-mounted over the editable install, so library edits reload too.
       - ./meshbee_core:/app/meshbee_core
+      # Only so the suite can exercise the MQTT entry point too.
+      - ./mqtt_handler:/app/mqtt_handler
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini:ro
       # Schema letto dai test di integrazione per ricreare il DB di test
