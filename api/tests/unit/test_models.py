@@ -15,6 +15,7 @@ from models import (
     ArniaBase,
     ArniaResponse,
     ArniaUpdate,
+    AttivitaCreate,
     AttivitaQueryParams,
     LetturaBase,
     LettureQueryParams,
@@ -252,6 +253,66 @@ def test_new_users_default_to_the_user_role():
 def test_new_associations_default_to_read_permission():
     """Matches the `utenti_arnie.permessi` default: least privilege unless asked."""
     assert UtenteArniaCreate(id_utente=1, id_arnia=1).permessi == "read"
+
+
+# ============================================
+# Constrained value sets
+# ============================================
+
+
+@pytest.mark.parametrize("ruolo", ["user", "admin"])
+def test_valid_roles_are_accepted(ruolo):
+    """The two roles the schema allows."""
+    user = UserCreate(
+        email="a@b.org", nome="A", cognome="B", password="secret123", ruolo=ruolo
+    )
+
+    assert user.ruolo == ruolo
+
+
+@pytest.mark.parametrize("ruolo", ["utente", "superadmin", "USER", ""])
+def test_an_unknown_role_is_rejected(ruolo):
+    """Anything outside the schema's CHECK fails validation, not the database."""
+    with pytest.raises(ValidationError):
+        UserCreate(email="a@b.org", nome="A", cognome="B", password="secret123", ruolo=ruolo)
+
+
+def test_an_unknown_role_is_rejected_on_update():
+    """UserUpdate is constrained too, so a role cannot be smuggled in via an edit."""
+    with pytest.raises(ValidationError):
+        UserUpdate(ruolo="superadmin")
+
+
+@pytest.mark.parametrize("permesso", ["read", "write", "admin"])
+def test_valid_permissions_are_accepted(permesso):
+    """The three levels understood by check_user_arnia_access."""
+    assert UtenteArniaCreate(id_utente=1, id_arnia=1, permessi=permesso).permessi == permesso
+
+
+@pytest.mark.parametrize("permesso", ["superuser", "readonly", "READ"])
+def test_an_unknown_permission_is_rejected(permesso):
+    """A level auth.py could not rank is refused before it reaches the database."""
+    with pytest.raises(ValidationError):
+        UtenteArniaCreate(id_utente=1, id_arnia=1, permessi=permesso)
+
+
+@pytest.mark.parametrize(
+    "tipo",
+    [
+        "ispezione", "trattamento", "raccolta_miele", "nutrizione",
+        "sostituzione_regina", "controllo_salute", "manutenzione", "altro",
+    ],
+)
+def test_valid_activity_types_are_accepted(tipo):
+    """All eight values the log_attivita CHECK allows."""
+    assert AttivitaCreate(id_arnia=1, tipo_attivita=tipo).tipo_attivita == tipo
+
+
+@pytest.mark.parametrize("tipo", ["festa_delle_api", "Ispezione", ""])
+def test_an_unknown_activity_type_is_rejected(tipo):
+    """An unrecognised activity type is a validation error, not a 500."""
+    with pytest.raises(ValidationError):
+        AttivitaCreate(id_arnia=1, tipo_attivita=tipo)
 
 
 # ============================================

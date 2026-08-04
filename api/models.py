@@ -2,9 +2,26 @@
 Modelli Pydantic per validazione e serializzazione
 """
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 from decimal import Decimal
+
+# Value sets mirroring the CHECK constraints in database/init.sql. Declaring them
+# here turns a violation into a 422 at the edge instead of a 500 from the driver,
+# and documents the options in the OpenAPI schema.
+# Keep in sync with database/init.sql — tests/integration/test_models.py asserts it.
+Ruolo = Literal["user", "admin"]
+Permesso = Literal["read", "write", "admin"]
+TipoAttivita = Literal[
+    "ispezione",
+    "trattamento",
+    "raccolta_miele",
+    "nutrizione",
+    "sostituzione_regina",
+    "controllo_salute",
+    "manutenzione",
+    "altro",
+]
 
 
 # ============================================
@@ -71,7 +88,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Creazione utente"""
     password: str
-    ruolo: str = "user"
+    ruolo: Ruolo = "user"
 
 
 class UserUpdate(BaseModel):
@@ -79,7 +96,7 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     nome: Optional[str] = None
     cognome: Optional[str] = None
-    ruolo: Optional[str] = None
+    ruolo: Optional[Ruolo] = None
     attivo: Optional[bool] = None
 
 
@@ -265,7 +282,7 @@ class SeriePesoResponse(BaseModel):
 
 class AttivitaBase(BaseModel):
     """Base attività"""
-    tipo_attivita: str
+    tipo_attivita: TipoAttivita
     descrizione: Optional[str] = None
     dati: Optional[Dict[str, Any]] = None
 
@@ -278,7 +295,7 @@ class AttivitaCreate(AttivitaBase):
 
 class AttivitaUpdate(BaseModel):
     """Aggiornamento attività"""
-    tipo_attivita: Optional[str] = None
+    tipo_attivita: Optional[TipoAttivita] = None
     descrizione: Optional[str] = None
     timestamp: Optional[datetime] = None
     dati: Optional[Dict[str, Any]] = None
@@ -303,7 +320,7 @@ class UtenteArniaCreate(BaseModel):
     """Associazione utente-arnia"""
     id_utente: int
     id_arnia: int
-    permessi: str = "read"
+    permessi: Permesso = "read"
 
 
 class UtenteArniaResponse(BaseModel):

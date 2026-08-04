@@ -5,11 +5,14 @@ as CHECK constraints in database/init.sql — with nothing linking them. These
 tests assert both halves reject the same value, so widening one without the
 other fails here instead of in production.
 """
+import re
+from typing import get_args
+
 import psycopg2
 import pytest
 from pydantic import ValidationError
 
-from models import ArniaBase, LetturaBase
+from models import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
 
 # (model, field, value just outside the allowed range)
 OUT_OF_RANGE = [
@@ -97,6 +100,43 @@ def required_fields(model):
     if model is ArniaBase:
         return {"id_nodo": "NODE001", "id_sensore_fisico": "SENSOR01"}
     return {}
+
+
+ENUM_FIELDS = [
+    (Ruolo, "utenti", "ruolo"),
+    (Permesso, "utenti_arnie", "permessi"),
+    (TipoAttivita, "log_attivita", "tipo_attivita"),
+]
+
+
+def check_constraint_values(db, table, column):
+    """The value set of the CHECK constraint governing `table.column`."""
+    db.execute(
+        """
+        SELECT pg_get_constraintdef(oid) AS definition
+        FROM pg_constraint
+        WHERE conrelid = %s::regclass AND contype = 'c'
+        """,
+        (table,),
+    )
+    for row in db.fetchall():
+        # Postgres renders `col IN (...)` as `(col)::text = ANY (ARRAY[...])`.
+        if f"({column})::text = ANY" in row["definition"]:
+            return set(re.findall(r"'([^']+)'::character varying", row["definition"]))
+    raise AssertionError(f"no CHECK constraint found on {table}.{column}")
+
+
+@pytest.mark.parametrize(
+    "literal, table, column", ENUM_FIELDS, ids=[f"{t}.{c}" for _, t, c in ENUM_FIELDS]
+)
+def test_model_literals_match_the_schema_check(db, literal, table, column):
+    """
+    The Literal in models.py and the CHECK in init.sql list exactly the same values.
+
+    Adding a value to one without the other either lets a request through that
+    the database will reject with a 500, or blocks a value the schema allows.
+    """
+    assert set(get_args(literal)) == check_constraint_values(db, table, column)
 
 
 def test_ruolo_values_accepted_by_the_schema(db, make_utente):

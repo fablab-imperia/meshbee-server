@@ -104,10 +104,10 @@ def test_creating_an_activity_defaults_the_timestamp_to_now(as_user, scrittore):
 
 def test_an_unsupported_activity_type_is_rejected(as_user, scrittore):
     """
-    `tipo_attivita` is constrained by a CHECK in init.sql, but the model does
-    not restrict it, so the violation surfaces as a 500 from the generic
-    handler rather than a 422. Pinned as current behaviour — a client cannot
-    tell a bad value from a server fault.
+    An unknown tipo_attivita is a validation error, not a server fault.
+
+    The TipoAttivita literal rejects it at the edge, so the CHECK constraint in
+    init.sql is never reached and the client is told which field was wrong.
     """
     utente, arnia = scrittore
 
@@ -116,7 +116,21 @@ def test_an_unsupported_activity_type_is_rejected(as_user, scrittore):
         json={"id_arnia": arnia["id_arnia"], "tipo_attivita": "festa_delle_api"},
     )
 
-    assert response.status_code == 500
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"][-1] == "tipo_attivita"
+
+
+def test_an_unsupported_activity_type_is_rejected_on_update(as_user, scrittore, make_attivita):
+    """The same constraint applies when editing an existing activity."""
+    utente, arnia = scrittore
+    attivita = make_attivita(arnia, utente)
+
+    response = as_user(utente).patch(
+        f"/api/user/arnie/{arnia['id_arnia']}/attivita/{attivita['id_log']}",
+        json={"tipo_attivita": "festa_delle_api"},
+    )
+
+    assert response.status_code == 422
 
 
 # ============================================
