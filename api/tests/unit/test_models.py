@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from models import (
+    BCRYPT_MAX_BYTES,
     ArniaBase,
     ArniaResponse,
     ArniaUpdate,
@@ -231,6 +232,49 @@ def test_an_eight_character_password_is_accepted():
 def test_current_password_is_optional():
     """An admin resetting someone else's password does not supply the old one."""
     assert PasswordChange(new_password="12345678").current_password is None
+
+
+def test_a_password_bcrypt_would_truncate_is_refused():
+    """
+    73 bytes is refused rather than silently reduced to its first 72.
+
+    Accepting it would give the user less protection than they believe, and let
+    them authenticate later with just the truncated prefix.
+    """
+    with pytest.raises(ValidationError):
+        PasswordChange(new_password="x" * (BCRYPT_MAX_BYTES + 1))
+
+
+def test_a_password_of_exactly_the_bcrypt_limit_is_accepted():
+    """72 bytes is the inclusive maximum."""
+    password = "x" * BCRYPT_MAX_BYTES
+
+    assert PasswordChange(new_password=password).new_password == password
+
+
+def test_the_password_limit_counts_bytes_not_characters():
+    """
+    Multi-byte characters consume the budget faster.
+
+    24 four-byte emoji are only 24 characters but 96 bytes, so a character-based
+    cap would have let them through and bcrypt would have dropped the tail.
+    """
+    with pytest.raises(ValidationError):
+        PasswordChange(new_password="🐝" * 24)
+
+
+def test_a_short_password_is_refused_when_creating_a_user():
+    """UserCreate enforces the same minimum as a password change."""
+    with pytest.raises(ValidationError):
+        UserCreate(email="a@b.org", nome="A", cognome="B", password="1234567")
+
+
+def test_a_password_bcrypt_would_truncate_is_refused_when_creating_a_user():
+    """The byte cap applies on creation too, not only on change."""
+    with pytest.raises(ValidationError):
+        UserCreate(
+            email="a@b.org", nome="A", cognome="B", password="x" * (BCRYPT_MAX_BYTES + 1)
+        )
 
 
 # ============================================

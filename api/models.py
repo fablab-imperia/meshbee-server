@@ -33,6 +33,27 @@ def normalize_email(value: str) -> str:
     return value.strip().lower()
 
 
+# bcrypt hashes at most 72 bytes and silently ignores the rest, so a longer
+# password protects an account no better than its first 72 bytes.
+BCRYPT_MAX_BYTES = 72
+PASSWORD_MIN_LENGTH = 8
+
+
+def validate_password_length(value: str) -> str:
+    """
+    Reject a password bcrypt would silently truncate.
+
+    The limit is in bytes, not characters: accented or emoji characters take
+    several bytes each, so a 72-character password can still overflow it.
+    """
+    if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise ValueError(
+            f"Password troppo lunga: massimo {BCRYPT_MAX_BYTES} byte "
+            "(bcrypt ignora i caratteri successivi)"
+        )
+    return value
+
+
 class UserLogin(BaseModel):
     """Dati per login utente"""
     email: str
@@ -87,8 +108,16 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Creazione utente"""
-    password: str
+    password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)"
+    )
     ruolo: Ruolo = "user"
+
+    @field_validator('password')
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
 
 
 class UserUpdate(BaseModel):
@@ -361,8 +390,16 @@ class ErrorResponse(BaseModel):
 
 class PasswordChange(BaseModel):
     """Cambio password"""
-    new_password: str = Field(min_length=8, description="Nuova password (minimo 8 caratteri)")
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)"
+    )
     current_password: Optional[str] = None  # Richiesta solo per cambio proprio
+
+    @field_validator('new_password')
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
 
 
 # ============================================

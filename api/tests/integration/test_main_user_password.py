@@ -84,6 +84,24 @@ def test_a_too_short_new_password_is_refused(as_user, utente, known_password, ne
     assert response.status_code == 422
 
 
+def test_a_password_bcrypt_would_truncate_is_refused(as_user, utente, known_password, db):
+    """
+    Over 72 bytes is refused instead of being silently cut down.
+
+    Previously the tail was dropped and the user could then authenticate with
+    just the prefix, believing they had a much longer password.
+    """
+    before = stored_hash(db, utente)
+
+    response = as_user(utente).put(
+        "/api/user/password",
+        json={"current_password": known_password, "new_password": "x" * 73},
+    )
+
+    assert response.status_code == 422
+    assert stored_hash(db, utente) == before
+
+
 def test_changing_a_password_does_not_touch_other_accounts(
     as_user, utente, known_password, make_utente, password_hash, db
 ):

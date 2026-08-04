@@ -82,9 +82,10 @@ def test_passwords_are_truncated_at_72_bytes(password_hash):
     """
     Documented bcrypt exposure: only the first 72 bytes are hashed.
 
-    A user with a longer password can authenticate with just its 72-byte prefix.
-    Pinned here so the day bcrypt starts raising instead of truncating, the
-    suite says so rather than the login endpoint returning 500.
+    get_password_hash stays permissive — the guard lives at the API edge, in
+    models.validate_password_length, so nothing longer can reach it through a
+    request. Pinned here so the day bcrypt starts raising instead of truncating,
+    the suite says so rather than a caller discovering it in production.
     """
     long_password = "x" * 100
     hashed = get_password_hash(long_password)
