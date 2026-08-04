@@ -79,19 +79,23 @@ def deactivate(cursor, id_nodo: str) -> Optional[Dict[str, Any]]:
     return cursor.fetchone()
 
 
-def upsert_seen(cursor, id_nodo: str, nome_nodo: str) -> None:
+def register_if_absent(cursor, id_nodo: str, nome_nodo: str) -> None:
     """
-    Register the node if new, otherwise just refresh `ultimo_messaggio`.
+    Make sure the node exists, leaving an already-registered one untouched.
 
     Used by the ingest path, where a node may start transmitting before anyone
     has registered it through the admin API.
+
+    Deliberately does *not* write `ultimo_messaggio`: that column is owned by
+    the `trigger_aggiorna_nodo` trigger on `letture`, which fires immediately
+    after and overwrites whatever we put there. Setting it here cost every
+    message a second UPDATE of the same row for a value that never survived.
     """
     cursor.execute(
         """
-        INSERT INTO nodi (id_nodo, nome_nodo, ultimo_messaggio, attivo)
-        VALUES (%s, %s, CURRENT_TIMESTAMP, true)
-        ON CONFLICT (id_nodo) DO UPDATE
-        SET ultimo_messaggio = CURRENT_TIMESTAMP
+        INSERT INTO nodi (id_nodo, nome_nodo, attivo)
+        VALUES (%s, %s, true)
+        ON CONFLICT (id_nodo) DO NOTHING
         """,
         (id_nodo, nome_nodo)
     )

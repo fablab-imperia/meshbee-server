@@ -27,7 +27,9 @@ def register_node_and_resolve_arnia(cursor, id_nodo: str, id_sensore) -> int:
     Raises:
         NotFound: se non è possibile determinare l'arnia.
     """
-    nodi.upsert_seen(cursor, id_nodo, f"Nodo {id_nodo}")
+    # Registration only — `nodi.ultimo_messaggio` is maintained by the
+    # trigger on `letture`, so recording the sighting is the reading's job.
+    nodi.register_if_absent(cursor, id_nodo, f"Nodo {id_nodo}")
 
     if id_sensore:
         found = arnie.find_id_by_nodo_sensore(cursor, id_nodo, id_sensore)
