@@ -27,7 +27,7 @@ def init_db_pool():
             port=settings.DB_PORT,
             database=settings.DB_NAME,
             user=settings.DB_USER,
-            password=settings.DB_PASSWORD
+            password=settings.DB_PASSWORD.get_secret_value()
         )
         logger.info("Pool di connessioni database inizializzato")
     except Exception as e:

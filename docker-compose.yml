@@ -59,6 +59,8 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       USER_PASSWORD: ${USER_PASSWORD}
+      # Unused by seed.py, but it shares the api image and its Settings model
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     networks:
       - beehive-network
     volumes:
