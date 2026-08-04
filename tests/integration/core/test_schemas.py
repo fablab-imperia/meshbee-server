@@ -2,9 +2,8 @@
 
 The same rules are written twice — as Field bounds / validators in
 meshbee_core/schemas.py and as CHECK constraints in database/init.sql — with
-nothing linking them. These
-tests assert both halves reject the same value, so widening one without the
-other fails here instead of in production.
+nothing linking them. These tests assert both halves reject the same value, so
+widening one without the other fails here instead of in production.
 """
 import re
 from typing import get_args
@@ -132,7 +131,7 @@ def check_constraint_values(db, table, column):
 )
 def test_model_literals_match_the_schema_check(db, literal, table, column):
     """
-    The Literal in models.py and the CHECK in init.sql list exactly the same values.
+    The Literal in schemas.py and the CHECK in init.sql list exactly the same values.
 
     Adding a value to one without the other either lets a request through that
     the database will reject with a 500, or blocks a value the schema allows.
@@ -142,12 +141,12 @@ def test_model_literals_match_the_schema_check(db, literal, table, column):
 
 def test_auth_ranks_exactly_the_permissions_the_schema_allows(db):
     """
-    auth.PERMISSION_LEVELS, the Permesso literal and the CHECK all agree.
+    services.auth.PERMISSION_LEVELS, the Permesso literal and the CHECK all agree.
 
     A level present in the schema but missing from the map would raise a KeyError
     mid-request; one present only in the map would never be reachable.
     """
-    from api.auth import PERMISSION_LEVELS
+    from meshbee_core.services.auth import PERMISSION_LEVELS
 
     schema_values = check_constraint_values(db, "utenti_arnie", "permessi")
 
@@ -171,7 +170,7 @@ def test_permessi_values_accepted_by_the_schema(db, make_utente, make_arnia, gra
     """
     `utenti_arnie.permessi` is CHECK (permessi IN ('read','write','admin')).
 
-    These are exactly the keys of the permission_levels map in auth.py, so the
+    These are exactly the keys of PERMISSION_LEVELS in services/auth.py, so the
     "unknown permission" fallback there is unreachable through the schema.
     """
     utente, arnia = make_utente(), make_arnia()

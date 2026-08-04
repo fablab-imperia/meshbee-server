@@ -1,5 +1,10 @@
 """
 Autenticazione e gestione JWT
+
+The HTTP half of authentication: minting and reading tokens, and the FastAPI
+dependencies that turn one into a user. Who a password belongs to and what a
+user may do with an arnia live in `meshbee_core.services.auth`; this module
+opens the cursor and translates failures into status codes.
 """
 from datetime import datetime, timedelta
 from typing import Optional, Dict
@@ -11,15 +16,10 @@ import logging
 
 from api.config import settings
 from meshbee_core.db import get_db_cursor
-from meshbee_core.schemas import Permesso, TokenData, UserResponse
-from meshbee_core.security import get_password_hash, verify_password
+from meshbee_core.schemas import Permesso, TokenData
+from meshbee_core.services import auth as auth_service
 
 logger = logging.getLogger(__name__)
-
-# Livelli di permesso (admin > write > read).
-# Keys must match the Permesso literal, and therefore the CHECK constraint on
-# utenti_arnie.permessi — tests/integration/test_models.py asserts it.
-PERMISSION_LEVELS = {"read": 1, "write": 2, "admin": 3}
 
 # Security scheme.
 # auto_error=False so a missing or malformed Authorization header reaches
@@ -117,36 +117,7 @@ def authenticate_user(email: str, password: str) -> Optional[Dict]:
     """
     try:
         with get_db_cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id_utente, email, password_hash, nome, cognome, ruolo, attivo
-                FROM utenti
-                WHERE email = %s
-                """,
-                (email,)
-            )
-            user = cursor.fetchone()
-            
-            if not user:
-                return None
-            
-            if not user['attivo']:
-                return None
-            
-            if not verify_password(password, user['password_hash']):
-                return None
-            
-            # Aggiorna ultimo accesso
-            cursor.execute(
-                """
-                UPDATE utenti 
-                SET ultimo_accesso = CURRENT_TIMESTAMP 
-                WHERE id_utente = %s
-                """,
-                (user['id_utente'],)
-            )
-            
-            return user
+            return auth_service.authenticate(cursor, email, password)
     except psycopg2.Error as e:
         raise database_unavailable_error(e)
 
@@ -196,21 +167,12 @@ async def get_current_user(
     # Recupera utente dal database
     try:
         with get_db_cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id_utente, email, nome, cognome, ruolo, attivo,
-                       data_creazione, data_attivazione, data_disattivazione, ultimo_accesso
-                FROM utenti
-                WHERE email = %s
-                """,
-                (token_data.email,)
-            )
-            user = cursor.fetchone()
-            
-            if user is None or not user['attivo']:
+            user = auth_service.get_utente_by_email(cursor, token_data.email)
+
+            if user is None:
                 raise credentials_exception
 
-            return dict(user)
+            return user
     except HTTPException:
         raise
     except psycopg2.Error as e:
@@ -276,37 +238,10 @@ def check_user_arnia_access(
     Raises:
         ValueError: Se required_permission non è un permesso conosciuto
     """
-    # Fail closed and loudly on an unknown requirement. Defaulting it to level 0
-    # would make `user_level >= 0` true for everyone, silently granting access.
-    if required_permission not in PERMISSION_LEVELS:
-        raise ValueError(f"Permesso richiesto sconosciuto: {required_permission!r}")
-
     try:
         with get_db_cursor() as cursor:
-            # Prima verifica se l'utente è admin
-            cursor.execute(
-                "SELECT ruolo FROM utenti WHERE id_utente = %s",
-                (id_utente,)
+            return auth_service.has_arnia_access(
+                cursor, id_utente, id_arnia, required_permission
             )
-            user = cursor.fetchone()
-            if user and user['ruolo'] == 'admin':
-                return True
-            
-            # Altrimenti verifica l'associazione
-            cursor.execute(
-                """
-                SELECT permessi FROM utenti_arnie
-                WHERE id_utente = %s AND id_arnia = %s AND attivo = true
-                """,
-                (id_utente, id_arnia)
-            )
-            result = cursor.fetchone()
-            
-            if not result:
-                return False
-
-            # `permessi` is constrained by a CHECK in init.sql to exactly these
-            # keys, so index directly instead of masking an unexpected value.
-            return PERMISSION_LEVELS[result['permessi']] >= PERMISSION_LEVELS[required_permission]
     except psycopg2.Error as e:
         raise database_unavailable_error(e)
