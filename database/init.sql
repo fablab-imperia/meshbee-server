@@ -283,41 +283,10 @@ SELECT
 FROM arnie a
 LEFT JOIN nodi n ON a.id_nodo = n.id_nodo;
 
--- Vista serie storica temperatura
-CREATE OR REPLACE VIEW v_serie_temperatura AS
-SELECT 
-    l.timestamp,
-    l.id_arnia,
-    a.nome_arnia,
-    l.temperatura
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-WHERE l.temperatura IS NOT NULL
-ORDER BY l.id_arnia, l.timestamp DESC;
-
--- Vista serie storica umidita
-CREATE OR REPLACE VIEW v_serie_umidita AS
-SELECT 
-    l.timestamp,
-    l.id_arnia,
-    a.nome_arnia,
-    l.umidita
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-WHERE l.umidita IS NOT NULL
-ORDER BY l.id_arnia, l.timestamp DESC;
-
--- Vista serie storica peso
-CREATE OR REPLACE VIEW v_serie_peso AS
-SELECT 
-    l.timestamp,
-    l.id_arnia,
-    a.nome_arnia,
-    l.peso
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-WHERE l.peso IS NOT NULL
-ORDER BY l.id_arnia, l.timestamp DESC;
+-- Nota: non esistono viste `v_serie_*`. Le serie storiche per i grafici sono
+-- una query parametrica in `meshbee_core/repository/letture.py::series`: una
+-- vista non accetta parametri (arnia, intervallo, LIMIT), quindi non
+-- incapsulerebbe la parte che conta. Sono esistite fino a migrate_v4.sql.
 
 -- ============================================
 -- COMMENTI FINALI

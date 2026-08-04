@@ -437,9 +437,14 @@ Esempi:
 
 ### Viste Utili
 
-- `v_letture_recenti` - Letture ultimi 7 giorni
-- `v_arnie_stato` - Arnie con ultime letture
-- `v_allarmi_attivi` - Allarmi non risolti
+- `v_arnie_stato` - Arnie con ultime letture — **l'unica usata dal codice**
+  (`meshbee_core/repository/arnie.py`)
+- `v_letture_recenti` - Letture ultimi 7 giorni — definita ma non interrogata
+
+Non esistono viste `v_serie_*`: le serie storiche per i grafici sono una query
+parametrica in `meshbee_core/repository/letture.py::series`. Una vista non
+accetta parametri (arnia, intervallo, LIMIT), quindi non incapsulerebbe la parte
+che conta. Sono state rimosse da `migrate_v4.sql`.
 
 ## 🔧 Sviluppo
 
