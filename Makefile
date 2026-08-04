@@ -102,8 +102,8 @@ dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
 	cd mqtt-handler && $(PYTHON) mqtt_handler.py
 
 # Test Commands
-test: ## Esegue i test dell'API nel container (ARGS="..." per un singolo test)
-	$(COMPOSE) exec api pytest $(ARGS)
+test: ## Esegue tutti i test dell'API nel container
+	$(COMPOSE) exec api pytest
 
 test-mqtt: ## Test publisher MQTT
 	$(PYTHON) test_mqtt_publisher.py

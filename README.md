@@ -467,33 +467,28 @@ dipendenze e la directory `api/` è montata in `/app`, quindi le modifiche ai fi
 di test sono immediatamente visibili senza ricostruire nulla.
 
 ```bash
-# Esegui l'intera suite
-make test
-
-# Equivalente esplicito
+# Intera suite
 docker-compose exec api pytest
-```
 
-Per eseguire un singolo test si passa qualsiasi argomento di pytest tramite `ARGS`:
-
-```bash
 # Un solo file
-make test ARGS="tests/unit/test_config.py"
+docker-compose exec api pytest tests/unit/test_config.py
 
 # Una sola funzione (node id: file::funzione)
-make test ARGS="tests/unit/test_config.py::test_database_url_escapes_special_characters"
+docker-compose exec api pytest tests/unit/test_config.py::test_database_url_escapes_special_characters
 
 # Un caso di un test parametrizzato
-make test ARGS="tests/unit/test_config.py::test_missing_secret_fails_loudly[DB_PASSWORD]"
+docker-compose exec api pytest "tests/unit/test_config.py::test_missing_secret_fails_loudly[DB_PASSWORD]"
 
 # Tutti i test il cui nome contiene una stringa
-make test ARGS="-k database_url"
+docker-compose exec api pytest -k database_url
 
 # Output verboso, fermati al primo fallimento
-make test ARGS="-v -x"
+docker-compose exec api pytest -v -x
 ```
 
 I percorsi sono relativi a `/app` (cioè alla directory `api/`).
+Per comodità `make test` esegue l'intera suite; per tutto il resto si usa
+direttamente `pytest` con i suoi argomenti.
 
 I file di test sono separati per modulo e rispecchiano la struttura del codice
 (`config.py` → `tests/unit/test_config.py`): la suite cresce in modo incrementale
