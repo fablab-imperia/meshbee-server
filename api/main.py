@@ -327,8 +327,8 @@ async def update_user_attivita(
     Aggiorna un'attività di un'arnia (solo se appartiene all'utente)
     """
     # Verifica accesso arnia
-    if not check_user_arnia_access(current_user['id_utente'], id_arnia):
-        raise HTTPException(status_code=403, detail="Accesso non consentito a questa arnia")
+    if not check_user_arnia_access(current_user['id_utente'], id_arnia, "write"):
+        raise HTTPException(status_code=403, detail="Non hai permessi di scrittura su questa arnia")
 
     try:
         with get_db_cursor() as cursor:
@@ -384,8 +384,8 @@ async def delete_user_attivita(
     Elimina un'attività di un'arnia (solo se appartiene all'utente)
     """
     # Verifica accesso arnia
-    if not check_user_arnia_access(current_user['id_utente'], id_arnia):
-        raise HTTPException(status_code=403, detail="Accesso non consentito a questa arnia")
+    if not check_user_arnia_access(current_user['id_utente'], id_arnia, "write"):
+        raise HTTPException(status_code=403, detail="Non hai permessi di scrittura su questa arnia")
 
     try:
         with get_db_cursor() as cursor:

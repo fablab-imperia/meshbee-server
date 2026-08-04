@@ -178,18 +178,37 @@ def test_updating_an_arnia_requires_write_permission(as_user, utente_con_arnia):
 
 
 @pytest.mark.parametrize("method", ["patch", "delete"])
-def test_editing_an_activity_only_requires_read_permission(
-    as_user, utente_con_arnia, db, method
-):
+def test_editing_an_activity_requires_write_permission(as_user, utente_con_arnia, db, method):
     """
-    Known asymmetry: creating an activity needs "write", but editing or deleting
-    one calls check_user_arnia_access without a permission argument, so it
-    defaults to "read".
+    Editing and deleting need "write", the same level creating one needs.
 
-    A read-only collaborator can therefore delete activities they authored, which
-    they were never allowed to create. Pinned so the inconsistency is visible.
+    A read-only collaborator must not be able to remove an activity they were
+    never allowed to create — even one they authored while holding write access.
     """
     utente, arnia = utente_con_arnia("read")
+    db.execute(
+        """
+        INSERT INTO log_attivita (id_utente, id_arnia, tipo_attivita)
+        VALUES (%s, %s, 'ispezione') RETURNING id_log
+        """,
+        (utente["id_utente"], arnia["id_arnia"]),
+    )
+    id_log = db.fetchone()["id_log"]
+
+    path = f"/api/user/arnie/{arnia['id_arnia']}/attivita/{id_log}"
+    response = getattr(as_user(utente), method)(
+        path, **({"json": {"descrizione": "modificata"}} if method == "patch" else {})
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("method", ["patch", "delete"])
+def test_editing_an_activity_is_allowed_with_write_permission(
+    as_user, utente_con_arnia, db, method
+):
+    """The same requests succeed once the association grants write."""
+    utente, arnia = utente_con_arnia("write")
     db.execute(
         """
         INSERT INTO log_attivita (id_utente, id_arnia, tipo_attivita)
