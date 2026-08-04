@@ -21,6 +21,29 @@ services:
       timeout: 5s
       retries: 5
 
+  # Database usato solo dai test di integrazione.
+  # Dati in tmpfs (nessun volume da pulire) e profilo "test": non parte con un
+  # normale `docker-compose up`. Lo schema viene ricaricato da init.sql a ogni
+  # esecuzione della suite, quindi il DB è sempre pulito.
+  #   docker-compose --profile test up -d postgres-test
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: meshbee-postgres-test
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: beehive_test
+      POSTGRES_USER: beehive_user
+      POSTGRES_PASSWORD: test
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - beehive-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beehive_user -d beehive_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Mosquitto MQTT Broker (con autenticazione)
   mosquitto:
     image: eclipse-mosquitto:2.0
@@ -121,6 +144,8 @@ services:
       - beehive-network
     volumes:
       - ./api:/app
+      # Schema letto dai test di integrazione per ricreare il DB di test
+      - ./database:/database:ro
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   # Caddy HTTPS Proxy

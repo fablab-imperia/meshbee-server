@@ -415,7 +415,8 @@ meshbee-server/
 │   ├── config.py          # Configurazione
 │   ├── tests/             # Test suite (pytest)
 │   │   ├── conftest.py    # Fixture condivise
-│   │   └── unit/
+│   │   ├── unit/          # Logica pura, senza database
+│   │   └── integration/   # Query SQL su postgres-test
 │   ├── pytest.ini
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -466,9 +467,33 @@ I test dell'API sono scritti con [pytest](https://docs.pytest.org/) e vivono in
 dipendenze e la directory `api/` è montata in `/app`, quindi le modifiche ai file
 di test sono immediatamente visibili senza ricostruire nulla.
 
+La suite è divisa in due livelli:
+
+| Livello | Cosa verifica | Database |
+|---|---|---|
+| `tests/unit/` | logica pura: configurazione, validatori, JWT, password, permessi | no |
+| `tests/integration/` | le query SQL vere: nomi colonne, join, vincoli dello schema | sì |
+
+I test di integrazione usano il servizio `postgres-test`, un database usa-e-getta
+con i dati in tmpfs. Va avviato una volta (non parte con un normale `up`):
+
+```bash
+docker-compose --profile test up -d postgres-test
+```
+
+Lo schema viene ricaricato da `database/init.sql` **a ogni esecuzione** della suite
+e ogni test gira in una transazione che viene annullata: il database è sempre pulito
+e i test non si influenzano a vicenda.
+
 ```bash
 # Intera suite
 docker-compose exec api pytest
+
+# Solo i test che non richiedono il database
+docker-compose exec api pytest -m "not integration"
+
+# Solo i test di integrazione
+docker-compose exec api pytest -m integration
 
 # Un solo file
 docker-compose exec api pytest tests/unit/test_config.py
