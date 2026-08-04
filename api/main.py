@@ -11,14 +11,14 @@ import json
 import bcrypt
 import psycopg2
 
-from config import settings
-from database import init_db_pool, close_db_pool, get_db_cursor
-from auth import (
+from api.config import settings
+from api.database import init_db_pool, close_db_pool, get_db_cursor
+from api.auth import (
     authenticate_user, create_access_token, create_refresh_token,
     get_current_active_user, get_current_admin_user, get_password_hash,
     check_user_arnia_access
 )
-from models import (
+from api.models import (
     UserLogin, Token, UserCreate, UserResponse, UserUpdate,
     NodoCreate, NodoResponse, ArniaCreate, ArniaResponse, ArniaUpdate, ArniaConStato,
     LetturaCreate, LetturaResponse, AttivitaCreate, AttivitaUpdate, AttivitaResponse,

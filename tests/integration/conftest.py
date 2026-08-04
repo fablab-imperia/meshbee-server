@@ -20,7 +20,7 @@ def known_password():
 @pytest.fixture(scope="session")
 def password_hash():
     """A real bcrypt hash of KNOWN_PASSWORD, computed once (12 rounds is slow)."""
-    from auth import get_password_hash
+    from api.auth import get_password_hash
 
     return get_password_hash(KNOWN_PASSWORD)
 
@@ -143,8 +143,8 @@ def client(use_db):
     reach the database through main's own queries and through the auth helpers
     (`check_user_arnia_access`, `authenticate_user`) it calls.
     """
-    import auth
-    import main
+    from api import auth
+    from api import main
 
     use_db(main)
     use_db(auth)
@@ -161,8 +161,8 @@ def as_user(client):
     still runs for real on admin endpoints — the role gate is genuinely
     exercised rather than bypassed.
     """
-    import main
-    from auth import get_current_active_user
+    from api import main
+    from api.auth import get_current_active_user
 
     def _as(user):
         main.app.dependency_overrides[get_current_active_user] = lambda: user

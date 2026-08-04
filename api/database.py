@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from typing import Generator
 import logging
 
-from config import settings
+from api.config import settings
 
 logger = logging.getLogger(__name__)
 

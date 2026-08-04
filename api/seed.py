@@ -8,8 +8,6 @@ import os
 import logging
 import bcrypt
 
-sys.path.insert(0, '/app')
-
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -24,7 +22,7 @@ def hash_password(password: str) -> str:
 
 
 def seed():
-    from database import init_db_pool, get_db_cursor
+    from api.database import init_db_pool, get_db_cursor
 
     default_users = [
         {

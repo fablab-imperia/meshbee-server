@@ -7,8 +7,8 @@ from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 
-import auth
-from auth import (
+from api import auth
+from api.auth import (
     authenticate_user,
     check_user_arnia_access,
     create_access_token,

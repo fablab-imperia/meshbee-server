@@ -91,15 +91,16 @@ dev-setup: ## Setup ambiente di sviluppo locale
 	$(PYTHON) -m venv venv
 	./venv/bin/pip install --upgrade pip
 	./venv/bin/pip install -r api/requirements.txt -r api/requirements-dev.txt
-	./venv/bin/pip install -r mqtt-handler/requirements.txt
+	./venv/bin/pip install -r mqtt_handler/requirements.txt
+	./venv/bin/pip install -e .
 	@echo "✓ Virtual environment creato in venv/"
 	@echo "Attiva con: source venv/bin/activate"
 
 dev-api: ## Avvia API in modalità sviluppo (senza Docker)
-	cd api && uvicorn main:app --reload --host 0.0.0.0 --port 8000
+	uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
 dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
-	cd mqtt-handler && $(PYTHON) mqtt_handler.py
+	$(PYTHON) -m mqtt_handler
 
 # Test Commands
 test: ## Esegue tutti i test dell'API nel container

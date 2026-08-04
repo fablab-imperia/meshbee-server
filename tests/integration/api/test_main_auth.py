@@ -2,7 +2,7 @@
 import psycopg2
 import pytest
 
-from auth import decode_token
+from api.auth import decode_token
 
 
 @pytest.fixture
@@ -154,8 +154,8 @@ def test_login_during_a_database_outage_is_service_unavailable(client, fake_db, 
     A 401 would tell the user their password is wrong and send the client
     straight back to the login form, retrying against a database in trouble.
     """
-    import auth
-    import main
+    from api import auth
+    from api import main
 
     fake_db(auth, error=psycopg2.OperationalError("could not connect to server"))
     fake_db(main, error=psycopg2.OperationalError("could not connect to server"))

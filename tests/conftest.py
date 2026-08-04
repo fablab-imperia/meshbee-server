@@ -7,7 +7,7 @@ import psycopg2
 import pytest
 from psycopg2.extras import RealDictCursor
 
-from config import Settings, get_settings
+from api.config import Settings, get_settings
 
 # Connection to the throwaway database defined as `postgres-test` in
 # docker-compose.yml. Defaults match that service, so nothing needs configuring

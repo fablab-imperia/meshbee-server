@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from config import Settings, get_settings
+from api.config import Settings, get_settings
 
 
 def test_defaults_are_applied(build_settings):

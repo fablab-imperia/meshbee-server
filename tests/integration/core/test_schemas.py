@@ -12,7 +12,7 @@ import psycopg2
 import pytest
 from pydantic import ValidationError
 
-from models import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
+from api.models import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
 
 # (model, field, value just outside the allowed range)
 OUT_OF_RANGE = [
@@ -146,7 +146,7 @@ def test_auth_ranks_exactly_the_permissions_the_schema_allows(db):
     A level present in the schema but missing from the map would raise a KeyError
     mid-request; one present only in the map would never be reachable.
     """
-    from auth import PERMISSION_LEVELS
+    from api.auth import PERMISSION_LEVELS
 
     schema_values = check_constraint_values(db, "utenti_arnie", "permessi")
 

@@ -67,8 +67,8 @@ services:
   # Seed: crea utenti con hash bcrypt reali (gira una sola volta)
   seed:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     container_name: meshbee-seed
     restart: "no"
     depends_on:
@@ -87,14 +87,15 @@ services:
     networks:
       - beehive-network
     volumes:
-      - ./api:/app
-    command: python seed.py
+      - ./api:/app/api
+      - ./meshbee_core:/app/meshbee_core
+    command: python -m api.seed
 
   # MQTT Data Handler
   mqtt-handler:
     build:
-      context: ./mqtt-handler
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mqtt_handler/Dockerfile
     container_name: meshbee-mqtt-handler
     restart: unless-stopped
     depends_on:
@@ -116,13 +117,14 @@ services:
     networks:
       - beehive-network
     volumes:
-      - ./mqtt-handler:/app
+      - ./mqtt_handler:/app/mqtt_handler
+      - ./meshbee_core:/app/meshbee_core
 
   # FastAPI Backend
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     container_name: meshbee-api
     restart: unless-stopped
     depends_on:
@@ -143,10 +145,14 @@ services:
     networks:
       - beehive-network
     volumes:
-      - ./api:/app
+      - ./api:/app/api
+      # Bind-mounted over the editable install, so library edits reload too.
+      - ./meshbee_core:/app/meshbee_core
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini:ro
       # Schema letto dai test di integrazione per ricreare il DB di test
       - ./database:/database:ro
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Caddy HTTPS Proxy
   # Terminates TLS in front of the API (uvicorn is HTTP-only), so the app is

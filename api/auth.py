@@ -10,9 +10,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 
-from config import settings
-from database import get_db_cursor
-from models import Permesso, TokenData, UserResponse
+from api.config import settings
+from api.database import get_db_cursor
+from api.models import Permesso, TokenData, UserResponse
 
 logger = logging.getLogger(__name__)
 

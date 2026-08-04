@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from models import (
+from api.models import (
     BCRYPT_MAX_BYTES,
     ArniaBase,
     ArniaResponse,
