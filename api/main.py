@@ -8,6 +8,7 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import logging
 import json
+import bcrypt
 import psycopg2
 
 from config import settings
@@ -896,7 +897,6 @@ async def create_nodo(
     Registra un nuovo nodo trasmettitore (solo admin).
     """
     try:
-        import json
         with get_db_cursor() as cursor:
             cursor.execute("SELECT id_nodo FROM nodi WHERE id_nodo = %s", (nodo.id_nodo,))
             if cursor.fetchone():
@@ -965,7 +965,6 @@ async def update_nodo(
     Aggiorna un nodo esistente (solo admin).
     """
     try:
-        import json
         with get_db_cursor() as cursor:
             cursor.execute(
                 """
@@ -1056,7 +1055,6 @@ async def update_arnia_admin(
     Aggiorna una arnia (solo admin).
     """
     try:
-        import json
         with get_db_cursor() as cursor:
             cursor.execute(
                 """
@@ -1193,7 +1191,6 @@ async def reset_user_password(
     Reset password di un utente (solo admin).
     """
     try:
-        import bcrypt
         hashed = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt(rounds=12)).decode()
         with get_db_cursor() as cursor:
             cursor.execute(
@@ -1252,7 +1249,6 @@ async def update_arnia_user(
     if not check_user_arnia_access(current_user["id_utente"], id_arnia, "write"):
         raise HTTPException(status_code=403, detail="Permessi insufficienti su questa arnia")
     try:
-        import json
         with get_db_cursor() as cursor:
             cursor.execute(
                 """
@@ -1295,7 +1291,6 @@ async def change_own_password(
     Cambia la propria password.
     """
     try:
-        import bcrypt
         # Verifica password corrente
         if not body.current_password:
             raise HTTPException(status_code=400, detail="Inserire la password attuale")
@@ -1330,7 +1325,6 @@ async def create_lettura_manuale(
     Inserisce una lettura manualmente (solo admin, utile per test e backfill).
     """
     try:
-        import json
         with get_db_cursor() as cursor:
             cursor.execute(
                 """

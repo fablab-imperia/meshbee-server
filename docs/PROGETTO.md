@@ -10,7 +10,6 @@ beehive-iot/
 ├── 📄 docker-compose.yml           # Orchestrazione container Docker
 ├── 📄 .env.example                 # Template variabili d'ambiente
 ├── 📄 .gitignore                   # File da ignorare in Git
-├── 📄 test_mqtt_publisher.py       # Script test per MQTT (eseguibile)
 ├── 📄 example_api_client.py        # Client Python esempio per API (eseguibile)
 │
 ├── 📁 database/
@@ -109,12 +108,6 @@ Il database viene inizializzato con:
 - ✅ Associazioni utente-arnie
 
 ## 🧪 Script di Test
-
-### test_mqtt_publisher.py
-```bash
-# Invia dati MQTT di test
-python test_mqtt_publisher.py
-```
 
 ### example_api_client.py
 ```bash

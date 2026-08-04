@@ -252,12 +252,8 @@ Accedi con: `Ctrl+Shift+U`
 
 ### Esegui Script di Test
 
-1. Apri `test_mqtt_publisher.py`
+1. Apri `example_api_client.py`
 2. Click destro → "Run Python File in Terminal"
-
-Oppure dal debug panel:
-- Seleziona "Python: Test MQTT Publisher"
-- Premi F5
 
 ### Test Unitari (Futuri)
 

@@ -260,18 +260,6 @@ curl http://localhost:8000/api/user/arnie \
 
 ### Test MQTT
 
-Esegui lo script di test per inviare dati di esempio:
-
-```bash
-# Installa dipendenze (se non in Docker)
-pip install paho-mqtt
-
-# Esegui test
-python test_mqtt_publisher.py
-```
-
-### Pubblicazione Manuale MQTT
-
 ```bash
 # Usando mosquitto_pub
 mosquitto_pub -h localhost -t "beehive/NODE001/data" -m '{
