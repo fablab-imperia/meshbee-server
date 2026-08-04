@@ -45,23 +45,11 @@ CREATE TABLE nodi (
 CREATE INDEX idx_nodi_attivo ON nodi(attivo);
 CREATE INDEX idx_nodi_ultimo_messaggio ON nodi(ultimo_messaggio);
 
--- ============================================
--- TABELLA SENSORI
--- ============================================
-CREATE TABLE sensori (
-    id_sensore SERIAL PRIMARY KEY,
-    id_nodo VARCHAR(50) REFERENCES nodi(id_nodo) ON DELETE CASCADE,
-    id_sensore_fisico VARCHAR(50) NOT NULL, -- ID del sensore sul nodo
-    tipo_sensore VARCHAR(50) NOT NULL, -- temperatura, umidita, peso, etc.
-    unita_misura VARCHAR(20),
-    data_registrazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    attivo BOOLEAN DEFAULT true,
-    configurazione JSONB, -- soglie, calibrazione, etc.
-    UNIQUE(id_nodo, id_sensore_fisico)
-);
-
-CREATE INDEX idx_sensori_nodo ON sensori(id_nodo);
-CREATE INDEX idx_sensori_attivo ON sensori(attivo);
+-- Nota: non esiste una tabella `sensori`. L'identità del sensore vive su
+-- `arnie.id_sensore_fisico`, e le letture hanno colonne fisse anziché righe
+-- generiche (sensore, valore). Una tabella `sensori` è esistita fino a
+-- migrate_v4.sql: era il modello alternativo, mai collegato ad `arnie` né
+-- letto da alcuna query.
 
 -- ============================================
 -- TABELLA ARNIE

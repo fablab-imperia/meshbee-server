@@ -426,13 +426,14 @@ Esempi:
 - Registro interventi apicoltore
 - Tipi: ispezione, trattamento, raccolta, etc.
 
-**allarmi**
-- Notifiche automatiche
-- Livelli: info, warning, critical
-
 **utenti_arnie**
 - Associazione many-to-many utenti-arnie
 - Gestione permessi (read, write, admin)
+
+**token_sessione**
+- Prevista per i refresh token revocabili, **non ancora usata da alcun codice**:
+  i refresh token oggi sono JWT stateless e non vengono salvati.
+- Non rimuoverla: è la forma corretta per la funzione quando verrà implementata (issue #16).
 
 ### Viste Utili
 
