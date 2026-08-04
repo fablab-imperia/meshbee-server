@@ -15,16 +15,7 @@ from auth import (
     create_access_token,
     create_refresh_token,
     get_current_user,
-    get_password_hash,
 )
-
-PASSWORD = "correct-horse-battery-staple"
-
-
-@pytest.fixture(scope="session")
-def password_hash():
-    """A real bcrypt hash of PASSWORD, computed once (12 rounds is deliberately slow)."""
-    return get_password_hash(PASSWORD)
 
 
 @pytest.fixture
@@ -44,36 +35,36 @@ def bearer(token):
 # ============================================
 
 
-def test_authenticate_user_accepts_valid_credentials(db, utente):
+def test_authenticate_user_accepts_valid_credentials(db, utente, known_password):
     """The login query finds the user and the password verifies against the stored hash."""
-    result = authenticate_user(utente["email"], PASSWORD)
+    result = authenticate_user(utente["email"], known_password)
 
     assert result is not None
     assert result["id_utente"] == utente["id_utente"]
     assert result["email"] == utente["email"]
 
 
-def test_authenticate_user_stamps_ultimo_accesso(db, utente):
+def test_authenticate_user_stamps_ultimo_accesso(db, utente, known_password):
     """A successful login updates ultimo_accesso for that user — the UPDATE really runs."""
     assert utente["ultimo_accesso"] is None
 
-    authenticate_user(utente["email"], PASSWORD)
+    authenticate_user(utente["email"], known_password)
 
     db.execute("SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
     assert db.fetchone()["ultimo_accesso"] is not None
 
 
-def test_authenticate_user_rejects_an_unknown_email(db, utente):
+def test_authenticate_user_rejects_an_unknown_email(db, utente, known_password):
     """An email with no row returns None."""
-    assert authenticate_user("nobody@example.org", PASSWORD) is None
+    assert authenticate_user("nobody@example.org", known_password) is None
 
 
-def test_authenticate_user_rejects_a_deactivated_user(db, use_db, make_utente, password_hash):
+def test_authenticate_user_rejects_a_deactivated_user(db, use_db, make_utente, password_hash, known_password):
     """attivo=false denies the login and leaves ultimo_accesso untouched."""
     use_db(auth)
     inactive = make_utente(password_hash=password_hash, attivo=False)
 
-    assert authenticate_user(inactive["email"], PASSWORD) is None
+    assert authenticate_user(inactive["email"], known_password) is None
 
     db.execute("SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (inactive["id_utente"],))
     assert db.fetchone()["ultimo_accesso"] is None
