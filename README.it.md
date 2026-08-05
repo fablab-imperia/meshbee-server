@@ -23,7 +23,6 @@ Le altre parti del progetto Meshbee:
 ## Indice
 
 - [Panoramica](#panoramica)
-- [I pezzi](#i-pezzi)
 - [Come stanno insieme](#come-stanno-insieme)
 - [Requisiti](#requisiti)
 - [Installazione](#installazione)
@@ -35,8 +34,8 @@ Le altre parti del progetto Meshbee:
 
 ## Panoramica
 
-Le arnie sul campo hanno sensori di temperatura, umidità e peso. I nodi ESP32 raccolgono
-le letture e le pubblicano su MQTT; questo backend le archivia e le serve all'app mobile.
+La parte server di Meshbee: riceve le letture delle arnie via MQTT, le archivia e le
+serve all'app mobile tramite un'API REST.
 
 Cosa fa:
 
@@ -46,31 +45,41 @@ Cosa fa:
 - **Espone** un'API REST con autenticazione JWT, permessi per singola arnia ed endpoint
   storici dimensionati per i grafici.
 - **Registra** il lavoro dell'apicoltore: ispezioni, trattamenti, raccolte.
-- Gira interamente in Docker Compose, abbastanza leggero per un **Raspberry Pi 4**.
+- Gira interamente in Docker Compose.
 
-## I pezzi
-
-| Directory | Cos'è | Documentazione |
-|---|---|---|
-| `api/` | API REST FastAPI sulla porta 8000. L'unico pezzo con cui parla l'app mobile. | [README](api/README.it.md) |
-| `mqtt_handler/` | Subscriber MQTT senza interfaccia. Decodifica quello che pubblicano i nodi e lo archivia. | [README](mqtt_handler/README.it.md) |
-| `meshbee_core/` | La libreria condivisa che entrambi importano. Schemi, service, SQL. | [README](meshbee_core/README.it.md) |
-| `database/` | Schema PostgreSQL (`init.sql`) e migrazioni. | [README](database/README.it.md) |
-| `mosquitto/` | Configurazione e stato del broker MQTT. | [README](mosquitto/README.it.md) |
-| `tests/` | Un'unica suite pytest che copre tutto. | [README](tests/README.it.md) |
-| `caddy/` | Reverse proxy HTTPS per lo sviluppo locale. Vedi [HTTPS locale](#https-locale). | — |
-| `scripts/` | Script one-shot: `seed.py` (account iniziali), `export_openapi.py`. | — |
+Chi produce le letture e chi le consuma sono documentati nei rispettivi repository —
+vedi [Come stanno insieme](#come-stanno-insieme).
 
 ## Come stanno insieme
 
+Tutto quello che ha una barra finale è una directory di **questo** repository; i due
+capi della catena vivono in repository fratelli.
+
 ```
-nodi ESP32 ──MQTT──▶ Mosquitto ──▶ mqtt-handler ──┐
-                      :1883         (subscriber)  │
-                                                  ├──▶ PostgreSQL
-                                                  │      :5432
-app mobile ──HTTPS──▶ Caddy ──▶ FastAPI ──────────┘
-                      :8443     api :8000
+nodi ESP32 ──MQTT──▶ mosquitto/ ──▶ mqtt_handler/ ──┐
+                                                    │
+                                                    ├──▶ meshbee_core/ ──▶ database/
+                                                    │
+app mobile ──HTTPS──▶ caddy/ ─────▶ api/ ───────────┘
 ```
+
+| Nel diagramma | Cos'è | Dove vive |
+|---|---|---|
+| nodi ESP32 | Nodi sensore e gateway. Pubblicano le letture su `beehive/<id_nodo>/data`. | [meshbee-firmware](https://github.com/fablab-imperia/meshbee-firmware) |
+| `mosquitto/` | Configurazione e stato del broker MQTT. Immagine standard, nessun codice nostro. | [mosquitto/](mosquitto/README.it.md) |
+| `mqtt_handler/` | Si sottoscrive al broker, decodifica il payload, archivia la lettura. | [mqtt_handler/](mqtt_handler/README.it.md) |
+| `caddy/` | Reverse proxy che termina l'HTTPS su `:8443` davanti all'API. Opzionale. | [HTTPS locale](#https-locale) |
+| `api/` | L'API REST FastAPI. L'unico pezzo con cui parla l'app. | [api/](api/README.it.md) |
+| `meshbee_core/` | La libreria condivisa che entrambi gli entry point importano: schemi, service e tutto l'SQL. | [meshbee_core/](meshbee_core/README.it.md) |
+| `database/` | Lo schema PostgreSQL su cui scrive la libreria. | [database/](database/README.it.md) |
+| app mobile | Dashboard, grafici e avvisi. Consuma l'API REST. | [meshbee-app](https://github.com/fablab-imperia/meshbee-app) |
+
+Due directory non stanno su quel percorso: [`tests/`](tests/README.it.md), l'unica suite
+pytest che copre tutto, e `scripts/`, i job one-shot — `seed.py` crea gli account
+iniziali, `export_openapi.py` rigenera il contratto dell'API.
+
+> L'architettura dell'**intero** progetto Meshbee, questo repository compreso, è
+> documentata su <https://fablab-imperia.github.io/meshbee/architecture/>.
 
 Due fatti spiegano quasi tutta la struttura.
 
@@ -101,10 +110,7 @@ Porte:
 
 ## Requisiti
 
-**Hardware:** un Raspberry Pi 4 (2 GB di RAM) o qualcosa di più grande, 16 GB di
-storage, una connessione di rete.
-
-**Software:** Docker e Docker Compose. Opzionalmente git e
+Docker e Docker Compose. Opzionalmente git e
 [mkcert](https://github.com/FiloSottile/mkcert) se vuoi l'HTTPS locale.
 
 ## Installazione
