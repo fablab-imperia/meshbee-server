@@ -21,6 +21,29 @@ services:
       timeout: 5s
       retries: 5
 
+  # Database usato solo dai test di integrazione.
+  # Dati in tmpfs (nessun volume da pulire) e profilo "test": non parte con un
+  # normale `docker-compose up`. Lo schema viene ricaricato da init.sql a ogni
+  # esecuzione della suite, quindi il DB è sempre pulito.
+  #   docker-compose --profile test up -d postgres-test
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: meshbee-postgres-test
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: beehive_test
+      POSTGRES_USER: beehive_user
+      POSTGRES_PASSWORD: test
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - beehive-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beehive_user -d beehive_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Mosquitto MQTT Broker (con autenticazione)
   mosquitto:
     image: eclipse-mosquitto:2.0
@@ -31,8 +54,9 @@ services:
       - "9001:9001"
     volumes:
       - ./mosquitto/config:/mosquitto/config
+      # Persistenza: messaggi retained e code QoS 1/2 sopravvivono al restart.
       - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      # Nessun mount per i log: il broker scrive solo su stdout (vedi mosquitto.conf).
     networks:
       - beehive-network
     healthcheck:
@@ -44,8 +68,8 @@ services:
   # Seed: crea utenti con hash bcrypt reali (gira una sola volta)
   seed:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     container_name: meshbee-seed
     restart: "no"
     depends_on:
@@ -59,17 +83,20 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       USER_PASSWORD: ${USER_PASSWORD}
+      # No JWT_SECRET_KEY: the seed reads SeedSettings, which extends
+      # CoreSettings (database only) and knows nothing about tokens.
     networks:
       - beehive-network
     volumes:
-      - ./api:/app
-    command: python seed.py
+      - ./scripts:/app/scripts
+      - ./meshbee_core:/app/meshbee_core
+    command: python -m scripts.seed
 
   # MQTT Data Handler
   mqtt-handler:
     build:
-      context: ./mqtt-handler
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mqtt_handler/Dockerfile
     container_name: meshbee-mqtt-handler
     restart: unless-stopped
     depends_on:
@@ -91,13 +118,14 @@ services:
     networks:
       - beehive-network
     volumes:
-      - ./mqtt-handler:/app
+      - ./mqtt_handler:/app/mqtt_handler
+      - ./meshbee_core:/app/meshbee_core
 
   # FastAPI Backend
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     container_name: meshbee-api
     restart: unless-stopped
     depends_on:
@@ -118,8 +146,17 @@ services:
     networks:
       - beehive-network
     volumes:
-      - ./api:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./api:/app/api
+      # Bind-mounted over the editable install, so library edits reload too.
+      - ./meshbee_core:/app/meshbee_core
+      # Only so the suite can exercise the MQTT entry point and the seed too.
+      - ./mqtt_handler:/app/mqtt_handler
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini:ro
+      # Schema letto dai test di integrazione per ricreare il DB di test
+      - ./database:/database:ro
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Caddy HTTPS Proxy
   # Terminates TLS in front of the API (uvicorn is HTTP-only), so the app is

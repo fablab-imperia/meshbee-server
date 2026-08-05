@@ -1,42 +1,44 @@
+"""Application configuration for the FastAPI entry point.
+
+The database fields come from `meshbee_core.config.CoreSettings`; everything
+below is API-only and is deliberately *not* shared with the MQTT handler, which
+has no use for a JWT signing key.
 """
-Configurazione dell'applicazione
-"""
-from pydantic_settings import BaseSettings
-from typing import Optional
+from functools import lru_cache
+
+from pydantic import Field, SecretStr
+
+from meshbee_core.config import CoreSettings
 
 
-class Settings(BaseSettings):
-    """Impostazioni dell'applicazione"""
-    
-    # Database
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_NAME: str = "beehive_iot"
-    DB_USER: str = "beehive_user"
-    DB_PASSWORD: str = ""          # REQUIRED — imposta via variabile d'ambiente DB_PASSWORD
+class Settings(CoreSettings):
+    """Application settings"""
 
     # JWT
-    JWT_SECRET_KEY: str = ""       # REQUIRED — genera con: openssl rand -hex 32
+    JWT_SECRET_KEY: SecretStr = Field(
+        description="JWT signing key, generate with: openssl rand -hex 32"
+    )
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    
+
     # API
     API_TITLE: str = "Beehive IoT API"
     API_VERSION: str = "1.0.0"
     API_DESCRIPTION: str = "API per gestione sistema IoT arnie"
-    
-    # CORS
-    CORS_ORIGINS: list = ["*"]
-    
-    @property
-    def database_url(self) -> str:
-        """Costruisce la URL del database"""
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+
+    # CORS — from the environment, pass a JSON list: CORS_ORIGINS=["https://example.org"]
+    CORS_ORIGINS: list[str] = ["*"]
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    """Return the settings singleton (built once, then cached).
+
+    Use as a FastAPI dependency when you need to override it in tests:
+        def endpoint(config: Annotated[Settings, Depends(get_settings)]): ...
+    """
+    return Settings()
+
+
+settings = get_settings()

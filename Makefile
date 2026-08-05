@@ -1,7 +1,10 @@
 # Makefile per Beehive IoT
 # Comandi rapidi per sviluppo
 
-.PHONY: help start stop restart logs build clean test backup
+.PHONY: help start stop restart restart-api restart-mqtt logs logs-api logs-mqtt \
+        status build clean clean-all certs db-shell db-backup db-restore \
+        dev-setup dev-api dev-mqtt test test-health openapi mqtt-passwd setup \
+        install info endpoints
 
 # Variabili
 COMPOSE = docker-compose
@@ -90,26 +93,28 @@ db-restore: ## Ripristina database (richiede FILE=path/to/backup.sql)
 dev-setup: ## Setup ambiente di sviluppo locale
 	$(PYTHON) -m venv venv
 	./venv/bin/pip install --upgrade pip
-	./venv/bin/pip install -r api/requirements.txt
-	./venv/bin/pip install -r mqtt-handler/requirements.txt
+	./venv/bin/pip install -r api/requirements.txt -r api/requirements-dev.txt
+	./venv/bin/pip install -r mqtt_handler/requirements.txt
+	./venv/bin/pip install -e .
 	@echo "✓ Virtual environment creato in venv/"
 	@echo "Attiva con: source venv/bin/activate"
 
 dev-api: ## Avvia API in modalità sviluppo (senza Docker)
-	cd api && uvicorn main:app --reload --host 0.0.0.0 --port 8000
+	uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
 dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
-	cd mqtt-handler && $(PYTHON) mqtt_handler.py
+	$(PYTHON) -m mqtt_handler
 
 # Test Commands
-test-mqtt: ## Test publisher MQTT
-	$(PYTHON) test_mqtt_publisher.py
-
-test-api: ## Test API client
-	$(PYTHON) example_api_client.py
+test: ## Esegue tutti i test dell'API nel container
+	$(COMPOSE) exec api pytest
 
 test-health: ## Test health endpoint
 	@curl -s http://localhost:8000/health | python -m json.tool
+
+# Documentation Commands
+openapi: ## Rigenera api/openapi.json dallo schema FastAPI (richiede il container api attivo)
+	$(COMPOSE) exec api python -m scripts.export_openapi
 
 # Setup Commands
 mqtt-passwd: ## Genera il file password per il broker Mosquitto (richiede .env)
