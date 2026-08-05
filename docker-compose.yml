@@ -54,8 +54,9 @@ services:
       - "9001:9001"
     volumes:
       - ./mosquitto/config:/mosquitto/config
+      # Persistenza: messaggi retained e code QoS 1/2 sopravvivono al restart.
       - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      # Nessun mount per i log: il broker scrive solo su stdout (vedi mosquitto.conf).
     networks:
       - beehive-network
     healthcheck:
