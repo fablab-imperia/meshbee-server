@@ -1,7 +1,10 @@
 # Makefile per Beehive IoT
 # Comandi rapidi per sviluppo
 
-.PHONY: help start stop restart logs build clean test backup
+.PHONY: help start stop restart restart-api restart-mqtt logs logs-api logs-mqtt \
+        status build clean clean-all certs db-shell db-backup db-restore \
+        dev-setup dev-api dev-mqtt test test-health openapi mqtt-passwd setup \
+        install info endpoints
 
 # Variabili
 COMPOSE = docker-compose
@@ -108,6 +111,10 @@ test: ## Esegue tutti i test dell'API nel container
 
 test-health: ## Test health endpoint
 	@curl -s http://localhost:8000/health | python -m json.tool
+
+# Documentation Commands
+openapi: ## Rigenera api/openapi.json dallo schema FastAPI (richiede il container api attivo)
+	$(COMPOSE) exec api python -m scripts.export_openapi
 
 # Setup Commands
 mqtt-passwd: ## Genera il file password per il broker Mosquitto (richiede .env)

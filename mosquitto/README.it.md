@@ -129,6 +129,6 @@ docker-compose logs --tail=20 mosquitto
 
 ## Collegamenti
 
-- `mqtt_handler/` — il subscriber: `payload.py` decodifica, `handler.py` salva.
+- [`mqtt_handler/`](../mqtt_handler/README.it.md) — il subscriber: `payload.py` decodifica, `handler.py` salva, e il formato del payload.
 - `docker-compose.yml` — i servizi `mosquitto` e `mqtt-handler`.
-- [README](../README.md) principale — formato del payload MQTT e stack completo.
+- [README](../README.it.md) principale — lo stack nel suo insieme.

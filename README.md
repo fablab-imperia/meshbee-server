@@ -2,6 +2,8 @@
 
 [![Latest release](https://img.shields.io/github/v/release/fablab-imperia/meshbee-server?sort=semver)](https://github.com/fablab-imperia/meshbee-server/releases/latest)
 
+*[Versione italiana](README.it.md)*
+
 This is the **backend** code for the [Meshbee project](https://github.com/fablab-imperia/meshbee). Implements FastAPI REST API, MQTT handler, Mosquitto broker and PostgreSQL, via Docker Compose.
 
 Other parts of the Meshbee project include:
@@ -18,737 +20,309 @@ Other parts of the Meshbee project include:
 
 🛠️ **Built by:** [Fablab Imperia APS](https://www.fablabimperia.org)
 
-## 📋 Indice
+## Contents
 
-- [Panoramica](#panoramica)
-- [Architettura](#architettura)
-- [Requisiti](#requisiti)
-- [Installazione](#installazione)
-- [Configurazione](#configurazione)
-- [Utilizzo](#utilizzo)
-- [API Endpoints](#api-endpoints)
-- [Formato Dati MQTT](#formato-dati-mqtt)
-- [Database Schema](#database-schema)
-- [Sviluppo](#sviluppo)
+- [Overview](#overview)
+- [The pieces](#the-pieces)
+- [How they fit together](#how-they-fit-together)
+- [Requirements](#requirements)
+- [Setup](#setup)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Versioning and contributing](#versioning-and-contributing)
 
-## 🎯 Panoramica
+## Overview
 
-Sistema IoT completo per il monitoraggio di arnie che include:
+Beehives in the field carry sensors for temperature, humidity and weight. ESP32 nodes
+collect the readings and publish them over MQTT; this backend stores them and serves
+them to the mobile app.
 
-- **Database PostgreSQL** per archiviare dati sensori e utenti
-- **Broker MQTT** (Mosquitto) per ricevere dati dai dispositivi IoT
-- **API RESTful** (FastAPI) per accesso ai dati da applicazioni
-- **Sistema di autenticazione** con JWT tokens
-- **Gestione allarmi** automatici basati su soglie configurabili
-- **Multi-tenant** con gestione utenti e permessi
+What it does:
 
-### Funzionalità Principali
+- **Ingests** readings over MQTT, provisioning unknown nodes and hives on the fly.
+- **Stores** them in PostgreSQL, with the measurement ranges enforced twice — in the
+  application and in the schema.
+- **Serves** a REST API with JWT authentication, per-hive permissions and history
+  endpoints sized for charts.
+- **Records** what the beekeeper did: inspections, treatments, harvests.
+- Runs entirely in Docker Compose, small enough for a **Raspberry Pi 4**.
 
-✅ Ricezione dati in tempo reale tramite MQTT  
-✅ Archiviazione storica di temperatura, umidità e peso  
-✅ API RESTful complete con autenticazione JWT  
-✅ Gestione utenti e permessi  
-✅ Sistema di allarmi automatici  
-✅ Log attività degli apicoltori  
-✅ Ottimizzato per Raspberry Pi 4  
-✅ Completamente dockerizzato  
+## The pieces
 
-## 🏗️ Architettura
+| Directory | What it is | Docs |
+|---|---|---|
+| `api/` | FastAPI REST API on port 8000. The only piece the mobile app talks to. | [README](api/README.md) |
+| `mqtt_handler/` | Headless MQTT subscriber. Decodes what nodes publish and stores it. | [README](mqtt_handler/README.md) |
+| `meshbee_core/` | The shared library both of the above import. Schemas, services, SQL. | [README](meshbee_core/README.md) |
+| `database/` | PostgreSQL schema (`init.sql`) and the migrations. | [README](database/README.md) |
+| `mosquitto/` | The MQTT broker's configuration and state. | [README](mosquitto/README.md) |
+| `tests/` | One pytest suite covering everything. | [README](tests/README.md) |
+| `caddy/` | HTTPS reverse proxy for local development. See [Local HTTPS](#local-https). | — |
+| `scripts/` | One-shot scripts: `seed.py` (initial accounts), `export_openapi.py`. | — |
 
-Due processi Python scrivono e leggono lo **stesso** database, e condividono la
-stessa logica importandola da `meshbee_core`.
+## How they fit together
 
 ```
-   Nodi ESP32                                              App Mobile/Web
-   (arnie)                                                    (client)
-       │                                                          │
-       │ MQTT                                                HTTPS │
-       ▼                                                          ▼
-┌──────────────┐      ┌─────────────────┐      ┌─────────────────────┐
-│  Mosquitto   │─────▶│  MQTT Handler   │      │   FastAPI  (api/)   │
-│    broker    │      │ (mqtt_handler/) │      │                     │
-└──────────────┘      └────────┬────────┘      └──────────┬──────────┘
-                               │                          │
-                     import    │        ┌─────────────────┘  import
-                               ▼        ▼
-                        ┌────────────────────────┐
-                        │     meshbee_core       │   ← libreria, non un servizio
-                        │  services/  (logica)   │
-                        │  repository/  (SQL)    │
-                        └───────────┬────────────┘
-                                    │
-                                    ▼
-                            ┌──────────────┐
-                            │  PostgreSQL  │
-                            └──────────────┘
+ESP32 nodes ──MQTT──▶ Mosquitto ──▶ mqtt-handler ──┐
+                       :1883         (subscriber)  │
+                                                   ├──▶ PostgreSQL
+                                                   │      :5432
+mobile app ──HTTPS──▶ Caddy ──▶ FastAPI ───────────┘
+                      :8443     api :8000
 ```
 
-### I due entry point
+Two facts explain most of the layout.
 
-| Processo | Cosa fa |
-|---|---|
-| **`api/`** — FastAPI | Serve l'app mobile: login JWT, arnie, letture, log attività, endpoint admin. |
-| **`mqtt_handler/`** — subscriber MQTT | Riceve le letture dei sensori dai nodi ESP32 via Mosquitto (topic `beehive/+/data`) e le salva. |
+**Two processes, one library.** `api` and `mqtt-handler` are separate containers with
+separate lifecycles — restarting the broker does not touch the REST API, and the API is
+not an MQTT client. But they write to the same database, so they must agree on what a
+valid reading is and on how to store one. That agreement is `meshbee_core`: a library,
+imported by both, never deployed on its own. `tests/integration/test_ingest_parity.py`
+proves the two paths produce identical rows.
 
-Restano **due processi separati**, due container, due comandi di avvio. Il
-handler MQTT non chiama l'API via HTTP: parla al database attraverso la libreria
-condivisa, esattamente come fa l'API.
+**Three layers, one direction.** SQL lives in `meshbee_core/repository/`; decisions live
+in `meshbee_core/services/`, which raise their own errors and know nothing about HTTP;
+the entry points validate their input, call *one* service, and translate the outcome
+into a status code or a log line. New business logic goes in a service, new SQL goes in
+a repository, and a new route is a thin call into an existing service. **SQL appearing
+in `api/`, `mqtt_handler/` or `scripts/` means it went to the wrong place.**
 
-### `meshbee_core` è una libreria, non un servizio
+Ports:
 
-È il punto che si fraintende più spesso: `meshbee_core` **viene importato, non
-distribuito**. Non c'è un container `meshbee-core`, non c'è una porta, non c'è
-una chiamata di rete. Ciascuno dei due processi ne tiene una propria copia in
-memoria; sono due istanze indipendenti dello stesso codice.
+| Port | Service | Notes |
+|---|---|---|
+| 8000 | `api` | HTTP. `/docs`, `/redoc`, `/openapi.json`. |
+| 8443 | `caddy` | HTTPS. Only if you ran `make certs`. Override with `HTTPS_PORT`. |
+| 1883 | `mosquitto` | MQTT. Authentication required. |
+| 9001 | `mosquitto` | MQTT over WebSockets. Configured but unused. |
+| 5432 | `postgres` | Published for `psql` and GUI clients. |
 
-Il pacchetto è installato in modalità *editable* (`pip install -e .`, vedi
-`pyproject.toml`) in entrambe le immagini, così l'import funziona allo stesso
-modo nei container e nei test.
+## Requirements
 
-### Il confine fra i livelli
+**Hardware:** a Raspberry Pi 4 (2 GB RAM) or anything larger, 16 GB of storage, a
+network connection.
 
-| Livello | Responsabilità |
-|---|---|
-| `meshbee_core/repository/` | Solo persistenza: tabelle e query. Nessuna regola di business. |
-| `meshbee_core/services/` | La logica di Meshbee: validazione, permessi, provisioning dei nodi. Chiama il repository. |
-| `api/`, `mqtt_handler/` | Sottili: validano l'input, chiamano **un** service, traducono l'esito. |
+**Software:** Docker and Docker Compose. Optionally git, and
+[mkcert](https://github.com/FiloSottile/mkcert) if you want local HTTPS.
 
-Regola sul ciclo di vita: **il cursore lo apre chi chiama**. Service e repository
-lo ricevono come argomento e non lo creano mai — l'API ne apre uno per richiesta,
-il handler MQTT uno per messaggio. Stessa funzione, due strategie diverse, perché
-una richiesta HTTP e un messaggio MQTT hanno durate diverse.
-
-Gli errori attraversano il confine tramite `meshbee_core/errors.py`
-(`NotFound`, `Conflict`, `InvalidData`): i service non conoscono gli status code,
-è `api/main.py` a tradurli in 404/409/400.
-
-### Dove va il codice nuovo
-
-- Nuova **logica di business** → un service in `meshbee_core/services/`.
-- Nuova **query SQL** → una funzione nel repository corrispondente.
-- Nuova **rotta HTTP** o nuova **sottoscrizione a un topic** → una chiamata
-  sottile a un service che esiste già.
-
-Se ti ritrovi a scrivere SQL dentro `api/` o `mqtt_handler/`, sta andando nel
-posto sbagliato.
-
-## 💻 Requisiti
-
-### Hardware Minimo
-- **Raspberry Pi 4** (2GB RAM) o equivalente
-- **16GB** storage
-- Connessione di rete
-
-### Software
-- Docker & Docker Compose
-- (Opzionale) Git per clonare il repository
-- (Opzionale) [mkcert](https://github.com/FiloSottile/mkcert) per il certificato HTTPS locale (`make certs`)
-
-## 🚀 Installazione
-
-### 1. Clona il Repository
+## Setup
 
 ```bash
 git clone https://github.com/fablab-imperia/meshbee-server.git
 cd meshbee-server
-```
-
-### 2. Crea File di Configurazione
-
-```bash
 cp .env.example .env
 ```
 
-### 3. Modifica Configurazione
-
-Edita il file `.env` e imposta valori sicuri per **tutte** le credenziali:
+**1. Fill in `.env`.** Every value is a credential and every one must be changed:
 
 ```bash
-# IMPORTANTE: Cambia queste password!
-POSTGRES_PASSWORD=tua-password-sicura        # password del database
-JWT_SECRET_KEY=genera-chiave-con-openssl     # firma dei token JWT
-MQTT_PASSWORD=tua-password-mqtt              # autenticazione broker/handler MQTT
-ADMIN_PASSWORD=tua-password-admin           # utente admin creato al primo avvio
-USER_PASSWORD=tua-password-utente           # utente di test creato al primo avvio
+POSTGRES_PASSWORD=...      # database
+JWT_SECRET_KEY=...         # token signing — openssl rand -hex 32
+MQTT_PASSWORD=...          # broker
+ADMIN_PASSWORD=...         # admin@beehive.local, created on first start
+USER_PASSWORD=...          # utente@test.local, created on first start
 ```
 
-`ADMIN_PASSWORD` e `USER_PASSWORD` sono **obbligatorie e di almeno 8 caratteri**:
-se mancano, il servizio `seed` si ferma con un errore esplicito invece di creare
-account utilizzabili con password vuota.
+`ADMIN_PASSWORD` and `USER_PASSWORD` are **required and at least 8 characters**. If one
+is missing, the `seed` service stops with an explicit error rather than creating a
+working administrator account with an empty password.
 
-Per generare una chiave JWT sicura:
-
-```bash
-openssl rand -hex 32
-```
-
-### 4. Genera il File Password per Mosquitto
-
-Il broker richiede autenticazione (`allow_anonymous false`), quindi va generato
-il file password a partire dalle credenziali in `.env`. **Senza questo passo il
-container Mosquitto non si avvia.**
+**2. Generate the broker password file.** The broker runs with `allow_anonymous false`,
+so **without this step Mosquitto will not start**:
 
 ```bash
 make mqtt-passwd
 ```
 
-> Se in seguito cambi `MQTT_PASSWORD` nel `.env`, riesegui `make mqtt-passwd`.
+Re-run it whenever you change `MQTT_PASSWORD` — the file holds a hash, so it does not
+follow the variable.
 
-### 5. (Opzionale) Abilita HTTPS
-
-Lo stack include un proxy **Caddy** che espone l'API in HTTPS con un certificato
-attendibile localmente. Genera il certificato una volta (richiede
-[mkcert](https://github.com/FiloSottile/mkcert)):
+**3. (Optional) Enable HTTPS.** Requires mkcert; it runs on the host and touches your
+system trust store:
 
 ```bash
 make certs
 ```
 
-Se salti questo passo, Caddy stampa un avviso ed esce: il resto dello stack e
-l'HTTP su `:8000` continuano a funzionare.
+Skip it and Caddy prints a note and exits 0. The rest of the stack, and HTTP on `:8000`,
+carry on regardless.
 
-### 6. Avvia i Servizi
-
-```bash
-docker-compose up -d      # oppure: make start
-```
-
-> **Scorciatoia:** `make setup` esegue in sequenza la copia di `.env`,
-> `make mqtt-passwd` e l'avvio dei servizi (esclusi i certificati HTTPS).
-
-### 7. Verifica il Funzionamento
+**4. Start.**
 
 ```bash
-# Verifica che tutti i container siano in esecuzione
+docker-compose up -d       # or: make start
 docker-compose ps
-
-# Controlla i log
-docker-compose logs -f
 ```
 
-- **HTTP**:  <http://localhost:8000/docs>
-- **HTTPS**: <https://localhost:8443/docs> (se hai eseguito `make certs`)
+> **Shortcut:** `make setup` does the `.env` copy, `make mqtt-passwd` and the start, in
+> that order. It does not generate certificates.
 
-> Il container `meshbee-seed` crea gli utenti iniziali e poi termina: vederlo
-> come `Exited (0)` è normale, non è un errore.
+**5. Check.**
 
-## ⚙️ Configurazione
-
-### Variabili d'Ambiente
-
-Tutte le configurazioni sono nel file `.env`:
-
-| Variabile | Descrizione | Default |
-|-----------|-------------|---------|
-| `POSTGRES_PASSWORD` | Password database | CHANGE_ME_IN_DOT_ENV |
-| `JWT_SECRET_KEY` | Chiave per firmare JWT | (generare!) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Durata token accesso | 30 |
-| `MQTT_BROKER` | Host broker MQTT | mosquitto |
-| `MQTT_PORT` | Porta MQTT | 1883 |
-
-### Database Iniziale
-
-Il database viene inizializzato automaticamente con:
-- Schema completo
-- Utente admin (email: `admin@beehive.local`, password: `YOUR_ADMIN_PASSWORD`)
-- Utente test (email: `utente@test.local`, password: `YOUR_USER_PASSWORD`)
-- Dati di esempio
-
-**⚠️ IMPORTANTE:** Cambiare le password di default in produzione!
-
-### Configurazione Soglie Allarmi
-
-Le soglie possono essere configurate per ogni arnia tramite il campo `configurazione` (JSONB):
-
-```json
-{
-  "soglia_temperatura_max": 38.0,
-  "soglia_temperatura_min": 30.0,
-  "soglia_umidita_max": 80.0,
-  "soglia_umidita_min": 40.0,
-  "soglia_peso_min": 25.0
-}
-```
-
-## 📱 Utilizzo
-
-### Test del Sistema
-
-#### 1. Test API (Health Check)
+- HTTP: <http://localhost:8000/docs>
+- HTTPS: <https://localhost:8443/docs> (only after `make certs`)
 
 ```bash
-curl http://localhost:8000/health
+curl -s localhost:8000/health | python3 -m json.tool
 ```
 
-#### 2. Login
+> `meshbee-seed` creates the initial accounts and exits. Seeing it as **`Exited (0)` is
+> normal** — it is a one-shot job, not a crashed service.
 
-```bash
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "utente@test.local",
-    "password": "YOUR_USER_PASSWORD"
-  }'
-```
+On a fresh database you get: the two accounts above, one sample node with two hives, and
+a handful of readings. **Change those passwords before exposing anything.**
 
-Risposta:
-```json
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "token_type": "bearer"
-}
-```
+## Configuration
 
-#### 3. Chiamata API Autenticata
+Everything is in `.env`. Compose passes the values to the services as environment
+variables, which take precedence over the file — the `.env` file itself is only read
+directly when you run a process outside Docker.
 
-```bash
-TOKEN="<access_token_ricevuto>"
-
-curl http://localhost:8000/api/user/arnie \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Test MQTT
-
-```bash
-# Usando mosquitto_pub
-mosquitto_pub -h localhost -t "beehive/NODE001/data" -m '{
-  "id_nodo": "NODE001",
-  "id_sensore": "SENSOR01",
-  "temperatura": 34.5,
-  "umidita": 65.0,
-  "peso": 42.5
-}'
-```
-
-## 📡 API Endpoints
-
-### Autenticazione
-
-| Method | Endpoint | Descrizione | Auth |
-|--------|----------|-------------|------|
-| POST | `/api/auth/login` | Login utente | No |
-| GET | `/api/auth/me` | Info utente corrente | Sì |
-
-### Endpoints Utente
-
-| Method | Endpoint | Descrizione | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/user/arnie` | Lista arnie utente | User |
-| GET | `/api/user/arnie/{id}/letture` | Letture arnia | User |
-| GET | `/api/user/arnie/{id}/attivita` | Attività arnia | User |
-| POST | `/api/user/arnie/{id}/attivita` | Aggiungi attività | User |
-| GET | `/api/user/arnie/{id}/allarmi` | Allarmi arnia | User |
-
-### Endpoints Admin
-
-| Method | Endpoint | Descrizione | Auth |
-|--------|----------|-------------|------|
-| GET | `/api/admin/utenti` | Lista tutti utenti | Admin |
-| POST | `/api/admin/utenti` | Crea utente | Admin |
-| PUT | `/api/admin/utenti/{id}` | Aggiorna utente | Admin |
-| GET | `/api/admin/nodi` | Lista nodi | Admin |
-| GET | `/api/admin/arnie` | Lista arnie | Admin |
-| POST | `/api/admin/arnie` | Crea arnia | Admin |
-| POST | `/api/admin/utenti-arnie` | Associa utente-arnia | Admin |
-| GET | `/api/admin/letture` | Tutte le letture | Admin |
-| GET | `/api/admin/attivita` | Tutte le attività | Admin |
-
-### Documentazione Interattiva
-
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-## 📨 Formato Dati MQTT
-
-### Topic Pattern
-
-```
-beehive/{ID_NODO}/data
-```
-
-Esempi:
-- `beehive/NODE001/data`
-- `beehive/APIARY_SOUTH/data`
-
-### Payload JSON
-
-```json
-{
-  "id_nodo": "NODE001",
-  "id_sensore": "SENSOR01",
-  "timestamp": "2024-02-01T12:00:00",
-  "temperatura": 34.5,
-  "umidita": 65.0,
-  "peso": 42.350,
-  "dati_raw": {
-    "batteria": 3.8,
-    "segnale": -65
-  }
-}
-```
-
-### Campi
-
-| Campo | Tipo | Obbligatorio | Descrizione |
-|-------|------|--------------|-------------|
-| `id_nodo` | string | Sì | ID univoco del nodo trasmettitore |
-| `id_sensore` | string | No | ID sensore (per multi-sensore) |
-| `timestamp` | ISO 8601 | No | Timestamp lettura (default: ora corrente) |
-| `temperatura` | float | No | Temperatura in °C |
-| `umidita` | float | No | Umidità relativa % |
-| `peso` | float | No | Peso in kg |
-| `dati_raw` | object | No | Altri dati in formato libero |
-
-## 🗄️ Database Schema
-
-### Tabelle Principali
-
-**utenti**
-- Gestione utenti e autenticazione
-- Ruoli: `user`, `admin`
-
-**nodi**
-- Dispositivi IoT trasmettitori
-- Tracking ultimo messaggio ricevuto
-
-**arnie**
-- Arnie monitorate
-- Associazione nodo-sensore
-- Metadati configurabili
-
-**letture**
-- Dati telemetrici (temperatura, umidità, peso)
-- Indicizzato per query temporali efficienti
-
-**log_attivita**
-- Registro interventi apicoltore
-- Tipi: ispezione, trattamento, raccolta, etc.
-
-**utenti_arnie**
-- Associazione many-to-many utenti-arnie
-- Gestione permessi (read, write, admin)
-
-**token_sessione**
-- Prevista per i refresh token revocabili, **non ancora usata da alcun codice**:
-  i refresh token oggi sono JWT stateless e non vengono salvati.
-- Non rimuoverla: è la forma corretta per la funzione quando verrà implementata (issue #16).
-
-### Viste Utili
-
-- `v_arnie_stato` - Arnie con le ultime letture. **È l'unica vista dello schema**,
-  usata da `meshbee_core/repository/arnie.py`.
-
-Le altre (`v_letture_recenti`, `v_serie_temperatura`, `v_serie_umidita`,
-`v_serie_peso`) sono state rimosse da `migrate_v4.sql`: nessuna query le leggeva.
-Le letture e le serie storiche si ottengono da
-`meshbee_core/repository/letture.py` (`list_by_arnia`, `series`), che prendono
-arnia, intervallo e LIMIT come parametri — cosa che una vista non può fare.
-
-## 🔧 Sviluppo
-
-### Struttura Directory
-
-```
-meshbee-server/
-├── meshbee_core/           # Libreria condivisa (importata dai due entry point)
-│   ├── config.py          # CoreSettings: solo i campi del database
-│   ├── db.py              # Pool di connessioni + get_db_cursor
-│   ├── schemas.py         # Modelli Pydantic
-│   ├── security.py        # Hashing password (bcrypt)
-│   ├── errors.py          # NotFound / Conflict / InvalidData
-│   ├── repository/        # Solo SQL: utenti, nodi, arnie, letture, attivita, accessi
-│   └── services/          # Logica di business, incluso ingest.py (percorso MQTT)
-├── api/                    # Entry point FastAPI
-│   ├── main.py            # Rotte sottili (nessun SQL)
-│   ├── auth.py            # JWT e dipendenze FastAPI
-│   ├── config.py          # Settings(CoreSettings) + JWT/CORS
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── requirements-dev.txt
-├── mqtt_handler/           # Entry point MQTT
-│   ├── handler.py         # Callback sottile (nessun SQL)
-│   ├── payload.py         # Decodifica del messaggio dei nodi
-│   ├── config.py          # Settings(CoreSettings) + MQTT_*
-│   ├── Dockerfile
-│   └── requirements.txt
-├── scripts/                # Script one-shot (non fanno parte dei servizi)
-│   └── seed.py            # Utenti iniziali — idempotente, nessun SQL
-├── tests/                  # Test suite (pytest)
-│   ├── conftest.py        # Fixture condivise
-│   ├── unit/              # Logica pura, senza database
-│   │   ├── api/  core/  mqtt_handler/
-│   └── integration/       # Query SQL su postgres-test
-│       ├── api/  core/
-│       └── test_ingest_parity.py   # API e MQTT scrivono righe equivalenti
-├── database/              # Schema database
-│   └── init.sql
-├── mosquitto/             # Configurazione MQTT
-│   └── config/
-│       └── mosquitto.conf
-├── pyproject.toml         # Pacchetto meshbee-core
-├── pytest.ini
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-I due `Dockerfile` usano la **radice del repository** come build context (non
-`./api` o `./mqtt_handler`): entrambe le immagini devono poter copiare
-`meshbee_core/` e installarlo.
-
-### Comandi Utili
-
-```bash
-# Riavvia tutti i servizi
-docker-compose restart
-
-# Riavvia solo l'API
-docker-compose restart api
-
-# Visualizza log in tempo reale
-docker-compose logs -f api
-
-# Accedi al database
-docker-compose exec postgres psql -U beehive_user -d beehive_iot
-
-# Backup database
-docker-compose exec postgres pg_dump -U beehive_user beehive_iot > backup.sql
-
-# Ripristina database
-docker-compose exec -T postgres psql -U beehive_user beehive_iot < backup.sql
-
-# Ferma tutto e rimuovi volumi (ATTENZIONE: cancella i dati!)
-docker-compose down -v
-```
-
-### Test
-
-I test sono scritti con [pytest](https://docs.pytest.org/) e vivono in `tests/`,
-nella radice del repository. Coprono **entrambi** gli entry point e la libreria
-condivisa, e girano tutti **dentro il container** `api`: l'immagine ha già tutte
-le dipendenze, e `api/`, `mqtt_handler/`, `meshbee_core/` e `tests/` sono montate
-in `/app`, quindi le modifiche sono subito visibili senza ricostruire nulla.
-
-La suite è divisa in due livelli:
-
-| Livello | Cosa verifica | Database |
+| Variable | Used by | Notes |
 |---|---|---|
-| `tests/unit/` | logica pura: configurazione, validatori, JWT, password, permessi, parsing dei payload MQTT | no |
-| `tests/integration/` | le query SQL vere: nomi colonne, join, vincoli dello schema | sì |
+| `POSTGRES_PASSWORD` | postgres, api, mqtt-handler, seed | Also arrives as `DB_PASSWORD`. **Only applied on a fresh volume.** |
+| `JWT_SECRET_KEY` | api | Token signing. Changing it invalidates every issued token. |
+| `MQTT_USER` | mosquitto, mqtt-handler | Default `beehive`. |
+| `MQTT_PASSWORD` | mosquitto, mqtt-handler | Must match `mosquitto/config/passwd`. |
+| `ADMIN_PASSWORD` | seed | ≥ 8 characters. |
+| `USER_PASSWORD` | seed | ≥ 8 characters. |
+| `HTTPS_PORT` | caddy | Host port for HTTPS. Default `8443`. |
 
-Dentro ciascun livello i file rispecchiano la struttura del codice
-(`unit/api/`, `unit/core/`, `unit/mqtt_handler/`, …), così ogni modulo ha il suo
-file di test nella posizione corrispondente.
+Settings are **split by service**: `CoreSettings` in `meshbee_core/config.py` holds the
+database fields, and each entry point subclasses it with its own extras — JWT and CORS
+for the API, `MQTT_*` for the handler, the two initial passwords for the seed. Each
+component's README lists its own fields.
 
-Un test merita una menzione a parte:
-`tests/integration/test_ingest_parity.py` verifica che **la stessa lettura,
-arrivata via API e via MQTT, produca righe identiche** in `letture`. È la
-regressione che l'estrazione di `meshbee_core` esiste per prevenire: prima
-ciascun percorso aveva la sua copia della INSERT.
+**Put a new field in the narrowest class that needs it.** A required field on
+`CoreSettings` must exist in the environment of *every* service in
+`docker-compose.yml`, or that service crashes on import.
 
-I test di integrazione usano il servizio `postgres-test`, un database usa-e-getta
-con i dati in tmpfs. Va avviato una volta (non parte con un normale `up`):
+## Development
 
-```bash
-docker-compose --profile test up -d postgres-test
-```
-
-Lo schema viene ricaricato da `database/init.sql` **a ogni esecuzione** della suite
-e ogni test gira in una transazione che viene annullata: il database è sempre pulito
-e i test non si influenzano a vicenda.
-
-```bash
-# Intera suite
-docker-compose exec api pytest
-
-# Solo i test che non richiedono il database
-docker-compose exec api pytest -m "not integration"
-
-# Solo i test di integrazione
-docker-compose exec api pytest -m integration
-
-# Un solo file
-docker-compose exec api pytest tests/unit/core/test_config.py
-
-# Una sola funzione (node id: file::funzione)
-docker-compose exec api pytest tests/unit/core/test_config.py::test_database_url_escapes_special_characters
-
-# Un caso di un test parametrizzato
-docker-compose exec api pytest "tests/unit/api/test_config.py::test_missing_secret_fails_loudly[DB_PASSWORD]"
-
-# Tutti i test il cui nome contiene una stringa
-docker-compose exec api pytest -k database_url
-
-# Solo il test di parità fra i due percorsi di scrittura
-docker-compose exec api pytest tests/integration/test_ingest_parity.py
-
-# Output verboso, fermati al primo fallimento
-docker-compose exec api pytest -v -x
-```
-
-I percorsi sono relativi a `/app`, che corrisponde alla radice del repository.
-Per comodità `make test` esegue l'intera suite; per tutto il resto si usa
-direttamente `pytest` con i suoi argomenti.
-
-I file di test sono separati per modulo e rispecchiano la struttura del codice
-(`meshbee_core/config.py` → `tests/unit/core/test_config.py`): la suite cresce in
-modo incrementale aggiungendo nuovi file, senza toccare quelli esistenti.
-
-> **Nota:** dopo aver aggiunto una dipendenza in `api/requirements-dev.txt` serve
-> ricostruire l'immagine, perché il bind mount copre solo il codice:
->
-> ```bash
-> docker-compose build api && docker-compose up -d api
-> ```
-
-### Sviluppo Locale
-
-Per sviluppare senza Docker:
-
-Tutti i comandi si eseguono dalla **radice del repository**: è lì che vivono
-`pyproject.toml` e i pacchetti importabili.
+The `api` container runs uvicorn with `--reload` and `api/`, `meshbee_core/` and
+`tests/` are bind-mounted, so editing a file is enough. **The MQTT handler has no hot
+reload** and must be restarted:
 
 ```bash
-# Setup Python environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# oppure: venv\Scripts\activate  # Windows
-
-# Installa le dipendenze dei due entry point
-pip install -r api/requirements.txt -r api/requirements-dev.txt
-pip install -r mqtt_handler/requirements.txt
-
-# Installa la libreria condivisa in modalità editable.
-# Senza questo passo `import meshbee_core` non risolve.
-pip install -e .
-
-# Configura variabili d'ambiente
-export DB_HOST=localhost
-export MQTT_BROKER=localhost
-# ... altre variabili
-
-# Avvia API
-uvicorn api.main:app --reload
-
-# Avvia MQTT handler (in un altro terminale)
-python -m mqtt_handler
+docker-compose logs -f                       # everything (make logs)
+docker-compose logs -f api                   # make logs-api
+docker-compose restart mqtt-handler          # make restart-mqtt — after every edit there
+docker-compose exec postgres psql -U beehive_user -d beehive_iot     # make db-shell
 ```
 
-Le stesse operazioni sono automatizzate da `make dev-setup`, `make dev-api` e
-`make dev-mqtt`.
-
-### HTTPS locale (proxy Caddy)
-
-L'ambiente di sviluppo è già isolato: ogni servizio gira nel proprio container
-con le dipendenze fissate in `requirements.txt`, quindi sull'host serve solo
-Docker. In più, lo stack include un proxy **Caddy** che espone l'API in
-**HTTPS** con un certificato attendibile localmente, così problemi legati a
-`Secure` cookie, mixed-content e URL assoluti emergono già in sviluppo.
-
-Genera il certificato una volta (richiede [mkcert](https://github.com/FiloSottile/mkcert),
-su macOS: `brew install mkcert`):
+**Tests** run in the container, always — `config.py` builds its `Settings` at import, so
+on the host collection fails:
 
 ```bash
-make certs   # = ./caddy/make-certs.sh
+docker-compose --profile test up -d postgres-test    # once per boot
+docker-compose exec api pytest                       # make test
+docker-compose exec api pytest -m "not integration"  # no database needed
 ```
 
-Poi avvia (o riavvia) lo stack come al solito:
+See [`tests/README.md`](tests/README.md) for the two tiers, the fixtures and where a new
+test belongs.
+
+**After changing a route or a schema**, regenerate the committed API contract:
 
 ```bash
-make start   # oppure: docker-compose up -d
+docker-compose exec api python -m scripts.export_openapi    # make openapi
 ```
 
-- **HTTPS**: <https://localhost:8443/docs>
-- **HTTP**:  <http://localhost:8000/docs>
+`api/openapi.json` is what the umbrella repo's
+[contract](https://github.com/fablab-imperia/meshbee/blob/main/docs/contract/api.md) and
+the mobile app reference. Nothing regenerates it automatically. A new endpoint also
+needs a row in the authorization table in `tests/integration/api/test_main_authz.py`.
 
-Se i certificati non ci sono, il container Caddy stampa le istruzioni ed esce
-senza errori: il resto dello stack e l'HTTP su `:8000` continuano a funzionare.
-La configurazione del proxy è in [`caddy/Caddyfile`](caddy/Caddyfile).
-
-## 🔒 Sicurezza
-
-### Best Practices
-
-1. **Cambia le password di default** nel file `.env`
-2. **Genera una chiave JWT sicura**: `openssl rand -hex 32`
-3. **Usa HTTPS** in produzione (nginx con SSL)
-4. **Abilita autenticazione MQTT** modificando `mosquitto.conf`
-5. **Limita accesso rete** con firewall
-6. **Backup regolari** del database
-
-### Autenticazione MQTT (Opzionale)
-
-Per abilitare autenticazione MQTT:
+**Publish a test reading** without any client installed:
 
 ```bash
-# Crea file password
-docker-compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwd username
-
-# Modifica mosquitto.conf
-# allow_anonymous false
-# password_file /mosquitto/config/passwd
+set -a; . ./.env; set +a
+docker-compose exec -T mosquitto mosquitto_pub \
+  -h localhost -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
+  -t beehive/NODE001/data \
+  -m '{"id_sensore":"SENSOR01","temperatura":34.5,"umidita":65,"peso":42.35}'
 ```
 
-## 🐛 Troubleshooting
-
-### Il database non si inizializza
+**Backups:**
 
 ```bash
-# Rimuovi volumi e ricrea
-docker-compose down -v
-docker-compose up -d
+make db-backup                                          # → backups/backup_<timestamp>.sql
+make db-restore FILE=backups/backup_20260805_120000.sql
 ```
 
-### MQTT handler non riceve messaggi
+**Stopping:** `docker-compose stop` pauses; `docker-compose down` (`make clean`) removes
+the containers and **keeps the data**; `make clean-all` runs `down -v` and **destroys
+the database**.
 
-```bash
-# Verifica che Mosquitto sia attivo
-docker-compose logs mosquitto
+### Local HTTPS
 
-# Test con mosquitto_sub
-docker-compose exec mosquitto mosquitto_sub -t "beehive/#" -v
-```
+`caddy/` holds a Caddy reverse proxy that terminates TLS on `:8443` and forwards to
+`api:8000`, using a certificate issued by [mkcert](https://github.com/FiloSottile/mkcert)
+and trusted by your machine. It exists so the mobile app can be developed against
+`https://` without certificate warnings.
 
-### API non risponde
+`make certs` runs on the **host** (mkcert installs a local CA into your trust store) and
+writes `caddy/certs/`, which is gitignored. Without those files Caddy prints how to
+create them and exits 0, so the stack still comes up.
 
-```bash
-# Verifica log
-docker-compose logs api
+## Troubleshooting
 
-# Verifica connessione database
-docker-compose exec api python -c "from database import init_db_pool; init_db_pool()"
-```
+**Mosquitto will not start / restarts in a loop.** Almost always the missing password
+file — it is gitignored, so a fresh clone never has one. Run `make mqtt-passwd`, then
+`docker-compose logs mosquitto`. Same if you changed `MQTT_PASSWORD` and did not
+regenerate.
 
-### Errore "Out of memory" su Raspberry Pi
+**A schema or password change had no effect.** `init.sql` and `POSTGRES_PASSWORD` are
+applied **only when the data directory is empty**, and `postgres_data` survives
+`docker-compose down`, rebuilds and restarts. Either `docker-compose down -v` (which
+**destroys every reading**) or write a `database/migrate_*.sql`. See
+[`database/README.md`](database/README.md#changing-the-schema).
 
-Riduci i worker di uvicorn e le connessioni DB:
+**`meshbee-seed` shows `Exited (0)`.** Normal — it is a one-shot job.
 
-```yaml
-# In docker-compose.yml, servizio api
-command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
-```
+**`seed` exits 1 with "Configurazione non valida".** `ADMIN_PASSWORD` or
+`USER_PASSWORD` is missing or shorter than 8 characters. Fix `.env`, then
+`docker-compose up -d seed`.
 
-## 📄 Licenza
+**Readings never arrive.** In order: is the broker up (`docker-compose logs mosquitto`);
+is the handler connected and authenticated (`docker-compose logs -f mqtt-handler`); is
+the node publishing to `beehive/<id>/data` and not to a deeper topic — the subscription
+is `beehive/+/data`, which matches exactly one level. Then check the payload against
+[`mqtt_handler/README.md`](mqtt_handler/README.md#payload): an out-of-range measurement
+is dropped, and logged as `Lettura scartata`.
 
-Questo progetto è rilasciato sotto [licenza APGL-3.0](LICENSE).
+**Code changes in `mqtt_handler/` do nothing.** There is no hot reload:
+`docker-compose restart mqtt-handler`.
 
-## 👥 Versioning & contributing
+**The whole integration tier fails to connect.** `postgres-test` is behind a compose
+profile and is not started by a plain `up`:
+`docker-compose --profile test up -d postgres-test`.
 
-Contributi, issues e feature requests sono benvenuti!
+**`/health` says `unhealthy`.** The API is up but the database is not reachable. The
+body carries the error; `/health` deliberately answers 200 either way, so a monitor must
+read the body.
 
-Releases follow [![SemVer 2.0.0](https://img.shields.io/badge/SemVer-2.0.0-blue.svg)](https://semver.org/spec/v2.0.0.html).
+## License
 
-Commits follow [![Conventional Commits 1.0.0](https://img.shields.io/badge/Conventional%20Commits-1.0.0-blue.svg)](https://www.conventionalcommits.org/en/v1.0.0/).
+Distributed under **AGPL-3.0**. See [LICENSE](LICENSE).
 
-See [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md)
-and the [compatibility matrix](https://fablab-imperia.github.io/meshbee/contract/compatibility/).
+## Versioning and contributing
 
-## 📞 Supporto
+Releases follow semantic versioning; the tag on the
+[latest release](https://github.com/fablab-imperia/meshbee-server/releases/latest) is
+the one to deploy. Compatibility between the repositories of the project is tracked in
+the umbrella repo:
+[compatibility matrix](https://fablab-imperia.github.io/meshbee/contract/compatibility/).
 
-Per domande o problemi, apri una issue su GitHub.
+Contributions are welcome — see the organisation's
+[CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md).
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
+Documentation is bilingual: English is canonical (`README.md`), Italian is the
+translation (`README.it.md`), and both are kept in step.
 
----
+## Support
 
-**Fatto con ❤️ per gli apicoltori** 🐝
+Open an [issue](https://github.com/fablab-imperia/meshbee-server/issues), or write to
+[Fablab Imperia APS](https://www.fablabimperia.org).
