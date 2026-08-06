@@ -93,7 +93,10 @@ non la sanno leggere — il firmware, l'app, un generatore di codice.
 |---|---|
 | `contract.py` | La fonte di verità: un modello pydantic, un campo per ogni campo del filo. |
 | `mqtt-payload.schema.json` | L'artefatto generato, committato come `api/openapi.json`. |
-| <https://fablab-imperia.github.io/meshbee/contract/mqtt-payload.schema.json> | Dove viene pubblicato, ed è quello che dice il suo `$id`. Fai riferimento a **quell'**URL, mai a un percorso di questo repo. |
+| <https://raw.githubusercontent.com/fablab-imperia/meshbee-server/main/mqtt_handler/mqtt-payload.schema.json> | Lo stesso file servito raw da `main`, ed è quello che dice il suo `$id`. Fai riferimento a **quell'**URL — un percorso relativo si risolve solo per chi ha questo repo in locale. |
+
+Spostare o rinominare `mqtt-payload.schema.json` rompe quindi ogni `$ref` scritto
+verso di esso. Considera il percorso come parte del contratto.
 
 **`contract.py` non è nel percorso del codice.** `parse_message` non ci valida contro e
 non lo farà mai: un nodo con un sensore rotto deve comunque vedersi archiviate le altre

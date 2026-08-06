@@ -92,7 +92,10 @@ table — the firmware, the app, a code generator.
 |---|---|
 | `contract.py` | The source of truth: a pydantic model, one field per wire field. |
 | `mqtt-payload.schema.json` | The generated artifact, committed like `api/openapi.json`. |
-| <https://fablab-imperia.github.io/meshbee/contract/mqtt-payload.schema.json> | Where it is published, and what its own `$id` points at. Reference **that** URL, never a path in this repo. |
+| <https://raw.githubusercontent.com/fablab-imperia/meshbee-server/main/mqtt_handler/mqtt-payload.schema.json> | The same file served raw off `main`, and what its own `$id` points at. Reference **that** URL — a relative path only resolves for someone who has this repo checked out. |
+
+Moving or renaming `mqtt-payload.schema.json` therefore breaks every `$ref` written
+against it. Treat the path as part of the contract.
 
 **`contract.py` is not in the code path.** `parse_message` does not validate against it
 and never will: a node with one broken sensor must still get its other measurements
