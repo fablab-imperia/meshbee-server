@@ -23,9 +23,9 @@ class Settings(CoreSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # API
-    API_TITLE: str = "Beehive IoT API"
-    API_VERSION: str = "1.0.0"
-    API_DESCRIPTION: str = "API per gestione sistema IoT arnie"
+    API_TITLE: str = "Meshbee API"
+    API_VERSION: str = "1.1.1"
+    API_DESCRIPTION: str = "Meshbee API - Open beehive telemetry server API"
 
     # CORS — from the environment, pass a JSON list: CORS_ORIGINS=["https://example.org"]
     CORS_ORIGINS: list[str] = ["*"]

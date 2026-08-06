@@ -76,7 +76,8 @@ app mobile ──HTTPS──▶ caddy/ ─────▶ api/ ─────�
 
 Due directory non stanno su quel percorso: [`tests/`](tests/README.it.md), l'unica suite
 pytest che copre tutto, e `scripts/`, i job one-shot — `seed.py` crea gli account
-iniziali, `export_openapi.py` rigenera il contratto dell'API.
+iniziali, `export_openapi.py` ed `export_mqtt_schema.py` rigenerano i due artefatti del
+contratto.
 
 > L'architettura dell'**intero** progetto Meshbee, questo repository compreso, è
 > documentata su <https://fablab-imperia.github.io/meshbee/architecture/>.
@@ -230,16 +231,21 @@ docker-compose exec api pytest -m "not integration"  # senza database
 Vedi [`tests/README.it.md`](tests/README.it.md) per i due livelli, le fixture e dove va
 un test nuovo.
 
-**Dopo aver cambiato una rotta o uno schema**, rigenera il contratto API committato:
+**Dopo aver cambiato una rotta, uno schema o la forma del payload**, rigenera gli
+artefatti del contratto committati:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi    # make openapi
+docker-compose exec api python -m scripts.export_openapi        # make openapi
+docker-compose exec api python -m scripts.export_mqtt_schema    # make mqtt-schema
+make contract                                                   # entrambi in un colpo
 ```
 
-`api/openapi.json` è quello che referenziano il
-[contratto](https://github.com/fablab-imperia/meshbee/blob/main/docs/contract/api.md)
-del repo ombrello e l'app mobile. Non lo rigenera niente in automatico. Un endpoint
-nuovo richiede anche una riga nella tabella di autorizzazione in
+`api/openapi.json` e `mqtt_handler/mqtt-payload.schema.json` sono quelli che
+referenziano il
+[contratto](https://github.com/fablab-imperia/meshbee/blob/main/docs/contract/index.md)
+del repo ombrello e l'app mobile. Non li rigenera niente in automatico; `pytest`
+fallisce se lo schema MQTT è vecchio, ma `openapi.json` non lo controlla nessuno. Un
+endpoint nuovo richiede anche una riga nella tabella di autorizzazione in
 `tests/integration/api/test_main_authz.py`.
 
 **Pubblica una lettura di prova** senza installare nessun client:

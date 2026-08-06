@@ -127,9 +127,9 @@ The ranges live in `schemas.py`:
 
 | Field | Range | Where else |
 |---|---|---|
-| `temperatura` | −50 to 100 °C | CHECK `valid_temperatura` |
-| `umidita` | 0 to 100 % | CHECK `valid_umidita` |
-| `peso` | ≥ 0 kg | CHECK `valid_peso` |
+| `temperatura` | −50 to 100 °C | CHECK `valid_temperatura`, MQTT contract |
+| `umidita` | 0 to 100 % | CHECK `valid_umidita`, MQTT contract |
+| `peso` | ≥ 0 kg | CHECK `valid_peso`, MQTT contract |
 | `latitudine` | −90 to 90 | CHECK `valid_latitudine` |
 | `longitudine` | −180 to 180 | CHECK `valid_longitudine` |
 | password | 8 chars min, **72 bytes** max | — |
@@ -137,10 +137,12 @@ The ranges live in `schemas.py`:
 | `permessi` | `read`, `write`, `admin` | CHECK on `utenti_arnie.permessi` |
 | `tipo_attivita` | 8 values | CHECK on `log_attivita.tipo_attivita` |
 
-**Every range is duplicated as a CHECK constraint in `database/init.sql`, and nothing
-links the two.** `tests/integration/core/test_schemas.py` is what keeps them honest: it
-asserts both sides against a real database. Add a case there whenever you add or change
-a validator that mirrors a constraint.
+**Every range is duplicated as a CHECK constraint in `database/init.sql` — and the three
+measurements a third time, as JSON Schema keywords in `mqtt_handler/contract.py` — with
+nothing linking them.** `tests/integration/core/test_schemas.py` is what keeps them
+honest: it derives its cases from the published MQTT contract and asserts the other
+sides against a real database. Add a case there whenever you add or change a validator
+that mirrors a constraint.
 
 Two more validation notes:
 

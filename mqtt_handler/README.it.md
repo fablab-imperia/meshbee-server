@@ -21,6 +21,8 @@ lettura arrivata via MQTT e una inviata a `/api/admin/letture` producono la stes
 |---|---|
 | `handler.py` | Il collegamento al broker: connessione, sottoscrizione, callback `on_message`, gestione dei segnali. |
 | `payload.py` | La decodifica di quello che il nodo ha messo davvero sul filo. Niente broker, niente database — la parte testabile. |
+| `contract.py` | Il formato del filo come modello pydantic. Niente ci valida contro a runtime: serve a generare lo schema. |
+| `mqtt-payload.schema.json` | Lo JSON Schema generato. Committato — vedi [Schema](#schema). |
 | `config.py` | `Settings(CoreSettings)` — i campi `MQTT_*` sopra a quelli del database. |
 | `__main__.py` | `python -m mqtt_handler` → `handler.main()`. |
 | `Dockerfile` | Immagine del servizio `mqtt-handler`. Il contesto di build è la root del repo. |
@@ -39,7 +41,8 @@ broker e viene ignorato in silenzio — è la prima cosa da controllare quando u
 ## Payload
 
 Il payload è un **oggetto JSON**. Qualsiasi altra cosa — un array, un numero, UTF-8 non
-valido, JSON malformato — viene loggata e scartata.
+valido, JSON malformato — viene loggata e scartata. La tabella qui sotto è la forma
+leggibile del contratto; [Schema](#schema) è quella leggibile da una macchina.
 
 | Campo | Tipo | Obbligatorio | Note |
 |---|---|---|---|
@@ -79,6 +82,39 @@ Quattro dettagli facili da sbagliare:
 - **`timestamp` è quello che il trigger scrive in `nodi.ultimo_messaggio`**, non l'ora
   di arrivo. Un nodo con l'orologio sbagliato si farà sembrare fermo
   ([issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17)).
+
+## Schema
+
+La tabella qui sopra è prosa; [`mqtt-payload.schema.json`](mqtt-payload.schema.json) è lo
+stesso contratto in **JSON Schema (draft 2020-12)**, per i consumatori che una tabella
+non la sanno leggere — il firmware, l'app, un generatore di codice.
+
+| Dove | Cos'è |
+|---|---|
+| `contract.py` | La fonte di verità: un modello pydantic, un campo per ogni campo del filo. |
+| `mqtt-payload.schema.json` | L'artefatto generato, committato come `api/openapi.json`. |
+| <https://fablab-imperia.github.io/meshbee/contract/mqtt-payload.schema.json> | Dove viene pubblicato, ed è quello che dice il suo `$id`. Fai riferimento a **quell'**URL, mai a un percorso di questo repo. |
+
+**`contract.py` non è nel percorso del codice.** `parse_message` non ci valida contro e
+non lo farà mai: un nodo con un sensore rotto deve comunque vedersi archiviate le altre
+misure, quindi la decodifica resta permissiva e i limiti vengono applicati una volta
+sola, dopo, in `meshbee_core`. Il modello esiste per essere esportato, non per girare.
+
+Il che vuol dire che a tenere onesti i due sono solo i test.
+`tests/unit/mqtt_handler/test_contract.py` verifica che i campi del modello siano
+esattamente le chiavi che `parse_message` restituisce, che il JSON committato sia quello
+che il modello genera e che l'esempio qui sopra sia valido — in entrambe le lingue.
+`tests/integration/core/test_schemas.py` lega i limiti pubblicati a `LetturaBase` e ai
+vincoli CHECK.
+
+**Rigeneralo dopo ogni modifica alla forma del payload** — non lo fa niente in automatico:
+
+```bash
+docker-compose exec api python -m scripts.export_mqtt_schema   # oppure: make mqtt-schema
+```
+
+L'output è ordinato e indentato, quindi rigenerare un contratto invariato lascia un diff
+vuoto. `pytest` fallisce finché non l'hai fatto.
 
 ## Auto-provisioning
 
@@ -149,8 +185,9 @@ docker-compose exec postgres psql -U beehive_user -d beehive_iot \
   -c 'SELECT id_lettura, id_arnia, timestamp, temperatura FROM letture ORDER BY id_lettura DESC LIMIT 3;'
 ```
 
-I test stanno in `tests/unit/mqtt_handler/` (decodifica del payload, senza broker) e in
-`tests/integration/test_ingest_parity.py` — vedi [`tests/`](../tests/README.it.md).
+I test stanno in `tests/unit/mqtt_handler/` (decodifica del payload e contratto, senza
+broker) e in `tests/integration/test_ingest_parity.py` — vedi
+[`tests/`](../tests/README.it.md).
 
 ## Trappole
 
@@ -160,6 +197,9 @@ I test stanno in `tests/unit/mqtt_handler/` (decodifica del payload, senza broke
   la sua conferma prima ancora che l'handler guardasse il payload. Non c'è nessuna coda
   di messaggi morti.
 - **`beehive/+/data` copre esattamente un livello** — vedi [Il topic](#il-topic).
+- **`contract.py` è documentazione, non validazione.** Modificarlo non cambia nessun
+  comportamento; modificare `payload.py` non cambia nessun contratto. Cambiare la forma
+  del payload è entrambe le cose, più `make mqtt-schema`.
 - **Tutti i nodi condividono una sola credenziale.** Un nodo compromesso non si può
   revocare singolarmente, e qualsiasi account autenticato può pubblicare su qualsiasi
   topic (nessuna ACL). Vedi [`mosquitto/`](../mosquitto/README.it.md).
@@ -172,4 +212,5 @@ I test stanno in `tests/unit/mqtt_handler/` (decodifica del payload, senza broke
 - [`meshbee_core/`](../meshbee_core/README.it.md) — `services/ingest.py`, dove la lettura viene scritta davvero.
 - [`api/`](../api/README.it.md) — l'altro scrittore, e `POST /api/admin/letture`.
 - [`database/`](../database/README.it.md) — `letture`, `nodi`, `arnie` e il trigger.
+- [Il contratto pubblicato](https://fablab-imperia.github.io/meshbee/contract/mqtt-payload/) — lo stesso payload, documentato per il firmware e per l'app.
 - [README](../README.it.md) principale — lo stack nel suo insieme.

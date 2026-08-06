@@ -134,9 +134,9 @@ I limiti stanno in `schemas.py`:
 
 | Campo | Intervallo | Dove altro |
 |---|---|---|
-| `temperatura` | da −50 a 100 °C | CHECK `valid_temperatura` |
-| `umidita` | da 0 a 100 % | CHECK `valid_umidita` |
-| `peso` | ≥ 0 kg | CHECK `valid_peso` |
+| `temperatura` | da −50 a 100 °C | CHECK `valid_temperatura`, contratto MQTT |
+| `umidita` | da 0 a 100 % | CHECK `valid_umidita`, contratto MQTT |
+| `peso` | ≥ 0 kg | CHECK `valid_peso`, contratto MQTT |
 | `latitudine` | da −90 a 90 | CHECK `valid_latitudine` |
 | `longitudine` | da −180 a 180 | CHECK `valid_longitudine` |
 | password | minimo 8 caratteri, massimo **72 byte** | — |
@@ -144,10 +144,12 @@ I limiti stanno in `schemas.py`:
 | `permessi` | `read`, `write`, `admin` | CHECK su `utenti_arnie.permessi` |
 | `tipo_attivita` | 8 valori | CHECK su `log_attivita.tipo_attivita` |
 
-**Ogni limite è duplicato come vincolo CHECK in `database/init.sql`, e niente collega le
-due cose.** `tests/integration/core/test_schemas.py` è quello che li tiene onesti:
-verifica entrambi i lati contro un database reale. Aggiungi un caso lì ogni volta che
-aggiungi o cambi un validatore che rispecchia un vincolo.
+**Ogni limite è duplicato come vincolo CHECK in `database/init.sql` — e le tre misure una
+terza volta, come parole chiave JSON Schema in `mqtt_handler/contract.py` — e niente
+collega le tre cose.** `tests/integration/core/test_schemas.py` è quello che li tiene
+onesti: ricava i suoi casi dal contratto MQTT pubblicato e verifica gli altri lati contro
+un database reale. Aggiungi un caso lì ogni volta che aggiungi o cambi un validatore che
+rispecchia un vincolo.
 
 Altre due note sulla validazione:
 
