@@ -1,0 +1,47 @@
+{
+  "$id": "https://fablab-imperia.github.io/meshbee/contract/mqtt-payload.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "One reading published by a node to beehive/<id_nodo>/data. Generated from mqtt_handler/contract.py in meshbee-server; the code that consumes it is mqtt_handler/payload.py. Every field is optional and unknown fields are preserved, so adding one is a backwards-compatible change. No field carries a payload version yet; see the contract docs for the planned versioning scheme.",
+  "properties": {
+    "dati_raw": {
+      "additionalProperties": true,
+      "description": "Anything else the firmware wants to keep — battery voltage, RSSI, and so on. Stored verbatim as JSONB.",
+      "type": "object"
+    },
+    "id_nodo": {
+      "description": "Node identifier. Optional in the body: it falls back to the <id_nodo> segment of the topic, and the body wins when both are present. A message is rejected only when neither supplies one.",
+      "maxLength": 50,
+      "type": "string"
+    },
+    "id_sensore": {
+      "description": "Identifies the hive on that node. An unknown value provisions a new hive; when absent, the node's first hive is used.",
+      "maxLength": 50,
+      "type": "string"
+    },
+    "peso": {
+      "description": "Hive weight in kg. Out of range drops the whole message.",
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "temperatura": {
+      "description": "Temperature in °C. Out of range drops the whole message.",
+      "maximum": 100.0,
+      "minimum": -50.0,
+      "type": "number"
+    },
+    "timestamp": {
+      "description": "Reading time, ISO 8601. A trailing Z is accepted. Absent or unparseable values fall back to server time.",
+      "format": "date-time",
+      "type": "string"
+    },
+    "umidita": {
+      "description": "Relative humidity in %. Out of range drops the whole message.",
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "type": "number"
+    }
+  },
+  "title": "MeshBee MQTT payload",
+  "type": "object"
+}

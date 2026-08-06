@@ -3,8 +3,8 @@
 
 .PHONY: help start stop restart restart-api restart-mqtt logs logs-api logs-mqtt \
         status build clean clean-all certs db-shell db-backup db-restore \
-        dev-setup dev-api dev-mqtt test test-health openapi mqtt-passwd setup \
-        install info endpoints
+        dev-setup dev-api dev-mqtt test test-health openapi mqtt-schema contract \
+        mqtt-passwd setup install info endpoints
 
 # Variabili
 COMPOSE = docker-compose
@@ -115,6 +115,11 @@ test-health: ## Test health endpoint
 # Documentation Commands
 openapi: ## Rigenera api/openapi.json dallo schema FastAPI (richiede il container api attivo)
 	$(COMPOSE) exec api python -m scripts.export_openapi
+
+mqtt-schema: ## Rigenera mqtt_handler/mqtt-payload.schema.json dal modello del contratto (richiede il container api attivo)
+	$(COMPOSE) exec api python -m scripts.export_mqtt_schema
+
+contract: openapi mqtt-schema ## Rigenera entrambi gli artefatti del contratto (OpenAPI + payload MQTT)
 
 # Setup Commands
 mqtt-passwd: ## Genera il file password per il broker Mosquitto (richiede .env)

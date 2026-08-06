@@ -68,9 +68,11 @@ può marcire in silenzio.
 ## I due moduli che pesano di più
 
 **`integration/core/test_schemas.py` — la deriva modello↔schema.** Ogni limite in
-`meshbee_core/schemas.py` è duplicato come vincolo CHECK in `database/init.sql`, e
-*niente li collega*. Questo modulo verifica entrambi i lati. Aggiungi un caso ogni volta
-che un validatore rispecchia un vincolo.
+`meshbee_core/schemas.py` è duplicato come vincolo CHECK in `database/init.sql`, e le tre
+misure una terza volta in `mqtt_handler/contract.py` — la copia che leggono gli estranei
+— e *niente le collega*. Questo modulo ricava i suoi casi dal contratto MQTT pubblicato e
+verifica gli altri lati. Aggiungi un caso ogni volta che un validatore rispecchia un
+vincolo.
 
 **`integration/test_ingest_parity.py` — il motivo per cui esiste il livello
 condiviso.** Dimostra che il percorso API e quello MQTT scrivono righe **uguali**, ogni

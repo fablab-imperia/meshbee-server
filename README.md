@@ -76,7 +76,8 @@ mobile app ──HTTPS──▶ caddy/ ─────▶ api/ ─────�
 
 Two directories are not on that path: [`tests/`](tests/README.md), one pytest suite
 covering all of it, and `scripts/`, one-shot jobs — `seed.py` creates the initial
-accounts, `export_openapi.py` regenerates the API contract.
+accounts, `export_openapi.py` and `export_mqtt_schema.py` regenerate the two contract
+artifacts.
 
 > The architecture of the **whole** Meshbee project, this repository included, is
 > documented at <https://fablab-imperia.github.io/meshbee/architecture/>.
@@ -229,15 +230,19 @@ docker-compose exec api pytest -m "not integration"  # no database needed
 See [`tests/README.md`](tests/README.md) for the two tiers, the fixtures and where a new
 test belongs.
 
-**After changing a route or a schema**, regenerate the committed API contract:
+**After changing a route, a schema or the payload shape**, regenerate the committed
+contract artifacts:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi    # make openapi
+docker-compose exec api python -m scripts.export_openapi        # make openapi
+docker-compose exec api python -m scripts.export_mqtt_schema    # make mqtt-schema
+make contract                                                   # both at once
 ```
 
-`api/openapi.json` is what the umbrella repo's
-[contract](https://github.com/fablab-imperia/meshbee/blob/main/docs/contract/api.md) and
-the mobile app reference. Nothing regenerates it automatically. A new endpoint also
+`api/openapi.json` and `mqtt_handler/mqtt-payload.schema.json` are what the umbrella
+repo's [contract](https://github.com/fablab-imperia/meshbee/blob/main/docs/contract/index.md)
+and the mobile app reference. Nothing regenerates them automatically; `pytest` fails
+while the MQTT schema is stale, but nothing checks `openapi.json`. A new endpoint also
 needs a row in the authorization table in `tests/integration/api/test_main_authz.py`.
 
 **Publish a test reading** without any client installed:
