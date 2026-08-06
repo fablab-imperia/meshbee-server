@@ -27,9 +27,18 @@ from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Where the artifact is published and what its own `$id` claims — not where this
-# file lives in git. A `$ref` in someone's toolchain resolves against this URL.
-SCHEMA_ID = "https://fablab-imperia.github.io/meshbee/contract/mqtt-payload.schema.json"
+# Where the artifact is served and what its own `$id` claims: this file, on this
+# branch. A `$ref` in someone's toolchain resolves against this URL, so moving or
+# renaming the file is a breaking change for anyone who wrote one — regenerate
+# and announce it, don't just fix the path.
+#
+# It used to name the docs site, which meant the meshbee repo had to fetch and
+# republish these bytes to keep the `$id` honest. Pointing at the generated file
+# itself removes that round trip: one copy, in the repo that generates it.
+SCHEMA_ID = (
+    "https://raw.githubusercontent.com/fablab-imperia/meshbee-server/main"
+    "/mqtt_handler/mqtt-payload.schema.json"
+)
 SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 # nodi.id_nodo and arnie.id_sensore_fisico are VARCHAR(50) in database/init.sql.
