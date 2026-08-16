@@ -7,7 +7,7 @@
         mqtt-passwd setup install info endpoints
 
 # Variabili
-COMPOSE = docker-compose
+COMPOSE = docker compose
 PYTHON = python3
 
 help: ## Mostra questo messaggio di aiuto
@@ -110,7 +110,7 @@ test: ## Esegue tutti i test dell'API nel container
 	$(COMPOSE) exec api pytest
 
 test-health: ## Test health endpoint
-	@curl -s http://localhost:8000/health | python -m json.tool
+	@curl -s http://localhost:8000/health | $(PYTHON) -m json.tool
 
 # Documentation Commands
 openapi: ## Rigenera api/openapi.json dallo schema FastAPI (richiede il container api attivo)
@@ -161,7 +161,7 @@ info: ## Informazioni sul sistema
 	@docker --version
 	@echo ""
 	@echo "Docker Compose:"
-	@docker-compose --version
+	@$(COMPOSE) version
 	@echo ""
 	@echo "Python:"
 	@$(PYTHON) --version
