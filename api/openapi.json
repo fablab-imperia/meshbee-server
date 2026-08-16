@@ -1,0 +1,3342 @@
+{
+  "components": {
+    "schemas": {
+      "ArniaConStato": {
+        "description": "Arnia con ultime letture e coordinate",
+        "properties": {
+          "attiva": {
+            "title": "Attiva",
+            "type": "boolean"
+          },
+          "data_installazione": {
+            "format": "date-time",
+            "title": "Data Installazione",
+            "type": "string"
+          },
+          "data_rimozione": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Rimozione"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "id_sensore_fisico": {
+            "title": "Id Sensore Fisico",
+            "type": "string"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_arnia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Arnia"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          },
+          "ultima_temperatura": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultima Temperatura"
+          },
+          "ultima_umidita": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultima Umidita"
+          },
+          "ultimo_aggiornamento": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Aggiornamento"
+          },
+          "ultimo_peso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Peso"
+          }
+        },
+        "required": [
+          "id_nodo",
+          "id_sensore_fisico",
+          "id_arnia",
+          "data_installazione",
+          "attiva"
+        ],
+        "title": "ArniaConStato",
+        "type": "object"
+      },
+      "ArniaCreate": {
+        "description": "Creazione arnia",
+        "properties": {
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "id_sensore_fisico": {
+            "title": "Id Sensore Fisico",
+            "type": "string"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latitudine in formato DD, es: 45.464200",
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Longitudine in formato DD, es: 9.190000",
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_arnia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Arnia"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "required": [
+          "id_nodo",
+          "id_sensore_fisico"
+        ],
+        "title": "ArniaCreate",
+        "type": "object"
+      },
+      "ArniaResponse": {
+        "description": "Risposta con dati arnia",
+        "properties": {
+          "attiva": {
+            "title": "Attiva",
+            "type": "boolean"
+          },
+          "data_installazione": {
+            "format": "date-time",
+            "title": "Data Installazione",
+            "type": "string"
+          },
+          "data_rimozione": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Rimozione"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "id_sensore_fisico": {
+            "title": "Id Sensore Fisico",
+            "type": "string"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_arnia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Arnia"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "required": [
+          "id_nodo",
+          "id_sensore_fisico",
+          "id_arnia",
+          "data_installazione",
+          "attiva"
+        ],
+        "title": "ArniaResponse",
+        "type": "object"
+      },
+      "ArniaUpdate": {
+        "description": "Aggiornamento arnia",
+        "properties": {
+          "attiva": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attiva"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latitudine in formato DD",
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Longitudine in formato DD",
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_arnia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Arnia"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "title": "ArniaUpdate",
+        "type": "object"
+      },
+      "AttivitaCreate": {
+        "description": "Creazione attività",
+        "properties": {
+          "dati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dati"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "tipo_attivita": {
+            "enum": [
+              "ispezione",
+              "trattamento",
+              "raccolta_miele",
+              "nutrizione",
+              "sostituzione_regina",
+              "controllo_salute",
+              "manutenzione",
+              "altro"
+            ],
+            "title": "Tipo Attivita",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo_attivita",
+          "id_arnia"
+        ],
+        "title": "AttivitaCreate",
+        "type": "object"
+      },
+      "AttivitaResponse": {
+        "description": "Risposta con dati attività",
+        "properties": {
+          "dati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dati"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "id_log": {
+            "title": "Id Log",
+            "type": "integer"
+          },
+          "id_utente": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "tipo_attivita": {
+            "enum": [
+              "ispezione",
+              "trattamento",
+              "raccolta_miele",
+              "nutrizione",
+              "sostituzione_regina",
+              "controllo_salute",
+              "manutenzione",
+              "altro"
+            ],
+            "title": "Tipo Attivita",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo_attivita",
+          "id_log",
+          "id_arnia",
+          "timestamp"
+        ],
+        "title": "AttivitaResponse",
+        "type": "object"
+      },
+      "AttivitaUpdate": {
+        "description": "Aggiornamento attività",
+        "properties": {
+          "dati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dati"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "tipo_attivita": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ispezione",
+                  "trattamento",
+                  "raccolta_miele",
+                  "nutrizione",
+                  "sostituzione_regina",
+                  "controllo_salute",
+                  "manutenzione",
+                  "altro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Attivita"
+          }
+        },
+        "title": "AttivitaUpdate",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LetturaCreate": {
+        "description": "Creazione lettura",
+        "properties": {
+          "dati_raw": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dati Raw"
+          },
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "peso": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peso"
+          },
+          "temperatura": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperatura"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "umidita": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Umidita"
+          }
+        },
+        "required": [
+          "id_arnia",
+          "id_nodo"
+        ],
+        "title": "LetturaCreate",
+        "type": "object"
+      },
+      "LetturaResponse": {
+        "description": "Risposta con dati lettura",
+        "properties": {
+          "dati_raw": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dati Raw"
+          },
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "id_lettura": {
+            "title": "Id Lettura",
+            "type": "integer"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "peso": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peso"
+          },
+          "temperatura": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperatura"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "umidita": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Umidita"
+          }
+        },
+        "required": [
+          "id_lettura",
+          "id_arnia",
+          "id_nodo",
+          "timestamp"
+        ],
+        "title": "LetturaResponse",
+        "type": "object"
+      },
+      "MessageResponse": {
+        "description": "Messaggio generico",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "MessageResponse",
+        "type": "object"
+      },
+      "NodoCreate": {
+        "description": "Creazione nodo",
+        "properties": {
+          "configurazione": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configurazione"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "nome_nodo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Nodo"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "required": [
+          "id_nodo"
+        ],
+        "title": "NodoCreate",
+        "type": "object"
+      },
+      "NodoResponse": {
+        "description": "Risposta con dati nodo",
+        "properties": {
+          "attivo": {
+            "title": "Attivo",
+            "type": "boolean"
+          },
+          "configurazione": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configurazione"
+          },
+          "data_registrazione": {
+            "format": "date-time",
+            "title": "Data Registrazione",
+            "type": "string"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_nodo": {
+            "title": "Id Nodo",
+            "type": "string"
+          },
+          "nome_nodo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Nodo"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          },
+          "ultimo_messaggio": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Messaggio"
+          }
+        },
+        "required": [
+          "id_nodo",
+          "data_registrazione",
+          "attivo"
+        ],
+        "title": "NodoResponse",
+        "type": "object"
+      },
+      "PasswordChange": {
+        "description": "Cambio password",
+        "properties": {
+          "current_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
+          },
+          "new_password": {
+            "description": "Nuova password (minimo 8 caratteri, massimo 72 byte)",
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "new_password"
+        ],
+        "title": "PasswordChange",
+        "type": "object"
+      },
+      "SeriePesoResponse": {
+        "description": "Risposta serie storica peso",
+        "properties": {
+          "peso": {
+            "title": "Peso",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "peso"
+        ],
+        "title": "SeriePesoResponse",
+        "type": "object"
+      },
+      "SerieTemperaturaResponse": {
+        "description": "Risposta serie storica temperatura",
+        "properties": {
+          "temperatura": {
+            "title": "Temperatura",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "temperatura"
+        ],
+        "title": "SerieTemperaturaResponse",
+        "type": "object"
+      },
+      "SerieUmiditaResponse": {
+        "description": "Risposta serie storica umidita",
+        "properties": {
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "umidita": {
+            "title": "Umidita",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "umidita"
+        ],
+        "title": "SerieUmiditaResponse",
+        "type": "object"
+      },
+      "Token": {
+        "description": "Token di accesso",
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token"
+        ],
+        "title": "Token",
+        "type": "object"
+      },
+      "UserCreate": {
+        "description": "Creazione utente",
+        "properties": {
+          "cognome": {
+            "title": "Cognome",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "password": {
+            "description": "Password (minimo 8 caratteri, massimo 72 byte)",
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "ruolo": {
+            "default": "user",
+            "enum": [
+              "user",
+              "admin"
+            ],
+            "title": "Ruolo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "nome",
+          "cognome",
+          "password"
+        ],
+        "title": "UserCreate",
+        "type": "object"
+      },
+      "UserLogin": {
+        "description": "Dati per login utente",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserLogin",
+        "type": "object"
+      },
+      "UserResponse": {
+        "description": "Risposta con dati utente",
+        "properties": {
+          "attivo": {
+            "title": "Attivo",
+            "type": "boolean"
+          },
+          "cognome": {
+            "title": "Cognome",
+            "type": "string"
+          },
+          "data_attivazione": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Attivazione"
+          },
+          "data_creazione": {
+            "format": "date-time",
+            "title": "Data Creazione",
+            "type": "string"
+          },
+          "data_disattivazione": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Disattivazione"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_utente": {
+            "title": "Id Utente",
+            "type": "integer"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "ruolo": {
+            "title": "Ruolo",
+            "type": "string"
+          },
+          "ultimo_accesso": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Accesso"
+          }
+        },
+        "required": [
+          "email",
+          "nome",
+          "cognome",
+          "id_utente",
+          "ruolo",
+          "data_creazione",
+          "attivo"
+        ],
+        "title": "UserResponse",
+        "type": "object"
+      },
+      "UserUpdate": {
+        "description": "Aggiornamento utente",
+        "properties": {
+          "attivo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attivo"
+          },
+          "cognome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cognome"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          },
+          "ruolo": {
+            "anyOf": [
+              {
+                "enum": [
+                  "user",
+                  "admin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ruolo"
+          }
+        },
+        "title": "UserUpdate",
+        "type": "object"
+      },
+      "UtenteArniaCreate": {
+        "description": "Associazione utente-arnia",
+        "properties": {
+          "id_arnia": {
+            "title": "Id Arnia",
+            "type": "integer"
+          },
+          "id_utente": {
+            "title": "Id Utente",
+            "type": "integer"
+          },
+          "permessi": {
+            "default": "read",
+            "enum": [
+              "read",
+              "write",
+              "admin"
+            ],
+            "title": "Permessi",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_utente",
+          "id_arnia"
+        ],
+        "title": "UtenteArniaCreate",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Meshbee API - Open beehive telemetry server API",
+    "title": "Meshbee API",
+    "version": "1.1.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "description": "Endpoint root con informazioni API",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root",
+        "tags": [
+          "Info"
+        ]
+      }
+    },
+    "/api/admin/arnie": {
+      "get": {
+        "description": "Ottieni lista di tutte le arnie con stato (solo admin)\n\nReturns:\n    Lista di tutte le arnie",
+        "operationId": "get_all_arnie_api_admin_arnie_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ArniaConStato"
+                  },
+                  "title": "Response Get All Arnie Api Admin Arnie Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get All Arnie",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "post": {
+        "description": "Crea una nuova arnia (solo admin)\n\nArgs:\n    arnia: Dati della nuova arnia\n\nReturns:\n    Arnia creata",
+        "operationId": "create_arnia_api_admin_arnie_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArniaCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArniaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Arnia",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/arnie/{id_arnia}": {
+      "delete": {
+        "description": "Disattiva un'arnia (soft delete, solo admin).\nLe letture storiche vengono mantenute.",
+        "operationId": "delete_arnia_api_admin_arnie__id_arnia__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Arnia",
+        "tags": [
+          "Admin - Arnie"
+        ]
+      },
+      "get": {
+        "description": "Dettagli di una singola arnia con ultimo stato (solo admin).",
+        "operationId": "get_arnia_admin_api_admin_arnie__id_arnia__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArniaConStato"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Arnia Admin",
+        "tags": [
+          "Admin - Arnie"
+        ]
+      },
+      "put": {
+        "description": "Aggiorna una arnia (solo admin).",
+        "operationId": "update_arnia_admin_api_admin_arnie__id_arnia__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArniaUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArniaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Arnia Admin",
+        "tags": [
+          "Admin - Arnie"
+        ]
+      }
+    },
+    "/api/admin/attivita": {
+      "get": {
+        "description": "Ottieni tutte le attività (solo admin)\n\nArgs:\n    limit: Numero massimo di attività da restituire\n\nReturns:\n    Lista di attività",
+        "operationId": "get_all_attivita_api_admin_attivita_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttivitaResponse"
+                  },
+                  "title": "Response Get All Attivita Api Admin Attivita Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get All Attivita",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/letture": {
+      "get": {
+        "description": "Ottieni tutte le letture (solo admin)\n\nArgs:\n    limit: Numero massimo di letture da restituire\n\nReturns:\n    Lista di letture",
+        "operationId": "get_all_letture_api_admin_letture_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LetturaResponse"
+                  },
+                  "title": "Response Get All Letture Api Admin Letture Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get All Letture",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "post": {
+        "description": "Inserisce una lettura manualmente (solo admin, utile per test e backfill).",
+        "operationId": "create_lettura_manuale_api_admin_letture_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LetturaCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetturaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Lettura Manuale",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      }
+    },
+    "/api/admin/nodi": {
+      "get": {
+        "description": "Ottieni lista di tutti i nodi (solo admin)\n\nReturns:\n    Lista di tutti i nodi trasmettitori",
+        "operationId": "get_all_nodi_api_admin_nodi_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NodoResponse"
+                  },
+                  "title": "Response Get All Nodi Api Admin Nodi Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get All Nodi",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "post": {
+        "description": "Registra un nuovo nodo trasmettitore (solo admin).",
+        "operationId": "create_nodo_api_admin_nodi_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodoCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Nodo",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      }
+    },
+    "/api/admin/nodi/{id_nodo}": {
+      "delete": {
+        "description": "Disattiva un nodo (soft delete, solo admin).\nLe arnie e le letture associate vengono mantenute.",
+        "operationId": "delete_nodo_api_admin_nodi__id_nodo__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_nodo",
+            "required": true,
+            "schema": {
+              "title": "Id Nodo",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Nodo",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      },
+      "get": {
+        "description": "Dettagli di un singolo nodo (solo admin).",
+        "operationId": "get_nodo_api_admin_nodi__id_nodo__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_nodo",
+            "required": true,
+            "schema": {
+              "title": "Id Nodo",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Nodo",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      },
+      "put": {
+        "description": "Aggiorna un nodo esistente (solo admin).",
+        "operationId": "update_nodo_api_admin_nodi__id_nodo__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_nodo",
+            "required": true,
+            "schema": {
+              "title": "Id Nodo",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodoCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Nodo",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      }
+    },
+    "/api/admin/utenti": {
+      "get": {
+        "description": "Ottieni lista di tutti gli utenti (solo admin)\n\nReturns:\n    Lista di tutti gli utenti",
+        "operationId": "get_all_users_api_admin_utenti_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  },
+                  "title": "Response Get All Users Api Admin Utenti Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get All Users",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "post": {
+        "description": "Crea un nuovo utente (solo admin)\n\nArgs:\n    user: Dati del nuovo utente\n\nReturns:\n    Utente creato",
+        "operationId": "create_user_api_admin_utenti_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create User",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/utenti-arnie": {
+      "delete": {
+        "description": "Rimuove l'associazione tra un utente e un'arnia (solo admin).",
+        "operationId": "remove_user_arnia_api_admin_utenti_arnie_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id_utente",
+            "required": true,
+            "schema": {
+              "title": "Id Utente",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove User Arnia",
+        "tags": [
+          "Admin - Utenti"
+        ]
+      },
+      "post": {
+        "description": "Associa un utente a un'arnia (solo admin)\n\nArgs:\n    associazione: Dati dell'associazione\n\nReturns:\n    Messaggio di conferma",
+        "operationId": "associate_user_arnia_api_admin_utenti_arnie_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UtenteArniaCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Associate User Arnia",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/utenti/{id_utente}": {
+      "delete": {
+        "description": "Disattiva un utente (soft delete, solo admin).\nNon è possibile disattivare se stessi.",
+        "operationId": "delete_user_api_admin_utenti__id_utente__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_utente",
+            "required": true,
+            "schema": {
+              "title": "Id Utente",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete User",
+        "tags": [
+          "Admin - Utenti"
+        ]
+      },
+      "put": {
+        "description": "Aggiorna un utente (solo admin)\n\nArgs:\n    id_utente: ID dell'utente da aggiornare\n    user_update: Dati da aggiornare\n\nReturns:\n    Utente aggiornato",
+        "operationId": "update_user_api_admin_utenti__id_utente__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_utente",
+            "required": true,
+            "schema": {
+              "title": "Id Utente",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update User",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/utenti/{id_utente}/password": {
+      "put": {
+        "description": "Reset password di un utente (solo admin).",
+        "operationId": "reset_user_password_api_admin_utenti__id_utente__password_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_utente",
+            "required": true,
+            "schema": {
+              "title": "Id Utente",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reset User Password",
+        "tags": [
+          "Admin - Utenti"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "description": "Login utente e generazione token JWT\n\nReturns:\n    Access token e refresh token",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "description": "Ottieni informazioni sull'utente corrente\n\nReturns:\n    Dati dell'utente autenticato",
+        "operationId": "get_me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Me",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
+    "/api/user/arnie": {
+      "get": {
+        "description": "Ottieni lista delle arnie associate all'utente con lo stato attuale\n\nReturns:\n    Lista di arnie con ultime letture",
+        "operationId": "get_user_arnie_api_user_arnie_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ArniaConStato"
+                  },
+                  "title": "Response Get User Arnie Api User Arnie Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User Arnie",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}": {
+      "get": {
+        "description": "Dettagli di una singola arnia con ultimo stato.",
+        "operationId": "get_arnia_user_api_user_arnie__id_arnia__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArniaConStato"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Arnia User",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "put": {
+        "description": "Aggiorna un'arnia (richiede permesso write o admin sull'arnia).\nCampi modificabili: nome, descrizione, posizione, coordinate, metadati.\nNon è possibile modificare attiva (usa admin per quello).",
+        "operationId": "update_arnia_user_api_user_arnie__id_arnia__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArniaUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArniaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Arnia User",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/attivita": {
+      "get": {
+        "description": "Ottieni log attività di un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    data_inizio: Data inizio periodo (opzionale)\n    data_fine: Data fine periodo (opzionale)\n    tipo_attivita: Tipo di attività (opzionale)\n    limit: Numero massimo di risultati\n\nReturns:\n    Lista di attività ordinate per timestamp (più recente prima)",
+        "operationId": "get_user_attivita_api_user_arnie__id_arnia__attivita_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data inizio (default: 1 anno fa)",
+            "in": "query",
+            "name": "data_inizio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data inizio (default: 1 anno fa)",
+              "title": "Data Inizio"
+            }
+          },
+          {
+            "description": "Data fine (default: ora)",
+            "in": "query",
+            "name": "data_fine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data fine (default: ora)",
+              "title": "Data Fine"
+            }
+          },
+          {
+            "description": "Filtra per tipo attività",
+            "in": "query",
+            "name": "tipo_attivita",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtra per tipo attività",
+              "title": "Tipo Attivita"
+            }
+          },
+          {
+            "description": "Numero massimo di attività",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "Numero massimo di attività",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttivitaResponse"
+                  },
+                  "title": "Response Get User Attivita Api User Arnie  Id Arnia  Attivita Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User Attivita",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "post": {
+        "description": "Registra una nuova attività per un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    attivita: Dati dell'attività\n\nReturns:\n    Attività creata",
+        "operationId": "create_attivita_api_user_arnie__id_arnia__attivita_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttivitaCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttivitaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Attivita",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/attivita/{id_log}": {
+      "delete": {
+        "description": "Elimina un'attività di un'arnia (solo se appartiene all'utente)",
+        "operationId": "delete_user_attivita_api_user_arnie__id_arnia__attivita__id_log__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_log",
+            "required": true,
+            "schema": {
+              "title": "Id Log",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete User Attivita",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "patch": {
+        "description": "Aggiorna un'attività di un'arnia (solo se appartiene all'utente)",
+        "operationId": "update_user_attivita_api_user_arnie__id_arnia__attivita__id_log__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_log",
+            "required": true,
+            "schema": {
+              "title": "Id Log",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttivitaUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttivitaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update User Attivita",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/letture": {
+      "get": {
+        "description": "Ottieni letture di un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    data_inizio: Data inizio periodo (opzionale)\n    data_fine: Data fine periodo (opzionale)\n    limit: Numero massimo di risultati\n\nReturns:\n    Lista di letture ordinate per timestamp (più recente prima)",
+        "operationId": "get_user_letture_api_user_arnie__id_arnia__letture_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data inizio (default: 1 anno fa)",
+            "in": "query",
+            "name": "data_inizio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data inizio (default: 1 anno fa)",
+              "title": "Data Inizio"
+            }
+          },
+          {
+            "description": "Data fine (default: ora)",
+            "in": "query",
+            "name": "data_fine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data fine (default: ora)",
+              "title": "Data Fine"
+            }
+          },
+          {
+            "description": "Numero massimo di letture",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "description": "Numero massimo di letture",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LetturaResponse"
+                  },
+                  "title": "Response Get User Letture Api User Arnie  Id Arnia  Letture Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User Letture",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/letture/peso": {
+      "get": {
+        "description": "Serie storica peso per un'arnia.\nRestituisce solo timestamp e peso, ottimizzato per grafici.",
+        "operationId": "get_serie_peso_api_user_arnie__id_arnia__letture_peso_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data inizio (default: 1 anno fa)",
+            "in": "query",
+            "name": "data_inizio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data inizio (default: 1 anno fa)",
+              "title": "Data Inizio"
+            }
+          },
+          {
+            "description": "Data fine (default: ora)",
+            "in": "query",
+            "name": "data_fine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data fine (default: ora)",
+              "title": "Data Fine"
+            }
+          },
+          {
+            "description": "Numero massimo di letture",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "description": "Numero massimo di letture",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeriePesoResponse"
+                  },
+                  "title": "Response Get Serie Peso Api User Arnie  Id Arnia  Letture Peso Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Serie Peso",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/letture/temperatura": {
+      "get": {
+        "description": "Serie storica temperatura per un'arnia.\nRestituisce solo timestamp e temperatura, ottimizzato per grafici.",
+        "operationId": "get_serie_temperatura_api_user_arnie__id_arnia__letture_temperatura_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data inizio (default: 1 anno fa)",
+            "in": "query",
+            "name": "data_inizio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data inizio (default: 1 anno fa)",
+              "title": "Data Inizio"
+            }
+          },
+          {
+            "description": "Data fine (default: ora)",
+            "in": "query",
+            "name": "data_fine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data fine (default: ora)",
+              "title": "Data Fine"
+            }
+          },
+          {
+            "description": "Numero massimo di letture",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "description": "Numero massimo di letture",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SerieTemperaturaResponse"
+                  },
+                  "title": "Response Get Serie Temperatura Api User Arnie  Id Arnia  Letture Temperatura Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Serie Temperatura",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/letture/umidita": {
+      "get": {
+        "description": "Serie storica umidità per un'arnia.\nRestituisce solo timestamp e umidita, ottimizzato per grafici.",
+        "operationId": "get_serie_umidita_api_user_arnie__id_arnia__letture_umidita_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data inizio (default: 1 anno fa)",
+            "in": "query",
+            "name": "data_inizio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data inizio (default: 1 anno fa)",
+              "title": "Data Inizio"
+            }
+          },
+          {
+            "description": "Data fine (default: ora)",
+            "in": "query",
+            "name": "data_fine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data fine (default: ora)",
+              "title": "Data Fine"
+            }
+          },
+          {
+            "description": "Numero massimo di letture",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "description": "Numero massimo di letture",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SerieUmiditaResponse"
+                  },
+                  "title": "Response Get Serie Umidita Api User Arnie  Id Arnia  Letture Umidita Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Serie Umidita",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/password": {
+      "put": {
+        "description": "Cambia la propria password.",
+        "operationId": "change_own_password_api_user_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Change Own Password",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Health check endpoint",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check",
+        "tags": [
+          "Info"
+        ]
+      }
+    }
+  }
+}

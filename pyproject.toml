@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Distribution name uses a hyphen, import name an underscore: `meshbee_core`.
+# Hyphens are not legal in Python identifiers, so the pair is the standard one.
+name = "meshbee-core"
+version = "0.1.0"
+description = "Shared persistence and business logic for the Meshbee backend"
+requires-python = ">=3.11"
+
+# Only what meshbee_core itself imports. FastAPI/uvicorn/jose stay in
+# api/requirements.txt and paho-mqtt in mqtt_handler/requirements.txt: the
+# library must not drag either entry point's framework into the other's image.
+dependencies = [
+    "psycopg2-binary==2.9.9",
+    "pydantic==2.5.3",
+    "pydantic-settings==2.1.0",
+    "bcrypt==4.0.1",
+]
+
+[tool.setuptools]
+packages = ["meshbee_core", "meshbee_core.repository", "meshbee_core.services"]

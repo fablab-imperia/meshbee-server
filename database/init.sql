@@ -45,23 +45,11 @@ CREATE TABLE nodi (
 CREATE INDEX idx_nodi_attivo ON nodi(attivo);
 CREATE INDEX idx_nodi_ultimo_messaggio ON nodi(ultimo_messaggio);
 
--- ============================================
--- TABELLA SENSORI
--- ============================================
-CREATE TABLE sensori (
-    id_sensore SERIAL PRIMARY KEY,
-    id_nodo VARCHAR(50) REFERENCES nodi(id_nodo) ON DELETE CASCADE,
-    id_sensore_fisico VARCHAR(50) NOT NULL, -- ID del sensore sul nodo
-    tipo_sensore VARCHAR(50) NOT NULL, -- temperatura, umidita, peso, etc.
-    unita_misura VARCHAR(20),
-    data_registrazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    attivo BOOLEAN DEFAULT true,
-    configurazione JSONB, -- soglie, calibrazione, etc.
-    UNIQUE(id_nodo, id_sensore_fisico)
-);
-
-CREATE INDEX idx_sensori_nodo ON sensori(id_nodo);
-CREATE INDEX idx_sensori_attivo ON sensori(attivo);
+-- Nota: non esiste una tabella `sensori`. L'identità del sensore vive su
+-- `arnie.id_sensore_fisico`, e le letture hanno colonne fisse anziché righe
+-- generiche (sensore, valore). Una tabella `sensori` è esistita fino a
+-- migrate_v4.sql: era il modello alternativo, mai collegato ad `arnie` né
+-- letto da alcuna query.
 
 -- ============================================
 -- TABELLA ARNIE
@@ -254,24 +242,11 @@ VALUES
 -- VISTE UTILI
 -- ============================================
 
--- Vista per letture recenti con info arnia
-CREATE OR REPLACE VIEW v_letture_recenti AS
-SELECT 
-    l.id_lettura,
-    l.timestamp,
-    a.id_arnia,
-    a.nome_arnia,
-    a.id_nodo,
-    n.nome_nodo,
-    l.temperatura,
-    l.umidita,
-    l.peso,
-    l.dati_raw
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-JOIN nodi n ON a.id_nodo = n.id_nodo
-WHERE l.timestamp > CURRENT_TIMESTAMP - INTERVAL '7 days'
-ORDER BY l.timestamp DESC;
+-- Nota: non esiste una vista `v_letture_recenti`. Le letture si leggono con
+-- `meshbee_core/repository/letture.py::list_by_arnia`, che prende arnia,
+-- intervallo e LIMIT come parametri: una vista con finestra fissa a 7 giorni
+-- non li accetta. È esistita fino a migrate_v4.sql, senza mai essere
+-- interrogata.
 
 -- Vista per arnie con ultime letture e coordinate
 CREATE OR REPLACE VIEW v_arnie_stato AS
@@ -295,41 +270,10 @@ SELECT
 FROM arnie a
 LEFT JOIN nodi n ON a.id_nodo = n.id_nodo;
 
--- Vista serie storica temperatura
-CREATE OR REPLACE VIEW v_serie_temperatura AS
-SELECT 
-    l.timestamp,
-    l.id_arnia,
-    a.nome_arnia,
-    l.temperatura
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-WHERE l.temperatura IS NOT NULL
-ORDER BY l.id_arnia, l.timestamp DESC;
-
--- Vista serie storica umidita
-CREATE OR REPLACE VIEW v_serie_umidita AS
-SELECT 
-    l.timestamp,
-    l.id_arnia,
-    a.nome_arnia,
-    l.umidita
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-WHERE l.umidita IS NOT NULL
-ORDER BY l.id_arnia, l.timestamp DESC;
-
--- Vista serie storica peso
-CREATE OR REPLACE VIEW v_serie_peso AS
-SELECT 
-    l.timestamp,
-    l.id_arnia,
-    a.nome_arnia,
-    l.peso
-FROM letture l
-JOIN arnie a ON l.id_arnia = a.id_arnia
-WHERE l.peso IS NOT NULL
-ORDER BY l.id_arnia, l.timestamp DESC;
+-- Nota: non esistono viste `v_serie_*`. Le serie storiche per i grafici sono
+-- una query parametrica in `meshbee_core/repository/letture.py::series`: una
+-- vista non accetta parametri (arnia, intervallo, LIMIT), quindi non
+-- incapsulerebbe la parte che conta. Sono esistite fino a migrate_v4.sql.
 
 -- ============================================
 -- COMMENTI FINALI

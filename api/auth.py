@@ -1,40 +1,47 @@
 """
 Autenticazione e gestione JWT
+
+The HTTP half of authentication: minting and reading tokens, and the FastAPI
+dependencies that turn one into a user. Who a password belongs to and what a
+user may do with an arnia live in `meshbee_core.services.auth`; this module
+opens the cursor and translates failures into status codes.
 """
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from jose import JWTError, jwt
-import bcrypt
+import psycopg2
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 
-from config import settings
-from database import get_db_cursor
-from models import TokenData, UserResponse
+from api.config import settings
+from meshbee_core.db import get_db_cursor
+from meshbee_core.schemas import Permesso, TokenData
+from meshbee_core.services import auth as auth_service
 
 logger = logging.getLogger(__name__)
 
-# Security scheme
-security = HTTPBearer()
+# Security scheme.
+# auto_error=False so a missing or malformed Authorization header reaches
+# get_current_user, which answers 401 with a WWW-Authenticate header. Left to
+# itself HTTPBearer raises a bare 403, which tells a client it is forbidden
+# rather than that it needs to authenticate.
+security = HTTPBearer(auto_error=False)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una password contro il suo hash bcrypt"""
-    try:
-        return bcrypt.checkpw(
-            plain_password.encode('utf-8'),
-            hashed_password.encode('utf-8')
-        )
-    except Exception as e:
-        logger.error(f"Errore verifica password: {e}")
-        return False
+def database_unavailable_error(exc: Exception) -> HTTPException:
+    """
+    Translate a database failure into 503 rather than an authentication verdict.
 
-
-def get_password_hash(password: str) -> str:
-    """Genera hash bcrypt di una password"""
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12))
-    return hashed.decode('utf-8')
+    A connection problem must not be reported as wrong credentials or a missing
+    permission: clients would log the user out and retry the login, hammering the
+    database exactly when it is already struggling.
+    """
+    logger.error(f"Database non raggiungibile: {exc}")
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Servizio temporaneamente non disponibile",
+    )
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -55,7 +62,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY.get_secret_value(), algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
 
@@ -72,7 +79,7 @@ def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY.get_secret_value(), algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
 
@@ -90,7 +97,7 @@ def decode_token(token: str) -> Dict:
         JWTError: Se il token non è valido
     """
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY.get_secret_value(), algorithms=[settings.JWT_ALGORITHM])
         return payload
     except JWTError as e:
         logger.error(f"Errore decodifica token: {e}")
@@ -110,42 +117,14 @@ def authenticate_user(email: str, password: str) -> Optional[Dict]:
     """
     try:
         with get_db_cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id_utente, email, password_hash, nome, cognome, ruolo, attivo
-                FROM utenti
-                WHERE email = %s
-                """,
-                (email,)
-            )
-            user = cursor.fetchone()
-            
-            if not user:
-                return None
-            
-            if not user['attivo']:
-                return None
-            
-            if not verify_password(password, user['password_hash']):
-                return None
-            
-            # Aggiorna ultimo accesso
-            cursor.execute(
-                """
-                UPDATE utenti 
-                SET ultimo_accesso = CURRENT_TIMESTAMP 
-                WHERE id_utente = %s
-                """,
-                (user['id_utente'],)
-            )
-            
-            return user
-    except Exception as e:
-        logger.error(f"Errore autenticazione: {e}")
-        return None
+            return auth_service.authenticate(cursor, email, password)
+    except psycopg2.Error as e:
+        raise database_unavailable_error(e)
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Dict:
     """
     Dependency per ottenere l'utente corrente dal token JWT
     
@@ -163,7 +142,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         detail="Credenziali non valide",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
+    # auto_error=False: no header, or one that is not a Bearer token.
+    if credentials is None:
+        raise credentials_exception
+
     try:
         token = credentials.credentials
         payload = decode_token(token)
@@ -184,24 +167,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     # Recupera utente dal database
     try:
         with get_db_cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id_utente, email, nome, cognome, ruolo, attivo,
-                       data_creazione, data_attivazione, data_disattivazione, ultimo_accesso
-                FROM utenti
-                WHERE email = %s
-                """,
-                (token_data.email,)
-            )
-            user = cursor.fetchone()
-            
-            if user is None or not user['attivo']:
+            user = auth_service.get_utente_by_email(cursor, token_data.email)
+
+            if user is None:
                 raise credentials_exception
-            
-            return dict(user)
-    except Exception as e:
-        logger.error(f"Errore recupero utente: {e}")
-        raise credentials_exception
+
+            return user
+    except HTTPException:
+        raise
+    except psycopg2.Error as e:
+        raise database_unavailable_error(e)
 
 
 async def get_current_active_user(current_user: Dict = Depends(get_current_user)) -> Dict:
@@ -246,48 +221,27 @@ async def get_current_admin_user(current_user: Dict = Depends(get_current_active
     return current_user
 
 
-def check_user_arnia_access(id_utente: int, id_arnia: int, required_permission: str = "read") -> bool:
+def check_user_arnia_access(
+    id_utente: int, id_arnia: int, required_permission: Permesso = "read"
+) -> bool:
     """
     Verifica se un utente ha accesso a un'arnia
-    
+
     Args:
         id_utente: ID dell'utente
         id_arnia: ID dell'arnia
         required_permission: Permesso richiesto (read, write, admin)
-    
+
     Returns:
         True se l'utente ha accesso, False altrimenti
+
+    Raises:
+        ValueError: Se required_permission non è un permesso conosciuto
     """
     try:
         with get_db_cursor() as cursor:
-            # Prima verifica se l'utente è admin
-            cursor.execute(
-                "SELECT ruolo FROM utenti WHERE id_utente = %s",
-                (id_utente,)
+            return auth_service.has_arnia_access(
+                cursor, id_utente, id_arnia, required_permission
             )
-            user = cursor.fetchone()
-            if user and user['ruolo'] == 'admin':
-                return True
-            
-            # Altrimenti verifica l'associazione
-            cursor.execute(
-                """
-                SELECT permessi FROM utenti_arnie
-                WHERE id_utente = %s AND id_arnia = %s AND attivo = true
-                """,
-                (id_utente, id_arnia)
-            )
-            result = cursor.fetchone()
-            
-            if not result:
-                return False
-            
-            # Mappa dei permessi (admin > write > read)
-            permission_levels = {"read": 1, "write": 2, "admin": 3}
-            user_level = permission_levels.get(result['permessi'], 0)
-            required_level = permission_levels.get(required_permission, 0)
-            
-            return user_level >= required_level
-    except Exception as e:
-        logger.error(f"Errore verifica accesso arnia: {e}")
-        return False
+    except psycopg2.Error as e:
+        raise database_unavailable_error(e)
