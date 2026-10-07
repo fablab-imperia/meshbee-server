@@ -1,0 +1,72 @@
+# Tests and image builds on every pull request and every push to main.
+# Runs with a read-only token: `pull_request` (never `pull_request_target`), so a
+# PR from a fork gets no secrets and no write access. Actions are pinned to
+# commit SHAs; Dependabot (.github/dependabot.yml) keeps the pins current.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # The CI counterpart of the `postgres-test` compose service: throwaway, and
+    # the fixtures reload database/init.sql on every run, so it starts empty.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: beehive_test
+          POSTGRES_USER: beehive_user
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U beehive_user -d beehive_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # tests/conftest.py defaults to the compose hostname and the container path.
+      TEST_DB_HOST: localhost
+      TEST_DB_SCHEMA: database/init.sql
+      # api/config.py builds Settings at import; these are the two fields with no
+      # default. Dummy values — the tests never reach a real database or token.
+      DB_PASSWORD: ci-not-a-secret
+      JWT_SECRET_KEY: ci-not-a-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11" # same as the python:3.11-slim images
+          cache: pip
+          cache-dependency-path: |
+            api/requirements*.txt
+            mqtt_handler/requirements.txt
+            pyproject.toml
+      - name: Install dependencies
+        run: |
+          pip install -r api/requirements.txt -r api/requirements-dev.txt \
+                      -r mqtt_handler/requirements.txt
+          pip install -e .
+      - name: Run tests
+        run: pytest
+
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, mqtt_handler]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Built from the repo root, as docker-compose.yml does: both need meshbee_core.
+      - name: Build ${{ matrix.service }} image
+        run: docker build -f ${{ matrix.service }}/Dockerfile .

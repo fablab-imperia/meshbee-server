@@ -340,6 +340,18 @@ in `pyproject.toml` and a new entry in `CHANGELOG.md`. Merging that PR creates t
   left out of the changelog.
 - **To pick a version yourself**, put `Release-As: 2.0.0` in the body of a commit.
 
+Every pull request runs three checks, all of which should pass before merging:
+
+- **`ci / test`**: the whole test suite against a throwaway PostgreSQL
+  ([details](tests/README.md#running)). It includes the checks that the committed
+  `api/openapi.json` and `mqtt_handler/mqtt-payload.schema.json` match the code.
+- **`ci / images`**: both Docker images still build.
+- **`pr-title`**: the PR title is a Conventional Commit, since it becomes the
+  squashed commit release-please reads.
+
+Dependabot (`.github/dependabot.yml`) opens weekly PRs for Python packages, base
+images and the pinned GitHub Actions.
+
 Contributions are welcome — see the organisation's
 [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md).
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/).

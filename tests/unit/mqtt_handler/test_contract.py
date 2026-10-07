@@ -42,8 +42,8 @@ def test_the_committed_schema_is_what_the_model_generates():
     """
     The exporter runs by hand, so nothing else would notice a stale artifact.
 
-    There is no CI here: this runs under `docker-compose exec api pytest`, which
-    is exactly where someone who just edited the model will see it.
+    This runs under `docker-compose exec api pytest` and in CI, the former being
+    exactly where someone who just edited the model will see it first.
     """
     assert COMMITTED.read_text(encoding="utf-8") == render(), (
         "mqtt_handler/mqtt-payload.schema.json is stale — regenerate it with "

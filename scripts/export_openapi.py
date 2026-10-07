@@ -26,9 +26,13 @@ from api.main import app
 DEFAULT_OUTPUT = Path("api/openapi.json")
 
 
+def render() -> str:
+    """The exact bytes of the artifact, so a test can compare without guessing."""
+    return json.dumps(app.openapi(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+
+
 def export(destination: Path) -> None:
-    schema = json.dumps(app.openapi(), indent=2, ensure_ascii=False, sort_keys=True)
-    destination.write_text(schema + "\n", encoding="utf-8")
+    destination.write_text(render(), encoding="utf-8")
     print(f"OpenAPI {app.openapi_version} scritto in {destination}")
 
 
