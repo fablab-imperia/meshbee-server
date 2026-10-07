@@ -21,7 +21,14 @@ from mqtt_handler import handler as mqtt_entry
 # Columns that legitimately differ between two separate rows.
 NOT_COMPARED = {"id_lettura"}
 
-MEASUREMENTS = {"temperatura": 34.5, "umidita": 65.0, "peso": 42.35}
+MEASUREMENTS = {"temperatura": 34.5, "umidita": 65.0, "peso": 42.35, "batteria": 4.01}
+
+
+def on_the_wire(measurements):
+    """The same measurements as a node sends them: the firmware calls it `bat`."""
+    wire = dict(measurements)
+    wire["bat"] = wire.pop("batteria")
+    return wire
 
 
 def mqtt_message(topic, payload):
@@ -88,7 +95,7 @@ def test_a_reading_via_mqtt_and_via_the_api_produce_equivalent_rows(
 
     deliver(
         "beehive/NODE-PARITY/data",
-        {"id_sensore": arnia["id_sensore_fisico"], **MEASUREMENTS},
+        {"id_sensore": arnia["id_sensore_fisico"], **on_the_wire(MEASUREMENTS)},
     )
 
     response = as_user(admin).post(
@@ -114,7 +121,7 @@ def test_both_paths_write_the_measurements_they_were_given(db, deliver, as_user,
 
     deliver(
         "beehive/NODE-PARITY/data",
-        {"id_sensore": arnia["id_sensore_fisico"], **MEASUREMENTS},
+        {"id_sensore": arnia["id_sensore_fisico"], **on_the_wire(MEASUREMENTS)},
     )
 
     row = stored(db, arnia["id_arnia"])[0]
@@ -122,6 +129,7 @@ def test_both_paths_write_the_measurements_they_were_given(db, deliver, as_user,
     assert float(row["temperatura"]) == MEASUREMENTS["temperatura"]
     assert float(row["umidita"]) == MEASUREMENTS["umidita"]
     assert float(row["peso"]) == MEASUREMENTS["peso"]
+    assert float(row["batteria"]) == MEASUREMENTS["batteria"]
     assert row["id_nodo"] == arnia["id_nodo"]
 
 
@@ -178,7 +186,7 @@ def test_ingest_provisions_the_arnia_the_api_would_have_refused(db, deliver):
     Same reading the API refuses above, arriving over MQTT, is stored — against
     a nodo and arnia the handler creates on the spot.
     """
-    deliver("beehive/NODE-NEW/data", {"id_sensore": "SENSOR-NEW", **MEASUREMENTS})
+    deliver("beehive/NODE-NEW/data", {"id_sensore": "SENSOR-NEW", **on_the_wire(MEASUREMENTS)})
 
     db.execute("SELECT id_arnia FROM arnie WHERE id_nodo = %s", ("NODE-NEW",))
     created = db.fetchone()

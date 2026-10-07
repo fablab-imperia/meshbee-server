@@ -52,7 +52,8 @@ leggibile del contratto; [Schema](#schema) è quella leggibile da una macchina.
 | `temperatura` | numero | no | °C, **da −50 a 100**. |
 | `umidita` | numero | no | %, **da 0 a 100**. |
 | `peso` | numero | no | kg, **≥ 0**. |
-| `dati_raw` | oggetto | no | Archiviato tale e quale come JSONB — batteria, RSSI, quello che il firmware vuole conservare. |
+| `bat` | numero | no | Tensione della batteria, V, **da 0 a 5**. Archiviata come `letture.batteria`. |
+| `dati_raw` | oggetto | no | Archiviato tale e quale come JSONB — RSSI, quello che il firmware vuole conservare. |
 
 ```json
 {
@@ -61,7 +62,8 @@ leggibile del contratto; [Schema](#schema) è quella leggibile da una macchina.
   "temperatura": 34.5,
   "umidita": 65.2,
   "peso": 42.35,
-  "dati_raw": {"battery": 3.7, "rssi": -67}
+  "bat": 4.01,
+  "dati_raw": {"rssi": -67}
 }
 ```
 
@@ -178,14 +180,14 @@ set -a; . ./.env; set +a
 docker-compose exec -T mosquitto mosquitto_pub \
   -h localhost -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
   -t beehive/NODE001/data \
-  -m '{"id_sensore":"SENSOR01","temperatura":34.5,"umidita":65,"peso":42.35}'
+  -m '{"id_sensore":"SENSOR01","temperatura":34.5,"umidita":65,"peso":42.35,"bat":4.01}'
 ```
 
 L'handler logga una riga per ogni lettura archiviata. Verifica che sia arrivata:
 
 ```bash
 docker-compose exec postgres psql -U beehive_user -d beehive_iot \
-  -c 'SELECT id_lettura, id_arnia, timestamp, temperatura FROM letture ORDER BY id_lettura DESC LIMIT 3;'
+  -c 'SELECT id_lettura, id_arnia, timestamp, temperatura, batteria FROM letture ORDER BY id_lettura DESC LIMIT 3;'
 ```
 
 I test stanno in `tests/unit/mqtt_handler/` (decodifica del payload e contratto, senza

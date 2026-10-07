@@ -33,6 +33,7 @@ from meshbee_core.schemas import (
     NodoCreate, NodoResponse, ArniaCreate, ArniaResponse, ArniaUpdate, ArniaConStato,
     LetturaCreate, LetturaResponse, AttivitaCreate, AttivitaUpdate, AttivitaResponse,
     SerieTemperaturaResponse, SerieUmiditaResponse, SeriePesoResponse,
+    SerieBatteriaResponse,
     UtenteArniaCreate, PasswordChange, MessageResponse, ErrorResponse
 )
 
@@ -350,6 +351,26 @@ async def get_serie_peso(
     with db_operation("serie peso") as cursor:
         return letture_service.get_series(
             cursor, id_arnia, "peso", data_inizio, data_fine, limit
+        )
+
+
+@app.get("/api/user/arnie/{id_arnia}/letture/batteria", response_model=List[SerieBatteriaResponse], tags=["Utente"])
+async def get_serie_batteria(
+    id_arnia: int,
+    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
+    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
+    limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Battery voltage time series for one hive's node.
+    Returns only timestamp and batteria, shaped for charts.
+    """
+    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+
+    with db_operation("serie batteria") as cursor:
+        return letture_service.get_series(
+            cursor, id_arnia, "batteria", data_inizio, data_fine, limit
         )
 
 

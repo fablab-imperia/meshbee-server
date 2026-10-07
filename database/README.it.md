@@ -16,6 +16,7 @@ il vocabolario del progetto, non una traduzione mancata.
 | `migrate_v2.sql` | Dentro le coordinate, fuori gli allarmi. |
 | `migrate_v3.sql` | Ricostruzione di `v_arnie_stato` con l'elenco completo delle colonne. |
 | `migrate_v4.sql` | Rimozione della tabella `sensori` e delle viste inutilizzate. |
+| `migrate_v5.sql` | Tensione della batteria del nodo: `letture.batteria`. |
 
 **`init.sql` viene eseguito una volta sola, su un volume vuoto.** A ogni avvio
 successivo PostgreSQL trova una directory dati già inizializzata e lo ignora del tutto —
@@ -92,9 +93,10 @@ scavalca del tutto questa tabella.
 | `temperatura` | DECIMAL(5,2) | CHECK −50..100 |
 | `umidita` | DECIMAL(5,2) | CHECK 0..100 |
 | `peso` | DECIMAL(10,3) | CHECK ≥ 0 |
+| `batteria` | DECIMAL(4,3) | CHECK 0..5. Tensione della batteria del nodo in V — la chiave nel payload è `bat`. |
 | `dati_raw` | JSONB | Tutto il resto che il firmware vuole conservare. |
 
-Tutte e tre le misure sono nullable: un nodo che porta solo la bilancia è valido.
+Tutte e quattro le misure sono nullable: un nodo che porta solo la bilancia è valido.
 Indici: `id_arnia`, `timestamp DESC`, il composto `(id_arnia, timestamp DESC)` che usa
 ogni query per i grafici, e `id_nodo`.
 
@@ -119,8 +121,9 @@ giusta per la funzionalità quando arriverà (revoca, `ip_address`, `user_agent`
 
 ## Vista
 
-**`v_arnie_stato` è l'unica vista**, e se lo merita: `arnie LEFT JOIN nodi` più quattro
-sottoquery correlate per l'ultima `temperatura`, `umidita`, `peso` e `timestamp`. È
+**`v_arnie_stato` è l'unica vista**, e se lo merita: `arnie LEFT JOIN nodi` più cinque
+sottoquery correlate per l'ultima `temperatura`, `umidita`, `peso`, `timestamp` e
+`batteria` (in fondo, così una migrazione può accodarla). È
 quello che restituisce `GET /api/user/arnie` — un elenco di arnie in cui ogni riga porta
 già il proprio stato attuale.
 
@@ -173,7 +176,7 @@ docker-compose exec -T postgres psql -U beehive_user -d beehive_iot < database/m
 **Fai entrambe le cose**: una migrazione per le installazioni esistenti *e* la stessa
 modifica in `init.sql`, che resta la descrizione di un database nuovo. Racchiudi una
 migrazione in `BEGIN`/`COMMIT`, rendila idempotente e chiudila con una query che ne
-verifichi il risultato — le tre migrazioni esistenti fanno tutte e tre le cose.
+verifichi il risultato — le quattro migrazioni esistenti fanno tutte e tre le cose.
 
 `init.sql` non va alla deriva, perché la suite di test di integrazione elimina lo schema
 e lo ricarica da questo file **a ogni esecuzione**. Un'istruzione che non compila più fa
@@ -186,6 +189,7 @@ fallire tutta la suite.
 | `migrate_v2.sql` | Aggiunte `latitudine`/`longitudine` con i relativi CHECK; **rimosso del tutto il sistema di allarmi** (tabella `allarmi`, vista `v_allarmi_attivi`, funzione `controlla_soglie_allarmi`, trigger `trigger_controlla_allarmi`); ricostruita `v_arnie_stato` con le coordinate; create le viste `v_serie_*`. |
 | `migrate_v3.sql` | Eliminata e ricreata `v_arnie_stato` con l'elenco completo e nell'ordine corretto — `CREATE OR REPLACE VIEW` non può riordinare né inserire colonne. |
 | `migrate_v4.sql` | Eliminata la tabella `sensori` (con una guardia: solleva un errore se contiene righe) e le quattro viste inutilizzate (`v_serie_temperatura`, `v_serie_umidita`, `v_serie_peso`, `v_letture_recenti`). |
+| `migrate_v5.sql` | Aggiunta `letture.batteria` (DECIMAL(4,3), CHECK 0..5) e accodata `ultima_batteria` a `v_arnie_stato`. |
 
 Gli allarmi sono stati rimossi nella v2 e non torneranno in quella forma: le soglie
 vanno dove si possono configurare per singola arnia, non scritte in un trigger.

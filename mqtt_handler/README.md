@@ -52,7 +52,8 @@ the contract; [Schema](#schema) is the machine-readable one.
 | `temperatura` | number | no | °C, **−50 to 100**. |
 | `umidita` | number | no | %, **0 to 100**. |
 | `peso` | number | no | kg, **≥ 0**. |
-| `dati_raw` | object | no | Stored verbatim as JSONB — battery, RSSI, whatever the firmware wants to keep. |
+| `bat` | number | no | Battery voltage, V, **0 to 5**. Stored as `letture.batteria`. |
+| `dati_raw` | object | no | Stored verbatim as JSONB — RSSI, whatever else the firmware wants to keep. |
 
 ```json
 {
@@ -61,7 +62,8 @@ the contract; [Schema](#schema) is the machine-readable one.
   "temperatura": 34.5,
   "umidita": 65.2,
   "peso": 42.35,
-  "dati_raw": {"battery": 3.7, "rssi": -67}
+  "bat": 4.01,
+  "dati_raw": {"rssi": -67}
 }
 ```
 
@@ -175,14 +177,14 @@ set -a; . ./.env; set +a
 docker-compose exec -T mosquitto mosquitto_pub \
   -h localhost -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
   -t beehive/NODE001/data \
-  -m '{"id_sensore":"SENSOR01","temperatura":34.5,"umidita":65,"peso":42.35}'
+  -m '{"id_sensore":"SENSOR01","temperatura":34.5,"umidita":65,"peso":42.35,"bat":4.01}'
 ```
 
 The handler logs one line per stored reading. Confirm it landed:
 
 ```bash
 docker-compose exec postgres psql -U beehive_user -d beehive_iot \
-  -c 'SELECT id_lettura, id_arnia, timestamp, temperatura FROM letture ORDER BY id_lettura DESC LIMIT 3;'
+  -c 'SELECT id_lettura, id_arnia, timestamp, temperatura, batteria FROM letture ORDER BY id_lettura DESC LIMIT 3;'
 ```
 
 Tests live in `tests/unit/mqtt_handler/` (payload decoding and the contract, no broker

@@ -23,7 +23,10 @@ from mqtt_handler.contract import MqttPayload
 # — rather than writing the numbers a third time here — is what makes widening
 # any one of the three fail.
 CONTRACT = MqttPayload.model_json_schema()
-MEASUREMENTS = ("temperatura", "umidita", "peso")
+MEASUREMENTS = ("temperatura", "umidita", "peso", "bat")
+# The contract names fields as the firmware sends them; LetturaBase uses the
+# column name. Identity unless listed.
+MODEL_FIELD = {"bat": "batteria"}
 EPSILON = Decimal("0.01")
 
 
@@ -35,7 +38,11 @@ def contract_cases(*, inside: bool):
             if keyword not in prop:
                 continue  # peso has no upper bound
             bound = Decimal(str(prop[keyword]))
-            yield LetturaBase, field, str(bound if inside else bound + direction * EPSILON)
+            yield (
+                LetturaBase,
+                MODEL_FIELD.get(field, field),
+                str(bound if inside else bound + direction * EPSILON),
+            )
 
 
 # (model, field, value just outside the allowed range)
@@ -52,6 +59,7 @@ COLUMN = {
     (LetturaBase, "temperatura"): ("letture", "temperatura"),
     (LetturaBase, "umidita"): ("letture", "umidita"),
     (LetturaBase, "peso"): ("letture", "peso"),
+    (LetturaBase, "batteria"): ("letture", "batteria"),
     (ArniaBase, "latitudine"): ("arnie", "latitudine"),
     (ArniaBase, "longitudine"): ("arnie", "longitudine"),
 }

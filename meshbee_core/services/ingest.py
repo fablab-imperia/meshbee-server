@@ -73,5 +73,7 @@ def record_node_reading(cursor, payload: Dict[str, Any]) -> Dict[str, Any]:
         'temperatura': payload.get('temperatura'),
         'umidita': payload.get('umidita'),
         'peso': payload.get('peso'),
+        # The wire key is `bat`; everything past this point calls it batteria.
+        'batteria': payload.get('bat'),
         'dati_raw': payload.get('dati_raw'),
     })

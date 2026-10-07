@@ -3,15 +3,16 @@ import json
 from typing import Any, Dict, List, Optional
 
 COLUMNS = """id_lettura, id_arnia, id_nodo, timestamp,
-                       temperatura, umidita, peso, dati_raw"""
+                       temperatura, umidita, peso, batteria, dati_raw"""
 
 # The measurement columns exposed as chart series. Whitelist, not decoration:
 # `series` interpolates the name into the statement.
-SERIES_FIELDS = ("temperatura", "umidita", "peso")
+SERIES_FIELDS = ("temperatura", "umidita", "peso", "batteria")
 
 
 def insert(cursor, *, id_arnia: int, id_nodo: str, timestamp, temperatura,
-           umidita, peso, dati_raw: Optional[dict]) -> Dict[str, Any]:
+           umidita, peso, dati_raw: Optional[dict],
+           batteria=None) -> Dict[str, Any]:
     """
     Persist one reading. A null timestamp defaults to now, in the database.
 
@@ -21,12 +22,13 @@ def insert(cursor, *, id_arnia: int, id_nodo: str, timestamp, temperatura,
     cursor.execute(
         f"""
         INSERT INTO letture
-            (id_arnia, id_nodo, timestamp, temperatura, umidita, peso, dati_raw)
-        VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s, %s)
+            (id_arnia, id_nodo, timestamp, temperatura, umidita, peso,
+             batteria, dati_raw)
+        VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s, %s, %s)
         RETURNING {COLUMNS}
         """,
         (
-            id_arnia, id_nodo, timestamp, temperatura, umidita, peso,
+            id_arnia, id_nodo, timestamp, temperatura, umidita, peso, batteria,
             json.dumps(dati_raw) if dati_raw else None
         )
     )

@@ -104,6 +104,7 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
         return {
             "id_arnia": 7, "id_nodo": "NODE001",
             "temperatura": 34.5, "umidita": 65.0, "peso": 42.35,
+            "batteria": 4.01,
         }
 
     monkeypatch.setattr(mqtt_handler, "get_db_cursor", _cursor)
@@ -114,3 +115,4 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
 
     assert "Salvata lettura per arnia 7" in caplog.text
     assert "34.5" in caplog.text
+    assert "B: 4.01V" in caplog.text

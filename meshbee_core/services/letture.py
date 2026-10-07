@@ -54,6 +54,7 @@ def record_reading(cursor, data: Union[LetturaCreate, Dict[str, Any]]) -> Dict[s
             temperatura=lettura.temperatura,
             umidita=lettura.umidita,
             peso=lettura.peso,
+            batteria=lettura.batteria,
             dati_raw=lettura.dati_raw,
         )
     except psycopg2.errors.ForeignKeyViolation as exc:

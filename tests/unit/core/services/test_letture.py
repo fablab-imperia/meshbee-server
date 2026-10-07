@@ -20,6 +20,8 @@ OUT_OF_RANGE = [
     ("umidita", -0.01),
     ("umidita", 100.01),
     ("peso", -0.01),
+    ("batteria", -0.01),
+    ("batteria", 5.01),
 ]
 
 
@@ -43,6 +45,7 @@ def test_an_out_of_range_measurement_is_refused(fake_cursor, field, value):
     ("temperatura", -50), ("temperatura", 100),
     ("umidita", 0), ("umidita", 100),
     ("peso", 0),
+    ("batteria", 0), ("batteria", 5),
 ])
 def test_the_inclusive_boundary_is_accepted(fake_cursor, field, value):
     """The bounds are inclusive on both sides, matching the CHECK constraints."""

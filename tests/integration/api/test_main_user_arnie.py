@@ -49,13 +49,14 @@ def test_admins_see_every_active_arnia(as_user, make_utente, make_arnia):
 def test_listing_carries_the_latest_readings(as_user, utente_con_arnia, make_lettura):
     """v_arnie_stato surfaces the most recent values alongside the arnia."""
     utente, arnia = utente_con_arnia("read")
-    make_lettura(arnia, temperatura="35.5", umidita="60.0", peso="42.250")
+    make_lettura(arnia, temperatura="35.5", umidita="60.0", peso="42.250", batteria="3.85")
 
     row = as_user(utente).get("/api/user/arnie").json()[0]
 
     assert float(row["ultima_temperatura"]) == 35.5
     assert float(row["ultima_umidita"]) == 60.0
     assert float(row["ultimo_peso"]) == 42.25
+    assert float(row["ultima_batteria"]) == 3.85
     assert row["ultimo_aggiornamento"] is not None
 
 
