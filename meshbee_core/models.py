@@ -1,9 +1,22 @@
 """
-The database schema, as SQLModel table classes.
+The data model: database tables and API shapes, declared once.
 
-This module is the schema's single source: Alembic autogenerates migrations by
-diffing `SQLModel.metadata` against the database, and
-`tests/integration/test_migrations.py` asserts that the migration chain and
+Each table is one family of SQLModel classes:
+
+- `XBase` — the fields input and output share;
+- `XResponse(XBase)` — the rest of the public columns, which is what the API
+  returns;
+- `X(XResponse, table=True)` — the table itself, adding only what never leaves
+  the server (`Utente.password_hash`) and the constraints.
+
+So every column — type, nullability, default, foreign key — is written exactly
+once, on the class the table inherits it from. `XCreate` and `XUpdate` are input
+shapes and stand apart: they make fields optional in their own ways, and carry
+no database information.
+
+This module is also the schema's single source for migrations: Alembic
+autogenerates revisions by diffing `SQLModel.metadata` against the database,
+and `tests/integration/test_migrations.py` asserts that the migration chain and
 these classes produce the same catalog — CHECK constraints included, which
 autogenerate does not compare.
 
@@ -11,16 +24,22 @@ Bounds and value sets come from `limits.py`. Constraint and index names are
 spelled out so that they match the ones Postgres generated for the original
 `init.sql`; a live install must not see them renamed.
 
-Defaults are `server_default`s for now, to keep the DDL identical to the
-baseline revision. Decimal precision is given as `sa_type=Numeric(p, s)`
-rather than `max_digits`/`decimal_places`: pydantic 2.5 rejects those on an
-Optional[Decimal].
+Two quirks of the pinned versions shape the declarations:
+
+- String lengths are `sa_type=String(n)`, not `max_length`, because
+  `max_length` would also become an API validation rule and an OpenAPI
+  `maxLength`. Over-long values are refused by the database instead.
+- Decimal precision is `sa_type=Numeric(p, s)`, not `max_digits`: pydantic 2.5
+  rejects `max_digits` on an Optional[Decimal].
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
-from sqlalchemy import BigInteger, CheckConstraint, Index, Numeric, Text, UniqueConstraint, text
+from pydantic import BaseModel, ConfigDict, field_validator
+from sqlalchemy import (
+    BigInteger, CheckConstraint, Index, Numeric, String, Text, UniqueConstraint, text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -28,11 +47,15 @@ from meshbee_core.limits import (
     BATTERIA_MAX, BATTERIA_MIN, ID_MAX_LENGTH, LATITUDINE_MAX, LATITUDINE_MIN,
     LONGITUDINE_MAX, LONGITUDINE_MIN, PERMESSI, PESO_MIN, RUOLI, TEMPERATURA_MAX,
     TEMPERATURA_MIN, TIPI_ATTIVITA, UMIDITA_MAX, UMIDITA_MIN,
+    # Re-exported: the value sets are part of this module's public surface.
+    Permesso, Ruolo, TipoAttivita,
 )
 
 NOW = {"server_default": text("CURRENT_TIMESTAMP")}
 TRUE = {"server_default": text("true")}
 FALSE = {"server_default": text("false")}
+
+ID = String(ID_MAX_LENGTH)
 
 
 def in_range(column: str, low=None, high=None) -> str:
@@ -56,7 +79,125 @@ def default(value: str) -> dict:
     return {"server_default": text(f"'{value}'")}
 
 
-class Utente(SQLModel, table=True):
+# ============================================
+# Autenticazione
+# ============================================
+
+def normalize_email(value: str) -> str:
+    """Trim and lowercase an address, so stored and submitted values match."""
+    return value.strip().lower()
+
+
+# bcrypt hashes at most 72 bytes and silently ignores the rest, so a longer
+# password protects an account no better than its first 72 bytes.
+BCRYPT_MAX_BYTES = 72
+PASSWORD_MIN_LENGTH = 8
+
+
+def validate_password_length(value: str) -> str:
+    """
+    Reject a password bcrypt would silently truncate.
+
+    The limit is in bytes, not characters: accented or emoji characters take
+    several bytes each, so a 72-character password can still overflow it.
+    """
+    if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise ValueError(
+            f"Password troppo lunga: massimo {BCRYPT_MAX_BYTES} byte "
+            "(bcrypt ignora i caratteri successivi)"
+        )
+    return value
+
+
+class UserLogin(BaseModel):
+    """Dati per login utente"""
+    email: str
+    password: str
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email_case(cls, v):
+        """
+        Normalize exactly like UserBase, but without rejecting a bad format:
+        a malformed address must fail authentication (401), not validation (422).
+        """
+        return normalize_email(v)
+
+
+class Token(BaseModel):
+    """Token di accesso"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    """Dati contenuti nel token"""
+    email: Optional[str] = None
+    id_utente: Optional[int] = None
+    ruolo: Optional[str] = None
+
+
+# ============================================
+# Utenti
+# ============================================
+
+class UserBase(SQLModel):
+    """Base utente"""
+    email: str = Field(sa_type=String(255), unique=True)  # str, non EmailStr: domini .local
+    nome: str = Field(sa_type=String(100))
+    cognome: str = Field(sa_type=String(100))
+
+    @field_validator('email')
+    @classmethod
+    def validate_email_format(cls, v):
+        """Validazione email minimale: deve contenere @ e un dominio"""
+        v = normalize_email(v)
+        if '@' not in v:
+            raise ValueError('Email non valida: manca @')
+        local, _, domain = v.partition('@')
+        if not local or not domain or '.' not in domain:
+            raise ValueError('Email non valida: formato scorretto')
+        return v
+
+
+class UserCreate(UserBase):
+    """Creazione utente"""
+    password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)"
+    )
+    ruolo: Ruolo = "user"
+
+    @field_validator('password')
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
+
+
+class UserUpdate(BaseModel):
+    """Aggiornamento utente"""
+    email: Optional[str] = None
+    nome: Optional[str] = None
+    cognome: Optional[str] = None
+    ruolo: Optional[Ruolo] = None
+    attivo: Optional[bool] = None
+
+
+class UserResponse(UserBase):
+    """Risposta con dati utente"""
+    id_utente: int = Field(primary_key=True)
+    ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("user"))
+    data_creazione: datetime = Field(sa_column_kwargs=NOW)
+    data_attivazione: Optional[datetime] = None
+    data_disattivazione: Optional[datetime] = None
+    ultimo_accesso: Optional[datetime] = None
+    attivo: bool = Field(sa_column_kwargs=TRUE)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Utente(UserResponse, table=True):
     __tablename__ = "utenti"
     __table_args__ = (
         CheckConstraint(one_of("ruolo", RUOLI), name="utenti_ruolo_check"),
@@ -67,34 +208,106 @@ class Utente(SQLModel, table=True):
         {"comment": "Utenti del sistema con autenticazione"},
     )
 
-    id_utente: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(max_length=255, unique=True)
-    password_hash: str = Field(max_length=255)
-    nome: str = Field(max_length=100)
-    cognome: str = Field(max_length=100)
-    ruolo: Optional[str] = Field(default=None, max_length=20, sa_column_kwargs=default("user"))
-    data_creazione: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
-    data_attivazione: Optional[datetime] = None
-    data_disattivazione: Optional[datetime] = None
-    ultimo_accesso: Optional[datetime] = None
-    attivo: Optional[bool] = Field(default=None, sa_column_kwargs=TRUE)
+    # Never part of a response: the reason the table extends UserResponse
+    # rather than being it.
+    password_hash: str = Field(sa_type=String(255))
 
 
-class Nodo(SQLModel, table=True):
+class PasswordChange(BaseModel):
+    """Cambio password"""
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)"
+    )
+    current_password: Optional[str] = None  # Richiesta solo per cambio proprio
+
+    @field_validator('new_password')
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
+
+
+# ============================================
+# Nodi
+# ============================================
+
+class NodoBase(SQLModel):
+    """Base nodo"""
+    id_nodo: str = Field(primary_key=True, sa_type=ID)
+    nome_nodo: Optional[str] = Field(None, sa_type=String(100))
+    descrizione: Optional[str] = Field(None, sa_type=Text)
+    posizione: Optional[str] = Field(None, sa_type=String(255))
+
+
+class NodoCreate(NodoBase):
+    """Creazione nodo"""
+    configurazione: Optional[Dict[str, Any]] = None
+
+
+class NodoResponse(NodoBase):
+    """Risposta con dati nodo"""
+    data_registrazione: datetime = Field(sa_column_kwargs=NOW)
+    ultimo_messaggio: Optional[datetime] = None
+    attivo: bool = Field(sa_column_kwargs=TRUE)
+    configurazione: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Nodo(NodoResponse, table=True):
     __tablename__ = "nodi"
     __table_args__ = ({"comment": "Dispositivi IoT che trasmettono dati"},)
 
-    id_nodo: str = Field(primary_key=True, max_length=ID_MAX_LENGTH)
-    nome_nodo: Optional[str] = Field(default=None, max_length=100)
-    descrizione: Optional[str] = Field(default=None, sa_type=Text)
-    posizione: Optional[str] = Field(default=None, max_length=255)
-    data_registrazione: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
-    ultimo_messaggio: Optional[datetime] = None
-    attivo: Optional[bool] = Field(default=None, sa_column_kwargs=TRUE)
-    configurazione: Optional[dict] = Field(default=None, sa_type=JSONB)
+
+# ============================================
+# Arnie
+# ============================================
+
+class ArniaBase(SQLModel):
+    """Base arnia"""
+    id_nodo: str = Field(sa_type=ID, foreign_key="nodi.id_nodo", ondelete="CASCADE")
+    id_sensore_fisico: str = Field(sa_type=ID)
+    nome_arnia: Optional[str] = Field(None, sa_type=String(100))
+    descrizione: Optional[str] = Field(None, sa_type=Text)
+    posizione: Optional[str] = Field(None, sa_type=String(255))
+    latitudine: Optional[Decimal] = Field(
+        None, ge=LATITUDINE_MIN, le=LATITUDINE_MAX, sa_type=Numeric(9, 6),
+        description="Latitudine in formato DD, es: 45.464200",
+    )
+    longitudine: Optional[Decimal] = Field(
+        None, ge=LONGITUDINE_MIN, le=LONGITUDINE_MAX, sa_type=Numeric(9, 6),
+        description="Longitudine in formato DD, es: 9.190000",
+    )
 
 
-class Arnia(SQLModel, table=True):
+class ArniaCreate(ArniaBase):
+    """Creazione arnia"""
+    metadati: Optional[Dict[str, Any]] = None
+
+
+class ArniaUpdate(BaseModel):
+    """Aggiornamento arnia"""
+    nome_arnia: Optional[str] = None
+    descrizione: Optional[str] = None
+    posizione: Optional[str] = None
+    latitudine: Optional[Decimal] = Field(None, ge=LATITUDINE_MIN, le=LATITUDINE_MAX, description="Latitudine in formato DD")
+    longitudine: Optional[Decimal] = Field(None, ge=LONGITUDINE_MIN, le=LONGITUDINE_MAX, description="Longitudine in formato DD")
+    attiva: Optional[bool] = None
+    metadati: Optional[Dict[str, Any]] = None
+
+
+class ArniaResponse(ArniaBase):
+    """Risposta con dati arnia"""
+    id_arnia: int = Field(primary_key=True)
+    data_installazione: datetime = Field(sa_column_kwargs=NOW)
+    data_rimozione: Optional[datetime] = None
+    attiva: bool = Field(sa_column_kwargs=TRUE)
+    metadati: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Arnia(ArniaResponse, table=True):
     __tablename__ = "arnie"
     __table_args__ = (
         UniqueConstraint("id_nodo", "id_sensore_fisico", name="arnie_id_nodo_id_sensore_fisico_key"),
@@ -107,47 +320,77 @@ class Arnia(SQLModel, table=True):
         {"comment": "Arnie monitorate con sensori"},
     )
 
-    id_arnia: Optional[int] = Field(default=None, primary_key=True)
-    id_nodo: Optional[str] = Field(
-        default=None, max_length=ID_MAX_LENGTH, foreign_key="nodi.id_nodo", ondelete="CASCADE"
-    )
-    id_sensore_fisico: str = Field(max_length=ID_MAX_LENGTH)
-    nome_arnia: Optional[str] = Field(default=None, max_length=100)
-    descrizione: Optional[str] = Field(default=None, sa_type=Text)
-    posizione: Optional[str] = Field(default=None, max_length=255)
-    latitudine: Optional[Decimal] = Field(default=None, sa_type=Numeric(9, 6))
-    longitudine: Optional[Decimal] = Field(default=None, sa_type=Numeric(9, 6))
-    data_installazione: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
-    data_rimozione: Optional[datetime] = None
-    attiva: Optional[bool] = Field(default=None, sa_column_kwargs=TRUE)
-    metadati: Optional[dict] = Field(default=None, sa_type=JSONB)
+
+class ArniaConStato(ArniaResponse):
+    """Arnia con ultime letture e coordinate"""
+    ultima_temperatura: Optional[Decimal] = None
+    ultima_umidita: Optional[Decimal] = None
+    ultimo_peso: Optional[Decimal] = None
+    ultima_batteria: Optional[Decimal] = None
+    ultimo_aggiornamento: Optional[datetime] = None
 
 
-class UtenteArnia(SQLModel, table=True):
-    __tablename__ = "utenti_arnie"
-    __table_args__ = (
-        UniqueConstraint("id_utente", "id_arnia", name="utenti_arnie_id_utente_id_arnia_key"),
-        CheckConstraint(one_of("permessi", PERMESSI), name="utenti_arnie_permessi_check"),
-        CheckConstraint(
-            "data_disassociazione IS NULL OR data_disassociazione >= data_associazione",
-            name="valid_association_dates",
-        ),
-    )
+# ============================================
+# Letture
+# ============================================
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    id_utente: Optional[int] = Field(
-        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
-    )
-    id_arnia: Optional[int] = Field(
-        default=None, foreign_key="arnie.id_arnia", ondelete="CASCADE"
-    )
-    data_associazione: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
-    data_disassociazione: Optional[datetime] = None
-    permessi: Optional[str] = Field(default=None, max_length=20, sa_column_kwargs=default("read"))
-    attivo: Optional[bool] = Field(default=None, sa_column_kwargs=TRUE)
+class LetturaBase(SQLModel):
+    """Base lettura"""
+    temperatura: Optional[Decimal] = Field(None, sa_type=Numeric(5, 2))
+    umidita: Optional[Decimal] = Field(None, sa_type=Numeric(5, 2))
+    peso: Optional[Decimal] = Field(None, sa_type=Numeric(10, 3))
+    # Node battery voltage; the payload key is `bat`.
+    batteria: Optional[Decimal] = Field(None, sa_type=Numeric(4, 3))
+
+    @field_validator('temperatura')
+    @classmethod
+    def validate_temperatura(cls, v):
+        if v is not None and (v < TEMPERATURA_MIN or v > TEMPERATURA_MAX):
+            raise ValueError(f'Temperatura deve essere tra {TEMPERATURA_MIN} e {TEMPERATURA_MAX}°C')
+        return v
+
+    @field_validator('umidita')
+    @classmethod
+    def validate_umidita(cls, v):
+        if v is not None and (v < UMIDITA_MIN or v > UMIDITA_MAX):
+            raise ValueError(f'Umidità deve essere tra {UMIDITA_MIN} e {UMIDITA_MAX}%')
+        return v
+
+    @field_validator('peso')
+    @classmethod
+    def validate_peso(cls, v):
+        if v is not None and v < PESO_MIN:
+            raise ValueError('Peso deve essere positivo')
+        return v
+
+    @field_validator('batteria')
+    @classmethod
+    def validate_batteria(cls, v):
+        if v is not None and (v < BATTERIA_MIN or v > BATTERIA_MAX):
+            raise ValueError(f'Batteria deve essere tra {BATTERIA_MIN} e {BATTERIA_MAX} V')
+        return v
 
 
-class Lettura(SQLModel, table=True):
+class LetturaCreate(LetturaBase):
+    """Creazione lettura"""
+    id_arnia: int
+    id_nodo: str
+    timestamp: Optional[datetime] = None
+    dati_raw: Optional[Dict[str, Any]] = None
+
+
+class LetturaResponse(LetturaBase):
+    """Risposta con dati lettura"""
+    id_lettura: int = Field(primary_key=True, sa_type=BigInteger)
+    id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
+    id_nodo: str = Field(sa_type=ID)
+    timestamp: datetime = Field(sa_column_kwargs=NOW)
+    dati_raw: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Lettura(LetturaResponse, table=True):
     __tablename__ = "letture"
     __table_args__ = (
         CheckConstraint(
@@ -161,39 +404,139 @@ class Lettura(SQLModel, table=True):
         {"comment": "Dati telemetrici dalle arnie"},
     )
 
-    id_lettura: Optional[int] = Field(default=None, primary_key=True, sa_type=BigInteger)
-    id_arnia: Optional[int] = Field(
-        default=None, foreign_key="arnie.id_arnia", ondelete="CASCADE"
-    )
-    id_nodo: str = Field(max_length=ID_MAX_LENGTH)
+
+class SerieTemperaturaResponse(BaseModel):
+    """Risposta serie storica temperatura"""
+    timestamp: datetime
+    temperatura: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SerieUmiditaResponse(BaseModel):
+    """Risposta serie storica umidita"""
+    timestamp: datetime
+    umidita: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SeriePesoResponse(BaseModel):
+    """Risposta serie storica peso"""
+    timestamp: datetime
+    peso: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SerieBatteriaResponse(BaseModel):
+    """Battery voltage time series."""
+    timestamp: datetime
+    batteria: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LettureQueryParams(BaseModel):
+    """Parametri per query letture"""
+    data_inizio: Optional[datetime] = None
+    data_fine: Optional[datetime] = None
+    limit: int = Field(default=1000, ge=1, le=10000)
+    offset: int = Field(default=0, ge=0)
+
+
+# ============================================
+# Attività
+# ============================================
+
+class AttivitaBase(SQLModel):
+    """Base attività"""
+    tipo_attivita: TipoAttivita = Field(sa_type=String(50))
+    descrizione: Optional[str] = Field(None, sa_type=Text)
+    dati: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+
+
+class AttivitaCreate(AttivitaBase):
+    """Creazione attività"""
+    id_arnia: int
+    timestamp: Optional[datetime] = None
+
+
+class AttivitaUpdate(BaseModel):
+    """Aggiornamento attività"""
+    tipo_attivita: Optional[TipoAttivita] = None
+    descrizione: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    dati: Optional[Dict[str, Any]] = None
+
+
+class AttivitaResponse(AttivitaBase):
+    """Risposta con dati attività"""
+    id_log: int = Field(primary_key=True, sa_type=BigInteger)
+    # Nullable on purpose: ON DELETE SET NULL keeps the entry when the account goes.
+    id_utente: Optional[int] = Field(None, foreign_key="utenti.id_utente", ondelete="SET NULL")
+    id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
     timestamp: datetime = Field(sa_column_kwargs=NOW)
-    temperatura: Optional[Decimal] = Field(default=None, sa_type=Numeric(5, 2))
-    umidita: Optional[Decimal] = Field(default=None, sa_type=Numeric(5, 2))
-    peso: Optional[Decimal] = Field(default=None, sa_type=Numeric(10, 3))
-    # Node battery voltage; the payload key is `bat`.
-    batteria: Optional[Decimal] = Field(default=None, sa_type=Numeric(4, 3))
-    dati_raw: Optional[dict] = Field(default=None, sa_type=JSONB)
+
+    model_config = ConfigDict(from_attributes=True)
 
 
-class LogAttivita(SQLModel, table=True):
+class LogAttivita(AttivitaResponse, table=True):
     __tablename__ = "log_attivita"
     __table_args__ = (
         CheckConstraint(one_of("tipo_attivita", TIPI_ATTIVITA), name="valid_activity"),
         {"comment": "Registro interventi e attività degli apicoltori"},
     )
 
-    id_log: Optional[int] = Field(default=None, primary_key=True, sa_type=BigInteger)
-    id_utente: Optional[int] = Field(
-        default=None, foreign_key="utenti.id_utente", ondelete="SET NULL"
-    )
-    id_arnia: Optional[int] = Field(
-        default=None, foreign_key="arnie.id_arnia", ondelete="CASCADE"
-    )
-    timestamp: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
-    tipo_attivita: str = Field(max_length=50)
-    descrizione: Optional[str] = Field(default=None, sa_type=Text)
-    dati: Optional[dict] = Field(default=None, sa_type=JSONB)
 
+class AttivitaQueryParams(BaseModel):
+    """Parametri per query attività"""
+    data_inizio: Optional[datetime] = None
+    data_fine: Optional[datetime] = None
+    tipo_attivita: Optional[str] = None
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+
+
+# ============================================
+# Associazione utente-arnia
+# ============================================
+
+class UtenteArniaCreate(BaseModel):
+    """Associazione utente-arnia"""
+    id_utente: int
+    id_arnia: int
+    permessi: Permesso = "read"
+
+
+class UtenteArniaResponse(SQLModel):
+    """Risposta associazione"""
+    id: int = Field(primary_key=True)
+    id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
+    id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
+    data_associazione: datetime = Field(sa_column_kwargs=NOW)
+    data_disassociazione: Optional[datetime] = None
+    permessi: str = Field(sa_type=String(20), sa_column_kwargs=default("read"))
+    attivo: bool = Field(sa_column_kwargs=TRUE)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UtenteArnia(UtenteArniaResponse, table=True):
+    __tablename__ = "utenti_arnie"
+    __table_args__ = (
+        UniqueConstraint("id_utente", "id_arnia", name="utenti_arnie_id_utente_id_arnia_key"),
+        CheckConstraint(one_of("permessi", PERMESSI), name="utenti_arnie_permessi_check"),
+        CheckConstraint(
+            "data_disassociazione IS NULL OR data_disassociazione >= data_associazione",
+            name="valid_association_dates",
+        ),
+    )
+
+
+# ============================================
+# Token di sessione (no API shape)
+# ============================================
 
 class TokenSessione(SQLModel, table=True):
     """Unused on purpose: refresh tokens are stateless (#16). Kept for later."""
@@ -203,12 +546,29 @@ class TokenSessione(SQLModel, table=True):
     id_utente: Optional[int] = Field(
         default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
     )
-    refresh_token: str = Field(max_length=500, unique=True)
+    refresh_token: str = Field(sa_type=String(500), unique=True)
     data_creazione: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
     data_scadenza: datetime
     revocato: Optional[bool] = Field(default=None, sa_column_kwargs=FALSE)
-    ip_address: Optional[str] = Field(default=None, max_length=45)
+    ip_address: Optional[str] = Field(default=None, sa_type=String(45))
     user_agent: Optional[str] = Field(default=None, sa_type=Text)
+
+
+# ============================================
+# Risposte generiche
+# ============================================
+
+class MessageResponse(BaseModel):
+    """Messaggio generico"""
+    message: str
+    detail: Optional[str] = None
+
+
+class ErrorResponse(BaseModel):
+    """Risposta errore"""
+    error: str
+    detail: Optional[str] = None
+    code: Optional[int] = None
 
 
 # Indexes are declared after the classes so they can name real columns, sort

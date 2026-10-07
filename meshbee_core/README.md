@@ -25,10 +25,9 @@ scripts/ ───────┘
 |---|---|
 | `config.py` | `CoreSettings` — the database fields, and nothing else. |
 | `db.py` | The SQLAlchemy engine, `get_session()`, and `integrity_errors()`. |
-| `limits.py` | Every bound and value set, declared once. Read by the three below and by `mqtt_handler/contract.py`. |
-| `models.py` | The database schema, as SQLModel table classes. The source Alembic migrates from. |
+| `limits.py` | Every bound and value set, declared once. Read by `models.py` and by `mqtt_handler/contract.py`. |
+| `models.py` | The data model, declared once: each table and its API shapes (`XBase`, `XCreate`, `XUpdate`, `XResponse`) as one SQLModel family, plus the API-only models (login, tokens, series, messages). The source Alembic migrates from. |
 | `migrations/` | Alembic: `env.py`, `upgrade()`, and the revisions. See [`database/`](../database/README.md#changing-the-schema). |
-| `schemas.py` | Every pydantic model of the API, validating with the bounds from `limits.py`. |
 | `security.py` | Password hashing and verification. Framework-free. |
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData` — the vocabulary services raise. |
 | `repository/` | SQL. One module per table. |
@@ -140,7 +139,7 @@ clears that cache between tests, which is what makes settings testable at all.
 
 ## Validation
 
-The ranges live in `schemas.py`:
+The ranges are validated by the models in `models.py`, with the bounds from `limits.py`:
 
 | Field | Range | Where else |
 |---|---|---|
@@ -154,8 +153,8 @@ The ranges live in `schemas.py`:
 | `permessi` | `read`, `write`, `admin` | CHECK on `utenti_arnie.permessi` |
 | `tipo_attivita` | 8 values | CHECK on `log_attivita.tipo_attivita` |
 
-**Every bound and value set is declared once, in `limits.py`.** The validators here,
-the CHECK constraints in `models.py` and the JSON Schema keywords in
+**Every bound and value set is declared once, in `limits.py`.** The validators on the
+API shapes, the CHECK constraints on the tables (both in `models.py`) and the JSON Schema keywords in
 `mqtt_handler/contract.py` all read the same constants, so changing a number changes
 all three — and the database follows through a migration (autogenerate misses CHECKs;
 see [`database/`](../database/README.md#changing-the-schema)).

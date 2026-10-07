@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
 from meshbee_core.db import get_session
-from meshbee_core.schemas import Permesso, TokenData
+from meshbee_core.models import Permesso, TokenData
 from meshbee_core.services import auth as auth_service
 
 logger = logging.getLogger(__name__)

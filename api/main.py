@@ -31,7 +31,7 @@ from meshbee_core.services import (
     nodi as nodi_service,
     utenti as utenti_service,
 )
-from meshbee_core.schemas import (
+from meshbee_core.models import (
     UserLogin, Token, UserCreate, UserResponse, UserUpdate,
     NodoCreate, NodoResponse, ArniaCreate, ArniaResponse, ArniaUpdate, ArniaConStato,
     LetturaCreate, LetturaResponse, AttivitaCreate, AttivitaUpdate, AttivitaResponse,

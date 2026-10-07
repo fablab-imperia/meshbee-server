@@ -17,7 +17,7 @@ from pydantic import Field, SecretStr, ValidationError
 
 from meshbee_core.config import CoreSettings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool
-from meshbee_core.schemas import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
+from meshbee_core.models import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
 from meshbee_core.services import accessi as accessi_service
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import attivita as attivita_service

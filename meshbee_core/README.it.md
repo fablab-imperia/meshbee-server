@@ -25,10 +25,9 @@ scripts/ ───────┘
 |---|---|
 | `config.py` | `CoreSettings` — i campi del database, e nient'altro. |
 | `db.py` | L'engine SQLAlchemy, `get_session()` e `integrity_errors()`. |
-| `limits.py` | Ogni limite e insieme di valori, dichiarato una volta sola. Letto dai tre qui sotto e da `mqtt_handler/contract.py`. |
-| `models.py` | Lo schema del database, come classi tabella SQLModel. La fonte da cui migra Alembic. |
+| `limits.py` | Ogni limite e insieme di valori, dichiarato una volta sola. Letto da `models.py` e da `mqtt_handler/contract.py`. |
+| `models.py` | Il modello dei dati, dichiarato una volta sola: ogni tabella e le sue forme API (`XBase`, `XCreate`, `XUpdate`, `XResponse`) come un'unica famiglia SQLModel, più i modelli solo-API (login, token, serie, messaggi). La fonte da cui migra Alembic. |
 | `migrations/` | Alembic: `env.py`, `upgrade()` e le revisioni. Vedi [`database/`](../database/README.it.md#cambiare-lo-schema). |
-| `schemas.py` | Tutti i modelli pydantic dell'API, che validano con i limiti di `limits.py`. |
 | `security.py` | Hashing e verifica delle password. Senza framework. |
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData` — il vocabolario che sollevano i service. |
 | `repository/` | SQL. Un modulo per tabella. |
@@ -146,7 +145,7 @@ testabili.
 
 ## Validazione
 
-I limiti stanno in `schemas.py`:
+I limiti sono validati dai modelli in `models.py`, con i valori di `limits.py`:
 
 | Campo | Intervallo | Dove altro |
 |---|---|---|
@@ -161,7 +160,7 @@ I limiti stanno in `schemas.py`:
 | `tipo_attivita` | 8 valori | CHECK su `log_attivita.tipo_attivita` |
 
 **Ogni limite e insieme di valori è dichiarato una volta sola, in `limits.py`.** I
-validatori qui, i vincoli CHECK in `models.py` e le parole chiave JSON Schema in
+validatori sulle forme API, i vincoli CHECK sulle tabelle (entrambi in `models.py`) e le parole chiave JSON Schema in
 `mqtt_handler/contract.py` leggono tutti le stesse costanti, quindi cambiare un numero
 cambia tutti e tre — e il database segue con una migrazione (l'autogenerate non vede i
 CHECK; vedi [`database/`](../database/README.it.md#cambiare-lo-schema)).

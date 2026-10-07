@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Union
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import InvalidData, NotFound
 from meshbee_core.repository import letture
-from meshbee_core.schemas import LetturaCreate
+from meshbee_core.models import LetturaCreate
 
 # How far back a query reaches when the caller gives no start date.
 DEFAULT_WINDOW_DAYS = 365

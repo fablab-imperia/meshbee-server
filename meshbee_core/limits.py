@@ -2,10 +2,10 @@
 The domain's bounds and value sets, declared once.
 
 Every other place a range or an allowed value appears reads it from here:
-the table models (`models.py`) turn them into CHECK constraints, the API
-schemas (`schemas.py`) into validators, and the MQTT contract
+`models.py` turns them into CHECK constraints on the tables and into
+validators on the API shapes, and the MQTT contract
 (`mqtt_handler/contract.py`) into JSON Schema keywords. Changing a number here
-changes all three; the database follows through a migration (see
+changes all of them; the database follows through a migration (see
 `database/README.md`).
 
 Migrations are the one exception: a revision freezes the literal values it was

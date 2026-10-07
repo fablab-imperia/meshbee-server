@@ -10,6 +10,8 @@ once with `metadata.create_all()`, once with `upgrade head` — and compares the
 catalogs Postgres itself reports. Any difference, a CHECK body included, fails
 here with both versions printed.
 """
+import datetime
+
 import psycopg2
 import pytest
 from sqlalchemy import create_engine
@@ -135,3 +137,83 @@ def test_upgrade_refuses_an_unstamped_database(scratch_schemas):
 
     with pytest.raises(UnstampedDatabase, match="alembic stamp"):
         upgrade(TEST_DB_URL, search_path=FROM_MIGRATIONS)
+
+
+# ============================================
+# 0002: required columns become NOT NULL
+# ============================================
+
+
+@pytest.fixture
+def at_0001(scratch_schemas):
+    """A scratch schema at the baseline, and a cursor whose search_path is it."""
+    upgrade(TEST_DB_URL, "0001", search_path=FROM_MIGRATIONS)
+    scratch_schemas.execute(f"SET search_path TO {FROM_MIGRATIONS}")
+    return scratch_schemas
+
+
+def insert_rows_with_nulls(cursor):
+    """One row per table with every column 0002 tightens left NULL."""
+    cursor.execute(
+        "INSERT INTO utenti (email, password_hash, nome, cognome, ruolo, attivo, data_creazione,"
+        " data_attivazione) VALUES ('a@b.org', 'x', 'n', 'c', NULL, NULL, NULL, '2024-01-02')"
+    )
+    cursor.execute(
+        "INSERT INTO nodi (id_nodo, attivo, data_registrazione) VALUES ('N1', NULL, NULL)"
+    )
+    cursor.execute(
+        "INSERT INTO arnie (id_nodo, id_sensore_fisico, attiva, data_installazione)"
+        " VALUES ('N1', 'S1', NULL, NULL)"
+    )
+    cursor.execute(
+        "INSERT INTO letture (id_arnia, id_nodo, timestamp) VALUES (1, 'N1', '2024-03-04')"
+    )
+    cursor.execute(
+        "INSERT INTO log_attivita (id_arnia, tipo_attivita, timestamp) VALUES (1, 'altro', NULL)"
+    )
+    cursor.execute(
+        "INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo, data_associazione)"
+        " VALUES (1, 1, NULL, true, NULL)"
+    )
+
+
+def row(cursor, query):
+    cursor.execute(query)
+    return cursor.fetchone()
+
+
+def test_0002_fills_nulls_without_reviving_anything(at_0001):
+    insert_rows_with_nulls(at_0001)
+
+    upgrade(TEST_DB_URL, "0002", search_path=FROM_MIGRATIONS)
+
+    # A NULL flag read as "not true" before, so it must stay off.
+    assert row(at_0001, "SELECT ruolo, attivo, data_creazione::date FROM utenti") == (
+        "user", False, datetime.date(2024, 1, 2)
+    )
+    assert row(at_0001, "SELECT attivo, data_registrazione::date FROM nodi") == (
+        False, datetime.date(2024, 3, 4)
+    )
+    assert row(at_0001, "SELECT attiva, data_installazione::date FROM arnie") == (
+        False, datetime.date(2024, 3, 4)
+    )
+    assert row(at_0001, "SELECT timestamp IS NOT NULL FROM log_attivita") == (True,)
+    # A NULL permission granted nothing; it still grants nothing.
+    assert row(
+        at_0001,
+        "SELECT permessi, attivo, data_associazione IS NOT NULL,"
+        " data_disassociazione IS NOT NULL FROM utenti_arnie",
+    ) == ("read", False, True, True)
+
+
+def test_0002_refuses_rows_it_cannot_fill_and_changes_nothing(at_0001):
+    at_0001.execute("INSERT INTO nodi (id_nodo) VALUES ('N1')")
+    at_0001.execute("INSERT INTO arnie (id_nodo, id_sensore_fisico) VALUES (NULL, 'S1')")
+    at_0001.execute("INSERT INTO utenti (email, password_hash, nome, cognome, ruolo)"
+                    " VALUES ('a@b.org', 'x', 'n', 'c', NULL)")
+
+    with pytest.raises(RuntimeError, match="1 arnie without id_nodo"):
+        upgrade(TEST_DB_URL, "0002", search_path=FROM_MIGRATIONS)
+
+    assert row(at_0001, "SELECT version_num FROM alembic_version") == ("0001",)
+    assert row(at_0001, "SELECT ruolo FROM utenti") == (None,)

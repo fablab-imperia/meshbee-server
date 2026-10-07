@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from meshbee_core.errors import InvalidData
-from meshbee_core.schemas import LetturaCreate
+from meshbee_core.models import LetturaCreate
 from meshbee_core.services import letture
 
 VALID = {"id_arnia": 1, "id_nodo": "NODE001"}

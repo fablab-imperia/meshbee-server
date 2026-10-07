@@ -30,6 +30,11 @@ il database è già all'ultima revisione. Vedi [Cambiare lo schema](#cambiare-lo
 
 ## Tabelle
 
+Una tabella e le risposte API costruite da essa condividono un'unica dichiarazione in
+[`meshbee_core/models.py`](../meshbee_core/models.py), quindi ogni colonna che una
+risposta richiede è NOT NULL anche qui (revisione `0002`). Le tabelle qui sotto danno il
+resto dei dettagli.
+
 ### `utenti` — gli account
 
 | Colonna | Tipo | Note |
@@ -214,6 +219,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | Revisione | Cosa ha fatto |
 |---|---|
 | `0001` | Partenza: lo schema come l'hanno lasciato le migrazioni scritte a mano. |
+| `0002` | NOT NULL sulle 16 colonne che l'API restituisce come obbligatorie. Prima riempie i NULL esistenti — i flag a **false**, `ruolo` a `user`, `permessi` a `read` con l'associazione disattivata, le date dalla migliore informazione presente nella riga — e **si ferma senza cambiare niente** se una chiave esterna è NULL (un'arnia senza nodo, una lettura senza arnia), perché quelle non si possono riempire. |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:
@@ -265,7 +271,7 @@ docker-compose exec api alembic check        # l'autogenerate troverebbe qualcos
 I test che toccano l'SQL stanno in `tests/integration/` — i test dei repository
 verificano nomi di colonna, join e ordine dei parametri contro un database reale,
 `test_migrations.py` che le revisioni corrispondano ai modelli, e
-`tests/integration/core/test_schemas.py` che il database e `meshbee_core/schemas.py`
+`tests/integration/core/test_schemas.py` che il database e le forme API in `meshbee_core/models.py`
 rifiutino gli stessi valori. Il database di test viene costruito con `upgrade head` a
 ogni esecuzione. Vedi [`tests/`](../tests/README.it.md).
 

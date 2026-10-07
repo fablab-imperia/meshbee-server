@@ -30,6 +30,11 @@ the database is already at head. See [Changing the schema](#changing-the-schema)
 
 ## Tables
 
+A table and the API responses built from it share one declaration in
+[`meshbee_core/models.py`](../meshbee_core/models.py), so every column a response
+requires is NOT NULL here too (revision `0002`). The tables below give the remaining
+detail.
+
 ### `utenti` — accounts
 
 | Column | Type | Notes |
@@ -212,6 +217,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | Revision | What it did |
 |---|---|
 | `0001` | Baseline: the schema as the hand-written migrations left it. |
+| `0002` | NOT NULL on the 16 columns the API returns as required. Fills existing NULLs first — flags to **false**, `ruolo` to `user`, `permessi` to `read` with the association deactivated, dates from the best evidence in the row — and **stops without changing anything** if a foreign key is NULL (an arnia without a node, a reading without an arnia), since those cannot be filled. |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:
@@ -263,7 +269,7 @@ docker-compose exec api alembic check        # would autogenerate find anything?
 Tests that touch SQL live in `tests/integration/` — the repository tests verify column
 names, joins and parameter order against a real database, `test_migrations.py` that the
 revisions match the models, and `tests/integration/core/test_schemas.py` that the
-database and `meshbee_core/schemas.py` reject the same values. The test database is
+database and the API shapes in `meshbee_core/models.py` reject the same values. The test database is
 built with `upgrade head` on every run. See [`tests/`](../tests/README.md).
 
 ## Gotchas

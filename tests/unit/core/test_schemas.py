@@ -1,4 +1,4 @@
-"""Tests for the pydantic schemas (meshbee_core/schemas.py).
+"""Tests for the API shapes in meshbee_core/models.py.
 
 Scope: the validation *we* declare — the custom email/lettura validators, the
 Field bounds, and the defaults that have to agree with meshbee_core/models.py.
@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from meshbee_core.schemas import (
+from meshbee_core.models import (
     BCRYPT_MAX_BYTES,
     ArniaBase,
     ArniaResponse,
@@ -198,23 +198,24 @@ def test_arnia_update_applies_the_same_coordinate_bounds(field, value):
         ArniaUpdate(**{field: Decimal(value)})
 
 
-def test_arnia_response_does_not_constrain_coordinates():
+def test_arnia_response_applies_the_same_coordinate_bounds():
     """
-    Known asymmetry: ArniaResponse redeclares latitudine/longitudine without
-    the ge/le bounds it inherits from ArniaBase, so a row already in the
-    database is serialised as-is rather than raising. Pinned to make the
-    override visible; it only affects output, never what gets stored.
-    """
-    response = ArniaResponse(
-        id_nodo="NODE001",
-        id_sensore_fisico="SENSOR01",
-        id_arnia=1,
-        data_installazione=datetime(2026, 1, 1),
-        attiva=True,
-        latitudine=Decimal("999"),
-    )
+    The response shares ArniaBase's declaration, bounds included.
 
-    assert response.latitudine == Decimal("999")
+    It used to redeclare latitudine/longitudine without them, so that a stored
+    out-of-range value would serialise instead of raising. The declaration is
+    now shared with the table, and the valid_latitudine / valid_longitudine
+    CHECKs mean no such row can exist to be serialised.
+    """
+    with pytest.raises(ValidationError):
+        ArniaResponse(
+            id_nodo="NODE001",
+            id_sensore_fisico="SENSOR01",
+            id_arnia=1,
+            data_installazione=datetime(2026, 1, 1),
+            attiva=True,
+            latitudine=Decimal("999"),
+        )
 
 
 # ============================================

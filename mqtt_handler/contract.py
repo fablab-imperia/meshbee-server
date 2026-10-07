@@ -4,7 +4,7 @@
 is supposed to put there. Nothing validates against it at runtime — decoding
 stays deliberately lenient, because a node with one broken sensor should still
 get its other measurements stored, and the ranges are enforced once, later, by
-`meshbee_core.schemas.LetturaCreate`. The model exists so that
+`meshbee_core.models.LetturaCreate`. The model exists so that
 `scripts/export_mqtt_schema.py` can generate `mqtt-payload.schema.json`: the
 artifact the firmware, the app and the umbrella repository's contract pages point
 at, none of which can read the table in `README.md`.
