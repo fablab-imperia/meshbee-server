@@ -1,13 +1,12 @@
-"""Hives, and the state view that carries their latest readings."""
+"""Hives, and the state that carries their latest readings."""
 from typing import Any, Dict, List
 
-import psycopg2
-
+from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, NotFound
 from meshbee_core.repository import arnie
 
 
-def list_for_utente(cursor, current_user) -> List[Dict[str, Any]]:
+def list_for_utente(session, current_user) -> List[Dict[str, Any]]:
     """
     Every active arnia for an admin, only the associated ones for a user.
 
@@ -15,42 +14,45 @@ def list_for_utente(cursor, current_user) -> List[Dict[str, Any]]:
     is expected to see hives nobody has been granted access to yet.
     """
     if current_user['ruolo'] == 'admin':
-        rows = arnie.list_stato_attive(cursor)
+        rows = arnie.list_stato_attive(session)
     else:
-        rows = arnie.list_stato_for_utente(cursor, current_user['id_utente'])
+        rows = arnie.list_stato_for_utente(session, current_user['id_utente'])
     return [dict(row) for row in rows]
 
 
-def list_all(cursor) -> List[Dict[str, Any]]:
+def list_all(session) -> List[Dict[str, Any]]:
     """Every arnia including the retired ones — the admin inventory."""
-    return [dict(row) for row in arnie.list_stato(cursor)]
+    return [dict(row) for row in arnie.list_stato(session)]
 
 
-def list_ids(cursor) -> List[int]:
+def list_ids(session) -> List[int]:
     """Every arnia id, oldest first — for callers that only need to iterate."""
-    return [row["id_arnia"] for row in arnie.list_ids(cursor)]
+    return [row["id_arnia"] for row in arnie.list_ids(session)]
 
 
-def get_arnia(cursor, id_arnia: int) -> Dict[str, Any]:
+def get_arnia(session, id_arnia: int) -> Dict[str, Any]:
     """
     Raises:
         NotFound: se l'arnia non esiste.
     """
-    row = arnie.get_stato(cursor, id_arnia)
+    row = arnie.get_stato(session, id_arnia)
     if not row:
         raise NotFound("Arnia non trovata")
     return dict(row)
 
 
-def create_arnia(cursor, arnia) -> Dict[str, Any]:
+def create_arnia(session, arnia) -> Dict[str, Any]:
     """
     Raises:
         Conflict: se il sensore è già registrato per quel nodo.
         NotFound: se il nodo non esiste.
     """
-    try:
+    conflict = Conflict(
+        f"Sensore '{arnia.id_sensore_fisico}' già registrato per il nodo '{arnia.id_nodo}'"
+    )
+    with integrity_errors(unique=conflict, foreign_key=NotFound(f"Nodo '{arnia.id_nodo}' non trovato")):
         return dict(arnie.insert(
-            cursor,
+            session,
             id_nodo=arnia.id_nodo,
             id_sensore_fisico=arnia.id_sensore_fisico,
             # Same default the ingest path uses, so a hive created either way
@@ -62,15 +64,9 @@ def create_arnia(cursor, arnia) -> Dict[str, Any]:
             longitudine=arnia.longitudine,
             metadati=arnia.metadati,
         ))
-    except psycopg2.errors.UniqueViolation as exc:
-        raise Conflict(
-            f"Sensore '{arnia.id_sensore_fisico}' già registrato per il nodo '{arnia.id_nodo}'"
-        ) from exc
-    except psycopg2.errors.ForeignKeyViolation as exc:
-        raise NotFound(f"Nodo '{arnia.id_nodo}' non trovato") from exc
 
 
-def update_arnia(cursor, id_arnia: int, arnia, *, allow_attiva: bool = False) -> Dict[str, Any]:
+def update_arnia(session, id_arnia: int, arnia, *, allow_attiva: bool = False) -> Dict[str, Any]:
     """
     Apply the supplied fields; unmentioned ones keep their stored value.
 
@@ -83,7 +79,7 @@ def update_arnia(cursor, id_arnia: int, arnia, *, allow_attiva: bool = False) ->
     optional = {"attiva": arnia.attiva} if allow_attiva else {}
 
     row = arnie.update(
-        cursor, id_arnia,
+        session, id_arnia,
         nome_arnia=arnia.nome_arnia,
         descrizione=arnia.descrizione,
         posizione=arnia.posizione,
@@ -97,12 +93,12 @@ def update_arnia(cursor, id_arnia: int, arnia, *, allow_attiva: bool = False) ->
     return dict(row)
 
 
-def deactivate_arnia(cursor, id_arnia: int) -> None:
+def deactivate_arnia(session, id_arnia: int) -> None:
     """
     Soft delete: historical readings are kept.
 
     Raises:
         NotFound: se l'arnia non esiste.
     """
-    if not arnie.deactivate(cursor, id_arnia):
+    if not arnie.deactivate(session, id_arnia):
         raise NotFound("Arnia non trovata")

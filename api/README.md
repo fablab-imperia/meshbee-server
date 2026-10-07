@@ -7,7 +7,7 @@ mobile app talks to. It runs under uvicorn on port **8000**, with `--reload` in
 development, and reads and writes the same PostgreSQL database the MQTT handler
 writes to — through the same shared logic in [`meshbee_core/`](../meshbee_core/README.md).
 
-It is deliberately **thin**: every handler validates its input, opens one cursor,
+It is deliberately **thin**: every handler validates its input, opens one session,
 calls *one* service, and translates the outcome into a status code. There is no SQL
 here.
 
@@ -104,7 +104,7 @@ that must stay identical is pinned by `tests/integration/test_ingest_parity.py`.
 | GET | `/health` | none | Pings the database. |
 
 `/health` **always answers 200** — the body carries the verdict
-(`"status": "healthy"` / `"unhealthy"`). A monitor must read the body, not the status
+(`"status": "healthy"` / `"unhealthy"`), never the reason: that goes to the API log. A monitor must read the body, not the status
 code.
 
 ## Authentication and authorization
@@ -141,7 +141,7 @@ Two things to know about tokens:
   kept because it is the right shape for the feature —
   [issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
 - **A database outage is not a credentials error.** `authenticate_user` turns any
-  `psycopg2.Error` into **503** rather than letting it fall through to 401, so an
+  `SQLAlchemyError` into **503** rather than letting it fall through to 401, so an
   unreachable database never looks like a wrong password.
 
 Login answers the same 401 for an unknown email, a wrong password and a deactivated
@@ -159,7 +159,7 @@ meet:
 | `NotFound` | 404 |
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
-| `psycopg2.Error` during login | 503 |
+| `SQLAlchemyError` during login | 503 |
 | anything else | 500 `Errore interno del server`, with the real error logged |
 
 The 500 body stays vague on purpose: the exception text can name tables and columns.

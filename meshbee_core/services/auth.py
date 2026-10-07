@@ -16,7 +16,7 @@ from meshbee_core.security import verify_password
 PERMISSION_LEVELS = {"read": 1, "write": 2, "admin": 3}
 
 
-def authenticate(cursor, email: str, password: str) -> Optional[Dict[str, Any]]:
+def authenticate(session, email: str, password: str) -> Optional[Dict[str, Any]]:
     """
     Return the user row on a successful login, None otherwise.
 
@@ -24,7 +24,7 @@ def authenticate(cursor, email: str, password: str) -> Optional[Dict[str, Any]]:
     password, deactivated account — so a caller cannot use the response to
     discover which addresses are registered.
     """
-    user = utenti.get_credentials_by_email(cursor, email)
+    user = utenti.get_credentials_by_email(session, email)
 
     if not user:
         return None
@@ -35,14 +35,14 @@ def authenticate(cursor, email: str, password: str) -> Optional[Dict[str, Any]]:
     if not verify_password(password, user['password_hash']):
         return None
 
-    utenti.touch_ultimo_accesso(cursor, user['id_utente'])
+    utenti.touch_ultimo_accesso(session, user['id_utente'])
 
     return user
 
 
-def get_utente_by_email(cursor, email: str) -> Optional[Dict[str, Any]]:
+def get_utente_by_email(session, email: str) -> Optional[Dict[str, Any]]:
     """The profile behind a validated token, or None if it is gone or disabled."""
-    user = utenti.get_by_email(cursor, email)
+    user = utenti.get_by_email(session, email)
 
     if user is None or not user['attivo']:
         return None
@@ -50,7 +50,7 @@ def get_utente_by_email(cursor, email: str) -> Optional[Dict[str, Any]]:
     return dict(user)
 
 
-def has_arnia_access(cursor, id_utente: int, id_arnia: int,
+def has_arnia_access(session, id_utente: int, id_arnia: int,
                      required_permission: str = "read") -> bool:
     """
     Whether a user may act on an arnia at the given level.
@@ -64,11 +64,11 @@ def has_arnia_access(cursor, id_utente: int, id_arnia: int,
         raise ValueError(f"Permesso richiesto sconosciuto: {required_permission!r}")
 
     # Un admin ha accesso a tutte le arnie, associazione o meno.
-    user = utenti.get_ruolo(cursor, id_utente)
+    user = utenti.get_ruolo(session, id_utente)
     if user and user['ruolo'] == 'admin':
         return True
 
-    result = accessi.get_permesso(cursor, id_utente, id_arnia)
+    result = accessi.get_permesso(session, id_utente, id_arnia)
     if not result:
         return False
 

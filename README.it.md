@@ -323,7 +323,8 @@ dietro un profilo compose e non parte con un semplice `up`:
 `docker-compose --profile test up -d postgres-test`.
 
 **`/health` risponde `unhealthy`.** L'API è su ma il database non è raggiungibile. Il
-corpo della risposta contiene l'errore; `/health` risponde volutamente 200 in entrambi i
+motivo sta in `docker-compose logs api`, non nel corpo: l'endpoint è pubblico e l'errore
+nomina host e utente del database. `/health` risponde volutamente 200 in entrambi i
 casi, quindi il monitoraggio deve leggere il corpo.
 
 ## Licenza

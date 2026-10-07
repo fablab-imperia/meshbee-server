@@ -37,33 +37,17 @@ def mqtt_message(topic, payload):
 
 
 @pytest.fixture
-def deliver(monkeypatch, db):
+def deliver(use_db):
     """
     Deliver a message to the real MQTT callback, inside the test transaction.
 
-    Patches `get_db_cursor` on the handler module — the same seam `use_db` uses
-    for `main` and `auth`, and for the same reason: the module holds its own
-    reference to the name it imported.
-
-    Unlike `use_db` this wraps each message in a SAVEPOINT, because in
-    production every message gets its own transaction: `get_db_cursor` commits
-    on a clean exit and rolls back on an exception. A plain shared cursor would
-    keep the writes of a message that was supposed to be discarded, which is
-    exactly the behaviour these tests are here to check.
+    `use_db` patches `get_session` on the handler module — the module holds its
+    own reference to the name it imported. Each message then gets its own
+    session on a SAVEPOINT, as in production every message gets its own
+    transaction: a message that fails is rolled back without touching the
+    others, which is exactly the behaviour these tests are here to check.
     """
-    from contextlib import contextmanager
-
-    @contextmanager
-    def _cursor():
-        db.execute("SAVEPOINT messaggio")
-        try:
-            yield db
-        except Exception:
-            db.execute("ROLLBACK TO SAVEPOINT messaggio")
-            raise
-        db.execute("RELEASE SAVEPOINT messaggio")
-
-    monkeypatch.setattr(mqtt_entry, "get_db_cursor", _cursor)
+    use_db(mqtt_entry)
 
     def _deliver(topic, payload):
         mqtt_entry.BeehiveMQTTHandler.on_message(
@@ -209,9 +193,9 @@ def test_ingest_does_not_persist_the_node_when_the_arnia_is_unresolvable(db, del
     assert db.fetchone() is None
 
 
-def test_resolving_an_unregistered_node_without_a_sensor_raises(db):
+def test_resolving_an_unregistered_node_without_a_sensor_raises(session, db):
     """The service says why, rather than returning None for the caller to interpret."""
     from meshbee_core.errors import NotFound
 
     with pytest.raises(NotFound):
-        ingest.register_node_and_resolve_arnia(db, "NODE-NOWHERE", None)
+        ingest.register_node_and_resolve_arnia(session, "NODE-NOWHERE", None)

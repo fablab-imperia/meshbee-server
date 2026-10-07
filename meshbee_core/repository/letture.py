@@ -1,16 +1,17 @@
 """Queries on `letture`."""
-import json
 from typing import Any, Dict, List, Optional
 
-COLUMNS = """id_lettura, id_arnia, id_nodo, timestamp,
-                       temperatura, umidita, peso, batteria, dati_raw"""
+from sqlmodel import Session, select
 
-# The measurement columns exposed as chart series. Whitelist, not decoration:
-# `series` interpolates the name into the statement.
+from meshbee_core.models import Lettura
+from meshbee_core.repository import as_dict, as_dicts, mapping
+
+# The measurement columns exposed as chart series. A whitelist: `series` looks
+# the column up by name.
 SERIES_FIELDS = ("temperatura", "umidita", "peso", "batteria")
 
 
-def insert(cursor, *, id_arnia: int, id_nodo: str, timestamp, temperatura,
+def insert(session: Session, *, id_arnia: int, id_nodo: str, timestamp, temperatura,
            umidita, peso, dati_raw: Optional[dict],
            batteria=None) -> Dict[str, Any]:
     """
@@ -19,53 +20,37 @@ def insert(cursor, *, id_arnia: int, id_nodo: str, timestamp, temperatura,
     This is the single INSERT both entry points reach: the API's manual-insert
     endpoint and the MQTT ingest path.
     """
-    cursor.execute(
-        f"""
-        INSERT INTO letture
-            (id_arnia, id_nodo, timestamp, temperatura, umidita, peso,
-             batteria, dati_raw)
-        VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s, %s, %s)
-        RETURNING {COLUMNS}
-        """,
-        (
-            id_arnia, id_nodo, timestamp, temperatura, umidita, peso, batteria,
-            json.dumps(dati_raw) if dati_raw else None
-        )
+    lettura = Lettura(
+        id_arnia=id_arnia, id_nodo=id_nodo, timestamp=timestamp,
+        temperatura=temperatura, umidita=umidita, peso=peso, batteria=batteria,
+        dati_raw=dati_raw or None,
     )
-    return cursor.fetchone()
+    session.add(lettura)
+    session.flush()
+    return as_dict(lettura)
 
 
-def list_by_arnia(cursor, id_arnia: int, data_inizio, data_fine,
+def list_by_arnia(session: Session, id_arnia: int, data_inizio, data_fine,
                   limit: int) -> List[Dict[str, Any]]:
-    cursor.execute(
-        f"""
-        SELECT {COLUMNS}
-        FROM letture
-        WHERE id_arnia = %s
-          AND timestamp >= %s
-          AND timestamp <= %s
-        ORDER BY timestamp DESC
-        LIMIT %s
-        """,
-        (id_arnia, data_inizio, data_fine, limit)
-    )
-    return cursor.fetchall()
+    return as_dicts(session.exec(
+        select(Lettura)
+        .where(
+            Lettura.id_arnia == id_arnia,
+            Lettura.timestamp >= data_inizio,
+            Lettura.timestamp <= data_fine,
+        )
+        .order_by(Lettura.timestamp.desc())
+        .limit(limit)
+    ).all())
 
 
-def list_all(cursor, limit: int) -> List[Dict[str, Any]]:
-    cursor.execute(
-        f"""
-        SELECT {COLUMNS}
-        FROM letture
-        ORDER BY timestamp DESC
-        LIMIT %s
-        """,
-        (limit,)
-    )
-    return cursor.fetchall()
+def list_all(session: Session, limit: int) -> List[Dict[str, Any]]:
+    return as_dicts(session.exec(
+        select(Lettura).order_by(Lettura.timestamp.desc()).limit(limit)
+    ).all())
 
 
-def series(cursor, id_arnia: int, field: str, data_inizio, data_fine,
+def series(session: Session, id_arnia: int, field: str, data_inizio, data_fine,
            limit: int) -> List[Dict[str, Any]]:
     """
     Timestamp plus one measurement, skipping rows where it is null.
@@ -75,17 +60,16 @@ def series(cursor, id_arnia: int, field: str, data_inizio, data_fine,
     """
     if field not in SERIES_FIELDS:
         raise ValueError(f"Campo serie sconosciuto: {field!r}")
+    column = getattr(Lettura, field)
 
-    cursor.execute(
-        f"""
-        SELECT timestamp, {field}
-        FROM letture
-        WHERE id_arnia = %s
-          AND timestamp BETWEEN %s AND %s
-          AND {field} IS NOT NULL
-        ORDER BY timestamp DESC
-        LIMIT %s
-        """,
-        (id_arnia, data_inizio, data_fine, limit)
-    )
-    return cursor.fetchall()
+    rows = session.exec(
+        select(Lettura.timestamp, column)
+        .where(
+            Lettura.id_arnia == id_arnia,
+            Lettura.timestamp.between(data_inizio, data_fine),
+            column.is_not(None),
+        )
+        .order_by(Lettura.timestamp.desc())
+        .limit(limit)
+    ).all()
+    return [mapping(row) for row in rows]

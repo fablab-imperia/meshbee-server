@@ -1,36 +1,49 @@
 """Queries on `utenti_arnie`, the user-to-arnia association."""
 from typing import Any, Dict, Optional
 
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlmodel import Session, select
 
-def get_permesso(cursor, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
+from meshbee_core.models import UtenteArnia
+
+PAIR = ["id_utente", "id_arnia"]
+
+
+def active(session: Session, id_utente: int, id_arnia: int) -> Optional[UtenteArnia]:
+    return session.exec(
+        select(UtenteArnia).where(
+            UtenteArnia.id_utente == id_utente,
+            UtenteArnia.id_arnia == id_arnia,
+            UtenteArnia.attivo.is_(True),
+        )
+    ).first()
+
+
+def get_permesso(session: Session, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
     """The permission level of an *active* association, or None if there is none."""
-    cursor.execute(
-        """
-        SELECT permessi FROM utenti_arnie
-        WHERE id_utente = %s AND id_arnia = %s AND attivo = true
-        """,
-        (id_utente, id_arnia)
-    )
-    return cursor.fetchone()
+    association = active(session, id_utente, id_arnia)
+    return {"permessi": association.permessi} if association else None
 
 
-def upsert(cursor, id_utente: int, id_arnia: int, permessi: str) -> None:
+def upsert(session: Session, id_utente: int, id_arnia: int, permessi: str) -> None:
     """Grant access, reviving and re-levelling a previously removed association."""
-    cursor.execute(
-        """
-        INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo)
-        VALUES (%s, %s, %s, true)
-        ON CONFLICT (id_utente, id_arnia)
-        DO UPDATE SET
-            permessi = EXCLUDED.permessi,
-            attivo = true,
-            data_disassociazione = NULL
-        """,
-        (id_utente, id_arnia, permessi)
+    statement = pg_insert(UtenteArnia).values(
+        id_utente=id_utente, id_arnia=id_arnia, permessi=permessi, attivo=True
+    )
+    session.exec(
+        statement.on_conflict_do_update(
+            index_elements=PAIR,
+            set_={
+                "permessi": statement.excluded.permessi,
+                "attivo": True,
+                "data_disassociazione": None,
+            },
+        )
     )
 
 
-def insert_if_absent(cursor, id_utente: int, id_arnia: int, permessi: str) -> None:
+def insert_if_absent(session: Session, id_utente: int, id_arnia: int, permessi: str) -> None:
     """
     Grant access only where none was ever recorded, leaving existing rows alone.
 
@@ -38,24 +51,18 @@ def insert_if_absent(cursor, id_utente: int, id_arnia: int, permessi: str) -> No
     `docker-compose up`. Reviving an association an admin had revoked, on every
     restart, would be a silent authorization change.
     """
-    cursor.execute(
-        """
-        INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo)
-        VALUES (%s, %s, %s, true)
-        ON CONFLICT (id_utente, id_arnia) DO NOTHING
-        """,
-        (id_utente, id_arnia, permessi)
+    session.exec(
+        pg_insert(UtenteArnia)
+        .values(id_utente=id_utente, id_arnia=id_arnia, permessi=permessi, attivo=True)
+        .on_conflict_do_nothing(index_elements=PAIR)
     )
 
 
-def deactivate(cursor, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        """
-        UPDATE utenti_arnie
-        SET attivo = false, data_disassociazione = CURRENT_TIMESTAMP
-        WHERE id_utente = %s AND id_arnia = %s AND attivo = true
-        RETURNING id
-        """,
-        (id_utente, id_arnia)
-    )
-    return cursor.fetchone()
+def deactivate(session: Session, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
+    association = active(session, id_utente, id_arnia)
+    if association is None:
+        return None
+    association.attivo = False
+    association.data_disassociazione = func.now()
+    session.flush()
+    return {"id": association.id}

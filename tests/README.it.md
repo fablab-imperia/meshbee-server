@@ -65,7 +65,7 @@ livello, un modulo di test per modulo sorgente — `meshbee_core/config.py` →
 di JWT e password, aritmetica dei permessi, parsing del payload.
 
 **Integration** è per tutto ciò la cui sostanza *è* SQL — nomi di colonna, join, ordine
-dei parametri, vincoli CHECK. Un cursore finto dimostra soltanto che abbiamo passato una
+dei parametri, vincoli CHECK. Una sessione finta dimostra soltanto che abbiamo costruito una
 stringa a `execute()`; non può dirti che la stringa era sbagliata. Quindi: **se quello
 che stai testando è una query, va in `integration/`.**
 
@@ -112,17 +112,27 @@ verificherebbe l'ambiente di compose, non il codice**.
 
 ### Database
 
-- `fake_db(module, rows=[...], error=...)` — livello unit. Sostituisce `get_db_cursor`
+- `fake_db(module, rows=[...], error=...)` — livello unit. Sostituisce `get_session`
   **sul modulo che lo importa** (`api.auth`, `api.main`, `mqtt_handler.handler`), perché
   ognuno ne tiene un proprio riferimento e sostituirlo su `meshbee_core.db` non fa
-  niente. `.queries` registra `(sql, params)`; `error=` simula un guasto.
-- `db` / `use_db(module)` — livello integration, stessa cucitura. `db` racchiude ogni
-  test in una transazione che viene poi annullata.
-- `fake_cursor(rows=[...])` — un cursore nudo da *passare*. Le funzioni di repository e
-  service ricevono un cursore invece di aprirlo, quindi non serve sostituire niente.
+  niente. `.queries` registra ogni istruzione passata a `exec`/`get`, `.added` ogni
+  oggetto passato ad `add` (le INSERT); `error=` simula un guasto.
+- `fake_session(rows=[...])` — una `FakeSession` nuda da *passare*. Le funzioni di
+  repository e service ricevono una sessione invece di aprirla, quindi non serve
+  sostituire niente.
+- `db_connection` — livello integration: una connessione per test, dentro una
+  transazione che viene poi annullata. Ci girano sopra due fixture, così ognuna vede le
+  scritture dell'altra:
+  - `db` — un `RealDictCursor` grezzo. I test esprimono preparazione e aspettative in
+    SQL, così il codice sotto test viene verificato contro il database, non contro se
+    stesso.
+  - `session` — una sessione su un SAVEPOINT, da passare a repository e service.
+- `use_db(module)` — livello integration, stessa cucitura di `fake_db`: ogni blocco
+  `with get_session()` del modulo riceve una sessione nuova sul proprio SAVEPOINT, con
+  commit o rollback esattamente come in produzione.
 
-La cucitura unica è il punto: sostituire `get_db_cursor` una volta copre un'intera
-richiesta, perché il cursore prosegue immutato nelle chiamate a service e repository.
+La cucitura unica è il punto: sostituire `get_session` una volta copre un'intera
+richiesta, perché la sessione prosegue immutata nelle chiamate a service e repository.
 
 ### HTTP
 

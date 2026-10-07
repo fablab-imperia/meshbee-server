@@ -1,27 +1,26 @@
 """User accounts: creation, updates, deactivation and passwords."""
 from typing import Any, Dict, List, Tuple
 
-import psycopg2
-
+from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
 
 
-def list_utenti(cursor) -> List[Dict[str, Any]]:
-    return [dict(row) for row in utenti.list_all(cursor)]
+def list_utenti(session) -> List[Dict[str, Any]]:
+    return [dict(row) for row in utenti.list_all(session)]
 
 
-def create_utente(cursor, user) -> Dict[str, Any]:
+def create_utente(session, user) -> Dict[str, Any]:
     """
     Raises:
         Conflict: se l'email è già registrata.
     """
-    if utenti.find_id_by_email(cursor, user.email):
+    if utenti.find_id_by_email(session, user.email):
         raise Conflict("Email già registrata")
 
     return dict(utenti.insert(
-        cursor,
+        session,
         email=user.email,
         password_hash=get_password_hash(user.password),
         nome=user.nome,
@@ -30,7 +29,7 @@ def create_utente(cursor, user) -> Dict[str, Any]:
     ))
 
 
-def ensure_utente(cursor, user) -> Tuple[Dict[str, Any], bool]:
+def ensure_utente(session, user) -> Tuple[Dict[str, Any], bool]:
     """
     Create the account only if the address is not taken. Returns (row, created).
 
@@ -38,14 +37,14 @@ def ensure_utente(cursor, user) -> Tuple[Dict[str, Any], bool]:
     runs on every `docker-compose up` and must not fail, nor reset a password an
     operator has since changed.
     """
-    existing = utenti.find_id_by_email(cursor, user.email)
+    existing = utenti.find_id_by_email(session, user.email)
     if existing:
         return dict(existing), False
 
-    return create_utente(cursor, user), True
+    return create_utente(session, user), True
 
 
-def update_utente(cursor, id_utente: int, user_update) -> Dict[str, Any]:
+def update_utente(session, id_utente: int, user_update) -> Dict[str, Any]:
     """
     Apply the fields that were actually supplied.
 
@@ -72,10 +71,8 @@ def update_utente(cursor, id_utente: int, user_update) -> Dict[str, Any]:
     # Deactivating an account records when it happened.
     stamp = user_update.attivo is False
 
-    try:
-        updated = utenti.update(cursor, id_utente, updates, stamp_disattivazione=stamp)
-    except psycopg2.errors.UniqueViolation as exc:
-        raise Conflict("Email già registrata") from exc
+    with integrity_errors(unique=Conflict("Email già registrata")):
+        updated = utenti.update(session, id_utente, updates, stamp_disattivazione=stamp)
 
     if not updated:
         raise NotFound("Utente non trovato")
@@ -83,7 +80,7 @@ def update_utente(cursor, id_utente: int, user_update) -> Dict[str, Any]:
     return dict(updated)
 
 
-def deactivate_utente(cursor, id_utente: int, *, acting_user_id: int) -> None:
+def deactivate_utente(session, id_utente: int, *, acting_user_id: int) -> None:
     """
     Soft-delete an account.
 
@@ -95,22 +92,22 @@ def deactivate_utente(cursor, id_utente: int, *, acting_user_id: int) -> None:
     if id_utente == acting_user_id:
         raise InvalidData("Non puoi disattivare te stesso")
 
-    if not utenti.deactivate(cursor, id_utente):
+    if not utenti.deactivate(session, id_utente):
         raise NotFound("Utente non trovato")
 
 
-def reset_password(cursor, id_utente: int, new_password: str) -> None:
+def reset_password(session, id_utente: int, new_password: str) -> None:
     """
     Set a password without knowing the old one (admin only).
 
     Raises:
         NotFound: se l'utente non esiste.
     """
-    if not utenti.set_password_hash(cursor, id_utente, get_password_hash(new_password)):
+    if not utenti.set_password_hash(session, id_utente, get_password_hash(new_password)):
         raise NotFound("Utente non trovato")
 
 
-def change_own_password(cursor, id_utente: int, current_password, new_password: str) -> None:
+def change_own_password(session, id_utente: int, current_password, new_password: str) -> None:
     """
     Replace a password, proving knowledge of the current one.
 
@@ -120,8 +117,8 @@ def change_own_password(cursor, id_utente: int, current_password, new_password: 
     if not current_password:
         raise InvalidData("Inserire la password attuale")
 
-    row = utenti.get_password_hash(cursor, id_utente)
+    row = utenti.get_password_hash(session, id_utente)
     if not verify_password(current_password, row["password_hash"]):
         raise InvalidData("Password attuale non corretta")
 
-    utenti.set_password_hash(cursor, id_utente, get_password_hash(new_password))
+    utenti.set_password_hash(session, id_utente, get_password_hash(new_password))

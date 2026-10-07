@@ -1,5 +1,5 @@
 """The authentication endpoints in api/main.py."""
-import psycopg2
+from sqlalchemy.exc import OperationalError
 import pytest
 
 from api.auth import decode_token
@@ -157,8 +157,9 @@ def test_login_during_a_database_outage_is_service_unavailable(client, fake_db, 
     from api import auth
     from api import main
 
-    fake_db(auth, error=psycopg2.OperationalError("could not connect to server"))
-    fake_db(main, error=psycopg2.OperationalError("could not connect to server"))
+    outage = OperationalError("SELECT 1", {}, Exception("could not connect to server"))
+    fake_db(auth, error=outage)
+    fake_db(main, error=outage)
 
     response = client.post(
         "/api/auth/login", json={"email": "a@b.org", "password": known_password}

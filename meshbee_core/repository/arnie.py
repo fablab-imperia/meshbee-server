@@ -1,156 +1,149 @@
-"""Queries on `arnie` and the `v_arnie_stato` view."""
-import json
+"""Queries on `arnie`, and the hive state with its latest reading."""
 from typing import Any, Dict, List, Optional
 
-COLUMNS = """id_arnia, id_nodo, id_sensore_fisico, nome_arnia, descrizione,
-                          posizione, latitudine, longitudine, data_installazione, data_rimozione,
-                          attiva, metadati"""
+from sqlalchemy import func, true
+from sqlmodel import Session, select
 
-# Sentinel for "leave this column out of the statement entirely", which is not
-# the same as passing None (COALESCE keeps the stored value).
+from meshbee_core.models import Arnia, Lettura, Nodo, UtenteArnia
+from meshbee_core.repository import as_dict, mapping
+
+# Sentinel for "leave this column alone entirely", which is not the same as
+# passing None (which also leaves it alone, but for every other column).
 UNSET = object()
 
+# The most recent reading of the arnia in the outer query. LATERAL, so it runs
+# once per arnia and every "ultimo" value comes from the same row.
+_latest = (
+    select(Lettura.temperatura, Lettura.umidita, Lettura.peso, Lettura.batteria,
+           Lettura.timestamp)
+    .where(Lettura.id_arnia == Arnia.id_arnia)
+    .order_by(Lettura.timestamp.desc())
+    .limit(1)
+    .lateral("ultima")
+)
 
-def list_stato(cursor) -> List[Dict[str, Any]]:
-    cursor.execute("SELECT * FROM v_arnie_stato ORDER BY id_arnia")
-    return cursor.fetchall()
-
-
-def list_stato_attive(cursor) -> List[Dict[str, Any]]:
-    cursor.execute(
-        """
-        SELECT * FROM v_arnie_stato
-        WHERE attiva = true
-        ORDER BY nome_arnia
-        """
+# An arnia with its node's name and its current state: what the hive list shows.
+# The columns are those of the former `v_arnie_stato` view, in the same order.
+STATO = (
+    select(
+        Arnia.id_arnia, Arnia.id_nodo, Arnia.id_sensore_fisico, Arnia.nome_arnia,
+        Nodo.nome_nodo, Arnia.posizione, Arnia.latitudine, Arnia.longitudine,
+        Arnia.data_installazione, Arnia.data_rimozione, Arnia.attiva, Arnia.metadati,
+        _latest.c.temperatura.label("ultima_temperatura"),
+        _latest.c.umidita.label("ultima_umidita"),
+        _latest.c.peso.label("ultimo_peso"),
+        _latest.c.timestamp.label("ultimo_aggiornamento"),
+        _latest.c.batteria.label("ultima_batteria"),
     )
-    return cursor.fetchall()
+    .select_from(Arnia)
+    .outerjoin(Nodo, Nodo.id_nodo == Arnia.id_nodo)
+    .outerjoin(_latest, true())
+)
 
 
-def list_stato_for_utente(cursor, id_utente: int) -> List[Dict[str, Any]]:
-    cursor.execute(
-        """
-        SELECT vs.*
-        FROM v_arnie_stato vs
-        JOIN utenti_arnie ua ON vs.id_arnia = ua.id_arnia
-        WHERE ua.id_utente = %s AND ua.attivo = true AND vs.attiva = true
-        ORDER BY vs.nome_arnia
-        """,
-        (id_utente,)
+def stato_rows(session: Session, query) -> List[Dict[str, Any]]:
+    return [mapping(row) for row in session.exec(query).all()]
+
+
+def list_stato(session: Session) -> List[Dict[str, Any]]:
+    return stato_rows(session, STATO.order_by(Arnia.id_arnia))
+
+
+def list_stato_attive(session: Session) -> List[Dict[str, Any]]:
+    return stato_rows(session, STATO.where(Arnia.attiva.is_(True)).order_by(Arnia.nome_arnia))
+
+
+def list_stato_for_utente(session: Session, id_utente: int) -> List[Dict[str, Any]]:
+    return stato_rows(
+        session,
+        STATO.join(UtenteArnia, UtenteArnia.id_arnia == Arnia.id_arnia)
+        .where(
+            UtenteArnia.id_utente == id_utente,
+            UtenteArnia.attivo.is_(True),
+            Arnia.attiva.is_(True),
+        )
+        .order_by(Arnia.nome_arnia),
     )
-    return cursor.fetchall()
 
 
-def get_stato(cursor, id_arnia: int) -> Optional[Dict[str, Any]]:
-    cursor.execute("SELECT * FROM v_arnie_stato WHERE id_arnia = %s", (id_arnia,))
-    return cursor.fetchone()
+def get_stato(session: Session, id_arnia: int) -> Optional[Dict[str, Any]]:
+    return mapping(session.exec(STATO.where(Arnia.id_arnia == id_arnia)).first())
 
 
-def list_ids(cursor) -> List[Dict[str, Any]]:
+def list_ids(session: Session) -> List[Dict[str, Any]]:
     """
     Just the identifiers, for callers that only need to iterate.
 
-    Distinct from `list_stato` on purpose: that view runs four correlated
-    subqueries per row to attach the latest readings, which is wasted work when
-    nobody is going to look at them.
+    Distinct from `list_stato` on purpose: that query also fetches each arnia's
+    latest reading, which is wasted work when nobody is going to look at it.
     """
-    cursor.execute("SELECT id_arnia FROM arnie ORDER BY id_arnia")
-    return cursor.fetchall()
+    ids = session.exec(select(Arnia.id_arnia).order_by(Arnia.id_arnia)).all()
+    return [{"id_arnia": id_arnia} for id_arnia in ids]
 
 
-def insert(cursor, *, id_nodo: str, id_sensore_fisico: str, nome_arnia: str,
+def insert(session: Session, *, id_nodo: str, id_sensore_fisico: str, nome_arnia: str,
            descrizione: Optional[str] = None, posizione: Optional[str] = None,
            latitudine=None, longitudine=None,
            metadati: Optional[dict] = None) -> Dict[str, Any]:
-    cursor.execute(
-        f"""
-        INSERT INTO arnie
-        (id_nodo, id_sensore_fisico, nome_arnia, descrizione, posizione, latitudine, longitudine, attiva, metadati)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, true, %s)
-        RETURNING {COLUMNS}
-        """,
-        (
-            id_nodo, id_sensore_fisico, nome_arnia, descrizione, posizione,
-            latitudine, longitudine,
-            json.dumps(metadati) if metadati else None
-        )
+    arnia = Arnia(
+        id_nodo=id_nodo, id_sensore_fisico=id_sensore_fisico, nome_arnia=nome_arnia,
+        descrizione=descrizione, posizione=posizione, latitudine=latitudine,
+        longitudine=longitudine, attiva=True, metadati=metadati or None,
     )
-    return cursor.fetchone()
+    session.add(arnia)
+    session.flush()
+    return as_dict(arnia)
 
 
-def update(cursor, id_arnia: int, *, nome_arnia=None, descrizione=None, posizione=None,
+def update(session: Session, id_arnia: int, *, nome_arnia=None, descrizione=None, posizione=None,
            latitudine=None, longitudine=None, metadati=None,
            attiva=UNSET) -> Optional[Dict[str, Any]]:
     """
-    COALESCE partial update: a None argument leaves the column untouched.
+    Partial update: a None argument (or an empty metadati) leaves the column untouched.
 
-    `attiva` is omitted from the statement unless explicitly passed — the user
-    endpoint must not be able to reactivate or retire an arnia, only the admin
-    one can.
+    `attiva` is ignored unless explicitly passed — the user endpoint must not be
+    able to reactivate or retire an arnia, only the admin one can. Passed as
+    None it is left untouched too, like every other column.
     """
-    assignments = [
-        "nome_arnia  = COALESCE(%s, nome_arnia)",
-        "descrizione = COALESCE(%s, descrizione)",
-        "posizione   = COALESCE(%s, posizione)",
-        "latitudine  = COALESCE(%s, latitudine)",
-        "longitudine = COALESCE(%s, longitudine)",
-    ]
-    params = [nome_arnia, descrizione, posizione, latitudine, longitudine]
+    arnia = session.get(Arnia, id_arnia)
+    if arnia is None:
+        return None
 
+    changes = {
+        "nome_arnia": nome_arnia, "descrizione": descrizione, "posizione": posizione,
+        "latitudine": latitudine, "longitudine": longitudine,
+    }
     if attiva is not UNSET:
-        assignments.append("attiva      = COALESCE(%s, attiva)")
-        params.append(attiva)
-
-    assignments.append("metadati    = COALESCE(%s, metadati)")
-    params.append(json.dumps(metadati) if metadati else None)
-    params.append(id_arnia)
-
-    set_clause = ",\n            ".join(assignments)
-    cursor.execute(
-        f"""
-        UPDATE arnie
-        SET {set_clause}
-        WHERE id_arnia = %s
-        RETURNING {COLUMNS}
-        """,
-        params
-    )
-    return cursor.fetchone()
+        changes["attiva"] = attiva
+    for column, value in changes.items():
+        if value is not None:
+            setattr(arnia, column, value)
+    if metadati:
+        arnia.metadati = metadati
+    session.flush()
+    return as_dict(arnia)
 
 
-def deactivate(cursor, id_arnia: int) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        """
-        UPDATE arnie
-        SET attiva = false, data_rimozione = CURRENT_TIMESTAMP
-        WHERE id_arnia = %s
-        RETURNING id_arnia
-        """,
-        (id_arnia,)
-    )
-    return cursor.fetchone()
+def deactivate(session: Session, id_arnia: int) -> Optional[Dict[str, Any]]:
+    arnia = session.get(Arnia, id_arnia)
+    if arnia is None:
+        return None
+    arnia.attiva = False
+    arnia.data_rimozione = func.now()
+    session.flush()
+    return {"id_arnia": arnia.id_arnia}
 
 
-def find_id_by_nodo_sensore(cursor, id_nodo: str, id_sensore: str) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        """
-        SELECT id_arnia FROM arnie
-        WHERE id_nodo = %s AND id_sensore_fisico = %s
-        """,
-        (id_nodo, id_sensore)
-    )
-    return cursor.fetchone()
+def find_id_by_nodo_sensore(session: Session, id_nodo: str, id_sensore: str) -> Optional[Dict[str, Any]]:
+    found = session.exec(
+        select(Arnia.id_arnia).where(Arnia.id_nodo == id_nodo, Arnia.id_sensore_fisico == id_sensore)
+    ).first()
+    return {"id_arnia": found} if found is not None else None
 
 
-def find_first_id_by_nodo(cursor, id_nodo: str) -> Optional[Dict[str, Any]]:
+def find_first_id_by_nodo(session: Session, id_nodo: str) -> Optional[Dict[str, Any]]:
     """Fallback for readings that carry no sensor id: the node's lowest arnia."""
-    cursor.execute(
-        """
-        SELECT id_arnia FROM arnie
-        WHERE id_nodo = %s
-        ORDER BY id_arnia
-        LIMIT 1
-        """,
-        (id_nodo,)
-    )
-    return cursor.fetchone()
+    found = session.exec(
+        select(Arnia.id_arnia).where(Arnia.id_nodo == id_nodo).order_by(Arnia.id_arnia).limit(1)
+    ).first()
+    return {"id_arnia": found} if found is not None else None

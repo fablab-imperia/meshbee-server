@@ -11,7 +11,7 @@ nodi ESP32 ──MQTT──▶ Mosquitto ──▶ mqtt-handler ──▶ Postgr
                       :1883        (questo package)                 (api)
 ```
 
-Come l'API è **sottile**: `payload.py` decodifica, `handler.py` apre un cursore e chiama
+Come l'API è **sottile**: `payload.py` decodifica, `handler.py` apre una sessione e chiama
 un service. La scrittura vera è `meshbee_core.services.ingest`, ed è per questo che una
 lettura arrivata via MQTT e una inviata a `/api/admin/letture` producono la stessa riga.
 
@@ -81,9 +81,10 @@ Quattro dettagli facili da sbagliare:
   `peso` è valido; una `temperatura` di 200 no, e l'intero messaggio viene scartato. Gli
   stessi limiti esistono come vincoli CHECK nello schema — vedi
   [`database/`](../database/README.it.md).
-- **`timestamp` è quello che il trigger scrive in `nodi.ultimo_messaggio`**, non l'ora
-  di arrivo. Un nodo con l'orologio sbagliato si farà sembrare fermo
-  ([issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17)).
+- **`timestamp` è l'ora della lettura, non l'"ultimo contatto" del nodo.** Ogni
+  messaggio archiviato imposta `nodi.ultimo_messaggio` all'ora in cui è stato
+  *ricevuto*, quindi un nodo con l'orologio sbagliato risulta comunque vivo, e letture
+  vecchie riprodotte non possono farla tornare indietro.
 
 ## Schema
 
@@ -135,7 +136,7 @@ ingest crea quello che gli serve invece di rifiutare la lettura
 3. Senza `id_sensore`: viene usata la **prima** arnia del nodo.
 4. Se il nodo non ha nessuna arnia e non ha mandato un `id_sensore`, la lettura viene
    scartata con `NotFound` — sollevando un'eccezione invece di uscire in silenzio,
-   perché il cursore del chiamante fa commit su un'uscita pulita e un return silenzioso
+   perché la sessione del chiamante fa commit su un'uscita pulita e un return silenzioso
    lascerebbe dietro la registrazione del nodo appena fatta.
 
 **`POST /api/admin/letture` volutamente non fa niente di tutto questo** — risponde 404
@@ -218,6 +219,6 @@ broker) e in `tests/integration/test_ingest_parity.py` — vedi
 - [`mosquitto/`](../mosquitto/README.it.md) — il broker: credenziali, persistenza, ACL.
 - [`meshbee_core/`](../meshbee_core/README.it.md) — `services/ingest.py`, dove la lettura viene scritta davvero.
 - [`api/`](../api/README.it.md) — l'altro scrittore, e `POST /api/admin/letture`.
-- [`database/`](../database/README.it.md) — `letture`, `nodi`, `arnie` e il trigger.
+- [`database/`](../database/README.it.md) — `letture`, `nodi`, `arnie`, e perché non c'è un trigger.
 - [Il contratto pubblicato](https://fablab-imperia.github.io/meshbee/contract/mqtt-payload/) — lo stesso payload, documentato per il firmware e per l'app.
 - [README](../README.it.md) principale — lo stack nel suo insieme.

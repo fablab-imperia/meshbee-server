@@ -10,6 +10,8 @@ once with `metadata.create_all()`, once with `upgrade head` — and compares the
 catalogs Postgres itself reports. Any difference, a CHECK body included, fails
 here with both versions printed.
 """
+import datetime
+
 import psycopg2
 import pytest
 from sqlalchemy import create_engine
@@ -48,11 +50,12 @@ def build_from_models(schema):
 
 def catalog(cursor, schema):
     """
-    Everything about the schema's tables that a migration could get wrong.
+    Everything about the schema that a migration could get wrong.
 
-    Only base tables: the baseline still carries the trigger and the view, which
-    the models do not describe. Postgres qualifies names from a schema that is
-    not on the search_path, so the prefix is stripped to compare like for like.
+    Tables, and the logic a database could hold besides them — views, triggers,
+    functions — which the models never describe, so any found after a migration
+    is a difference. Postgres qualifies names from a schema that is not on the
+    search_path, so the prefix is stripped to compare like for like.
     """
     def unqualified(rows):
         return sorted(
@@ -107,7 +110,40 @@ def catalog(cursor, schema):
     )
     comments = unqualified(cursor.fetchall())
 
-    return {"columns": columns, "constraints": constraints, "indexes": indexes, "comments": comments}
+    return {
+        "columns": columns, "constraints": constraints, "indexes": indexes,
+        "comments": comments, "logic": logic(cursor, schema),
+    }
+
+
+def logic(cursor, schema):
+    """
+    Views, triggers and functions in the schema — what the database would be
+    deciding on its own. Functions an extension installs are not ours and are
+    left out; which extensions exist is checked separately.
+    """
+    cursor.execute(
+        """
+        SELECT 'view', viewname FROM pg_views WHERE schemaname = %(schema)s
+        UNION ALL
+        SELECT 'trigger', t.tgname
+        FROM pg_trigger t
+        JOIN pg_class cl ON cl.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = %(schema)s AND NOT t.tgisinternal
+        UNION ALL
+        SELECT 'function', p.proname
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = %(schema)s
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d
+              WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
+          )
+        """,
+        {"schema": schema},
+    )
+    return sorted(cursor.fetchall())
 
 
 def test_migrations_build_the_schema_the_models_describe(scratch_schemas):
@@ -127,6 +163,21 @@ def test_migrations_build_the_schema_the_models_describe(scratch_schemas):
         )
 
 
+def test_the_migrated_database_holds_no_logic(scratch_schemas):
+    """
+    No view, trigger or function: the decisions live in meshbee_core.
+
+    The drift test above would already catch one, as a difference from the
+    models; this states the rule on its own so the failure says what it means.
+    """
+    upgrade(TEST_DB_URL, search_path=FROM_MIGRATIONS)
+
+    assert logic(scratch_schemas, FROM_MIGRATIONS) == []
+    # plpgsql ships with every database; anything else was installed by us.
+    scratch_schemas.execute("SELECT extname FROM pg_extension WHERE extname <> 'plpgsql'")
+    assert scratch_schemas.fetchall() == []
+
+
 def test_upgrade_refuses_an_unstamped_database(scratch_schemas):
     """A pre-Alembic schema gets a clear instruction, not a half-run baseline."""
     from meshbee_core.migrations import UnstampedDatabase
@@ -135,3 +186,83 @@ def test_upgrade_refuses_an_unstamped_database(scratch_schemas):
 
     with pytest.raises(UnstampedDatabase, match="alembic stamp"):
         upgrade(TEST_DB_URL, search_path=FROM_MIGRATIONS)
+
+
+# ============================================
+# 0002: required columns become NOT NULL
+# ============================================
+
+
+@pytest.fixture
+def at_0001(scratch_schemas):
+    """A scratch schema at the baseline, and a cursor whose search_path is it."""
+    upgrade(TEST_DB_URL, "0001", search_path=FROM_MIGRATIONS)
+    scratch_schemas.execute(f"SET search_path TO {FROM_MIGRATIONS}")
+    return scratch_schemas
+
+
+def insert_rows_with_nulls(cursor):
+    """One row per table with every column 0002 tightens left NULL."""
+    cursor.execute(
+        "INSERT INTO utenti (email, password_hash, nome, cognome, ruolo, attivo, data_creazione,"
+        " data_attivazione) VALUES ('a@b.org', 'x', 'n', 'c', NULL, NULL, NULL, '2024-01-02')"
+    )
+    cursor.execute(
+        "INSERT INTO nodi (id_nodo, attivo, data_registrazione) VALUES ('N1', NULL, NULL)"
+    )
+    cursor.execute(
+        "INSERT INTO arnie (id_nodo, id_sensore_fisico, attiva, data_installazione)"
+        " VALUES ('N1', 'S1', NULL, NULL)"
+    )
+    cursor.execute(
+        "INSERT INTO letture (id_arnia, id_nodo, timestamp) VALUES (1, 'N1', '2024-03-04')"
+    )
+    cursor.execute(
+        "INSERT INTO log_attivita (id_arnia, tipo_attivita, timestamp) VALUES (1, 'altro', NULL)"
+    )
+    cursor.execute(
+        "INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo, data_associazione)"
+        " VALUES (1, 1, NULL, true, NULL)"
+    )
+
+
+def row(cursor, query):
+    cursor.execute(query)
+    return cursor.fetchone()
+
+
+def test_0002_fills_nulls_without_reviving_anything(at_0001):
+    insert_rows_with_nulls(at_0001)
+
+    upgrade(TEST_DB_URL, "0002", search_path=FROM_MIGRATIONS)
+
+    # A NULL flag read as "not true" before, so it must stay off.
+    assert row(at_0001, "SELECT ruolo, attivo, data_creazione::date FROM utenti") == (
+        "user", False, datetime.date(2024, 1, 2)
+    )
+    assert row(at_0001, "SELECT attivo, data_registrazione::date FROM nodi") == (
+        False, datetime.date(2024, 3, 4)
+    )
+    assert row(at_0001, "SELECT attiva, data_installazione::date FROM arnie") == (
+        False, datetime.date(2024, 3, 4)
+    )
+    assert row(at_0001, "SELECT timestamp IS NOT NULL FROM log_attivita") == (True,)
+    # A NULL permission granted nothing; it still grants nothing.
+    assert row(
+        at_0001,
+        "SELECT permessi, attivo, data_associazione IS NOT NULL,"
+        " data_disassociazione IS NOT NULL FROM utenti_arnie",
+    ) == ("read", False, True, True)
+
+
+def test_0002_refuses_rows_it_cannot_fill_and_changes_nothing(at_0001):
+    at_0001.execute("INSERT INTO nodi (id_nodo) VALUES ('N1')")
+    at_0001.execute("INSERT INTO arnie (id_nodo, id_sensore_fisico) VALUES (NULL, 'S1')")
+    at_0001.execute("INSERT INTO utenti (email, password_hash, nome, cognome, ruolo)"
+                    " VALUES ('a@b.org', 'x', 'n', 'c', NULL)")
+
+    with pytest.raises(RuntimeError, match="1 arnie without id_nodo"):
+        upgrade(TEST_DB_URL, "0002", search_path=FROM_MIGRATIONS)
+
+    assert row(at_0001, "SELECT version_num FROM alembic_version") == ("0001",)
+    assert row(at_0001, "SELECT ruolo FROM utenti") == (None,)

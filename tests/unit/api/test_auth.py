@@ -1,8 +1,8 @@
 """Tests for authentication and JWT handling (api/auth.py)."""
 from datetime import datetime, timedelta
 
-import psycopg2
 import pytest
+from sqlalchemy.exc import OperationalError
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -157,7 +157,9 @@ async def test_get_current_admin_user_rejects_a_regular_user(active_user):
 # Only the "database is unreachable" branches stay here: they need an injected
 # failure, which is far easier to stage with a fake than with a live server.
 
-OUTAGE = psycopg2.OperationalError("could not connect to server")
+OUTAGE = OperationalError(
+    "SELECT 1", {}, Exception("could not connect to server")
+)
 
 
 def test_authenticate_user_reports_a_database_outage_as_unavailable(fake_db):
@@ -175,35 +177,32 @@ def test_authenticate_user_reports_a_database_outage_as_unavailable(fake_db):
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
-@pytest.mark.anyio
-async def test_get_current_user_reports_a_database_outage_as_unavailable(fake_db):
+def test_get_current_user_reports_a_database_outage_as_unavailable(fake_db):
     """A valid token during an outage is 503, not an invalid-credentials 401."""
     fake_db(auth, error=OUTAGE)
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(bearer(create_access_token({"sub": "a@b.org"})))
+        get_current_user(bearer(create_access_token({"sub": "a@b.org"})))
 
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
-@pytest.mark.anyio
-async def test_get_current_user_rejects_a_malformed_token(fake_db):
+def test_get_current_user_rejects_a_malformed_token(fake_db):
     """Garbage in the Authorization header is a 401, not a 500 — no DB needed."""
     fake_db(auth, rows=[])
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(bearer("not.a.jwt"))
+        get_current_user(bearer("not.a.jwt"))
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-@pytest.mark.anyio
-async def test_get_current_user_rejects_a_token_without_a_subject(fake_db):
+def test_get_current_user_rejects_a_token_without_a_subject(fake_db):
     """A token carrying no `sub` claim identifies nobody, before any query runs."""
     fake_db(auth, rows=[])
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(bearer(create_access_token({"role": "admin"})))
+        get_current_user(bearer(create_access_token({"role": "admin"})))
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -226,10 +225,10 @@ def test_an_unknown_required_permission_is_rejected(fake_db):
     `user_level >= 0`, which is true for everyone — a typo at a call site would
     have quietly opened the arnia to any associated user.
     """
-    cursor = fake_db(auth, rows=[{"ruolo": "user"}, {"permessi": "read"}])
+    session = fake_db(auth, rows=["user", {"permessi": "read"}])
 
     with pytest.raises(ValueError, match="sconosciuto"):
         check_user_arnia_access(7, 99, "superuser")
 
     # Rejected before touching the database.
-    assert cursor.queries == []
+    assert session.queries == []

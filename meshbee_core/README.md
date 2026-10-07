@@ -24,11 +24,10 @@ scripts/ ───────┘
 | Path | What it is |
 |---|---|
 | `config.py` | `CoreSettings` — the database fields, and nothing else. |
-| `db.py` | The psycopg2 connection pool and `get_db_cursor()`. |
-| `limits.py` | Every bound and value set, declared once. Read by the three below and by `mqtt_handler/contract.py`. |
-| `models.py` | The database schema, as SQLModel table classes. The source Alembic migrates from. |
+| `db.py` | The SQLAlchemy engine, `get_session()`, and `integrity_errors()`. |
+| `limits.py` | Every bound and value set, declared once. Read by `models.py` and by `mqtt_handler/contract.py`. |
+| `models.py` | The data model, declared once: each table and its API shapes (`XBase`, `XCreate`, `XUpdate`, `XResponse`) as one SQLModel family, plus the API-only models (login, tokens, series, messages). The source Alembic migrates from. |
 | `migrations/` | Alembic: `env.py`, `upgrade()`, and the revisions. See [`database/`](../database/README.md#changing-the-schema). |
-| `schemas.py` | Every pydantic model of the API, validating with the bounds from `limits.py`. |
 | `security.py` | Password hashing and verification. Framework-free. |
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData` — the vocabulary services raise. |
 | `repository/` | SQL. One module per table. |
@@ -40,7 +39,7 @@ scripts/ ───────┘
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` is the only projection that includes `password_hash`. |
 | `nodi.py` | `nodi`, including `register_if_absent` for the ingest path. |
-| `arnie.py` | `arnie` and the `v_arnie_stato` view. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
+| `arnie.py` | `arnie`, and `STATO`: each hive with its node's name and latest reading. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
 | `letture.py` | `letture`. `insert` is the single INSERT both entry points reach; `series` whitelists the column name. |
 | `attivita.py` | `log_attivita`, with ownership-scoped update and delete. |
 | `accessi.py` | `utenti_arnie` — the association table. |
@@ -61,8 +60,10 @@ scripts/ ───────┘
 
 The layering is the reason this package exists, and it is worth stating flatly:
 
-- **`repository/` = tables and queries.** No decisions, no validation, no errors beyond
-  what the driver raises. Every function takes a `cursor` as its first argument.
+- **`repository/` = tables and queries**, written against the models in `models.py`.
+  No decisions, no validation, no errors beyond what the database raises. Every
+  function takes a `session` as its first argument, flushes what it writes, and
+  returns plain dicts — never a model instance tied to the session.
 - **`services/` = Meshbee decisions.** They call the repository and raise
   `errors.NotFound` / `Conflict` / `InvalidData`. **Never `HTTPException`** — a service
   does not know it is being called over HTTP, and the MQTT handler calls the same code.
@@ -73,19 +74,30 @@ So: new business logic goes in a service; new SQL goes in a repository; a new ro
 a new topic is a thin call into an existing service. **SQL appearing in `api/`,
 `mqtt_handler/` or `scripts/` means it went to the wrong place.**
 
-## Cursor lifecycle
+## Session lifecycle
 
-**The caller owns the transaction.** Services and repositories take a cursor and never
-open one.
+**The caller owns the transaction.** Services and repositories take a session and
+never open one.
 
 ```python
-with get_db_cursor() as cursor:          # one block == one transaction
-    utenti_service.create_utente(cursor, user)
+with get_session() as session:           # one block == one transaction
+    utenti_service.create_utente(session, user)
 ```
 
-`get_db_cursor()` borrows a connection from the pool, yields a `RealDictCursor` (rows
-come back as dicts), and on the way out **commits on a clean exit, rolls back and
-re-raises on an exception**, always returning the connection to the pool.
+`get_session()` opens a SQLModel session on the shared engine and on the way out
+**commits on a clean exit, rolls back and re-raises on an exception**, always returning
+the connection to the pool.
+
+A service that needs a constraint violation to *mean* something wraps the write in
+`integrity_errors()`, naming the domain error for each kind:
+
+```python
+with integrity_errors(unique=Conflict("Email già registrata")):
+    utenti.update(session, id_utente, updates)
+```
+
+Unmapped violations — a CHECK, say — propagate unchanged. Services never import the
+driver.
 
 Two consequences worth internalising:
 
@@ -97,7 +109,8 @@ Two consequences worth internalising:
 
 The pool is opened by each process at startup with its own size:
 `init_db_pool(settings, maxconn=...)` — 20 for the API, 10 for the handler, 2 for the
-seed. The library never picks its own configuration; settings are always passed in.
+seed. The pool is SQLAlchemy's `QueuePool`, which is thread-safe: the API's routes are
+plain `def` and run in FastAPI's threadpool. The library never picks its own configuration; settings are always passed in.
 
 ## Configuration
 
@@ -126,7 +139,7 @@ clears that cache between tests, which is what makes settings testable at all.
 
 ## Validation
 
-The ranges live in `schemas.py`:
+The ranges are validated by the models in `models.py`, with the bounds from `limits.py`:
 
 | Field | Range | Where else |
 |---|---|---|
@@ -140,8 +153,8 @@ The ranges live in `schemas.py`:
 | `permessi` | `read`, `write`, `admin` | CHECK on `utenti_arnie.permessi` |
 | `tipo_attivita` | 8 values | CHECK on `log_attivita.tipo_attivita` |
 
-**Every bound and value set is declared once, in `limits.py`.** The validators here,
-the CHECK constraints in `models.py` and the JSON Schema keywords in
+**Every bound and value set is declared once, in `limits.py`.** The validators on the
+API shapes, the CHECK constraints on the tables (both in `models.py`) and the JSON Schema keywords in
 `mqtt_handler/contract.py` all read the same constants, so changing a number changes
 all three — and the database follows through a migration (autogenerate misses CHECKs;
 see [`database/`](../database/README.md#changing-the-schema)).
@@ -178,15 +191,17 @@ docker-compose exec api pytest tests/unit/core tests/integration/core
 
 Tests mirror the source layout: `meshbee_core/config.py` →
 `tests/unit/core/test_config.py`. **Anything whose substance is SQL belongs in
-`tests/integration/`** — a fake cursor only proves we passed a string to `execute()`.
+`tests/integration/`** — a fake session only proves we built a statement, not that the
+statement is right.
 See [`tests/`](../tests/README.md).
 
 ## Gotchas
 
 - **Adding a required field to `CoreSettings` can break services that never use it.**
   Narrowest class wins.
-- **Never write `nodi.ultimo_messaggio` from Python.** A database trigger on `letture`
-  owns that column and fires after you — see [`database/`](../database/README.md).
+- **`nodi.ultimo_messaggio` is set by `services/ingest.py` only.** It means "last MQTT
+  message received", in server time; a reading entered any other way must not touch it
+  — see [`database/`](../database/README.md#no-views-no-triggers).
 - **`repository/letture.py::series` whitelists the column name.** It is the one place a
   column name comes from a caller, so it is compared against `SERIES_FIELDS` and raises
   on anything else. Do not "simplify" it into an f-string.

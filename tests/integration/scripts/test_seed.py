@@ -96,12 +96,12 @@ def test_the_seed_settings_carry_no_jwt_key():
 # ============================================
 
 
-def test_the_default_accounts_are_created(db, run_seed):
+def test_the_default_accounts_are_created(session, db, run_seed):
     """A fresh database gets one admin and one ordinary user."""
     seed_script.create_users(seed_script.default_users(run_seed))
 
-    admin = utenti.get_by_email(db, seed_script.ADMIN_EMAIL)
-    utente = utenti.get_by_email(db, seed_script.TEST_EMAIL)
+    admin = utenti.get_by_email(session, seed_script.ADMIN_EMAIL)
+    utente = utenti.get_by_email(session, seed_script.TEST_EMAIL)
 
     assert admin["ruolo"] == "admin"
     assert utente["ruolo"] == "user"
@@ -109,11 +109,11 @@ def test_the_default_accounts_are_created(db, run_seed):
     assert admin["data_attivazione"] is not None
 
 
-def test_the_seeded_password_actually_works(db, run_seed):
+def test_the_seeded_password_actually_works(session, db, run_seed):
     """A real bcrypt hash, not a placeholder: the account is usable at once."""
     seed_script.create_users(seed_script.default_users(run_seed))
 
-    stored = utenti.get_credentials_by_email(db, seed_script.ADMIN_EMAIL)
+    stored = utenti.get_credentials_by_email(session, seed_script.ADMIN_EMAIL)
 
     assert verify_password(PASSWORD, stored["password_hash"])
 
@@ -130,7 +130,7 @@ def test_running_twice_creates_nothing_new(db, run_seed):
     assert db.fetchone()["n"] == 2
 
 
-def test_rerunning_does_not_reset_a_changed_password(db, run_seed):
+def test_rerunning_does_not_reset_a_changed_password(session, db, run_seed):
     """
     An operator who changed the admin password keeps it across restarts.
 
@@ -138,12 +138,12 @@ def test_rerunning_does_not_reset_a_changed_password(db, run_seed):
     """
     users = seed_script.default_users(run_seed)
     seed_script.create_users(users)
-    ids = {u.email: utenti.find_id_by_email(db, u.email)["id_utente"] for u in users}
-    utenti.set_password_hash(db, ids[seed_script.ADMIN_EMAIL], "hash-scelto-dall-operatore")
+    ids = {u.email: utenti.find_id_by_email(session, u.email)["id_utente"] for u in users}
+    utenti.set_password_hash(session, ids[seed_script.ADMIN_EMAIL], "hash-scelto-dall-operatore")
 
     seed_script.create_users(users)
 
-    stored = utenti.get_credentials_by_email(db, seed_script.ADMIN_EMAIL)
+    stored = utenti.get_credentials_by_email(session, seed_script.ADMIN_EMAIL)
     assert stored["password_hash"] == "hash-scelto-dall-operatore"
 
 
@@ -181,7 +181,7 @@ def test_an_install_with_its_own_hives_gets_no_sample_apiary(db, run_seed, make_
     assert db.fetchone()["n"] == 0
 
 
-def test_the_test_account_is_associated_with_every_arnia(db, run_seed, make_arnia):
+def test_the_test_account_is_associated_with_every_arnia(session, db, run_seed, make_arnia):
     """Whatever hives already exist, the demo account can see them."""
     make_arnia()
     make_arnia()
@@ -191,7 +191,7 @@ def test_the_test_account_is_associated_with_every_arnia(db, run_seed, make_arni
 
     assert len(arnie) == 2
     for id_arnia in arnie:
-        granted = accessi.get_permesso(db, ids[seed_script.TEST_EMAIL], id_arnia)
+        granted = accessi.get_permesso(session, ids[seed_script.TEST_EMAIL], id_arnia)
         assert granted["permessi"] == "admin"
 
 
@@ -202,7 +202,7 @@ def test_no_arnie_is_not_an_error(db, run_seed):
     assert seed_script.associate_test_user(ids[seed_script.TEST_EMAIL]) == []
 
 
-def test_rerunning_does_not_revive_a_revoked_association(db, run_seed, make_arnia):
+def test_rerunning_does_not_revive_a_revoked_association(session, db, run_seed, make_arnia):
     """
     The reason this uses insert-if-absent rather than the reviving upsert.
 
@@ -214,11 +214,11 @@ def test_rerunning_does_not_revive_a_revoked_association(db, run_seed, make_arni
     ids = seed_script.create_users(seed_script.default_users(run_seed))
     id_utente = ids[seed_script.TEST_EMAIL]
     seed_script.associate_test_user(id_utente)
-    accessi.deactivate(db, id_utente, arnia["id_arnia"])
+    accessi.deactivate(session, id_utente, arnia["id_arnia"])
 
     seed_script.associate_test_user(id_utente)
 
-    assert accessi.get_permesso(db, id_utente, arnia["id_arnia"]) is None
+    assert accessi.get_permesso(session, id_utente, arnia["id_arnia"]) is None
 
 
 def test_a_sample_activity_is_added_to_the_first_arnia(db, run_seed, make_arnia):

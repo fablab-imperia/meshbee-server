@@ -30,6 +30,11 @@ the database is already at head. See [Changing the schema](#changing-the-schema)
 
 ## Tables
 
+A table and the API responses built from it share one declaration in
+[`meshbee_core/models.py`](../meshbee_core/models.py), so every column a response
+requires is NOT NULL here too (revision `0002`). The tables below give the remaining
+detail.
+
 ### `utenti` — accounts
 
 | Column | Type | Notes |
@@ -52,7 +57,7 @@ a reliable source of a failing INSERT.
 | `id_nodo` | VARCHAR(50) | PK — the id the firmware publishes under. |
 | `nome_nodo`, `descrizione`, `posizione` | | Free text. |
 | `data_registrazione` | TIMESTAMP | |
-| `ultimo_messaggio` | TIMESTAMP | **Written by a trigger. Never set it from Python** — see [Trigger](#trigger). |
+| `ultimo_messaggio` | TIMESTAMP | When the last MQTT message was **received**; set by `services/ingest.py` — see [No views, no triggers](#no-views-no-triggers). |
 | `attivo` | BOOLEAN | Soft delete. |
 | `configurazione` | JSONB | Per-node settings. |
 
@@ -124,39 +129,32 @@ nothing in the application reads or writes this table. It is kept because it is 
 right shape for the feature when it lands (revocation, `ip_address`, `user_agent`):
 [issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
 
-## View
+## No views, no triggers
 
-**`v_arnie_stato` is the only view**, and it earns its place: `arnie LEFT JOIN nodi`
-plus five correlated subqueries for the latest `temperatura`, `umidita`, `peso`,
-`timestamp` and `batteria` (last, so a migration can append it). That is what `GET /api/user/arnie` returns — a hive list where each row
-already carries its current state.
+**The database holds no logic**: no view, no trigger, no function of ours.
+`tests/integration/test_migrations.py` fails if a migration leaves one behind. What used
+to live here is now in `meshbee_core`, where it is declared once and tested like the
+rest of the code:
 
-There is no `v_letture_recenti` and there are no `v_serie_*` views; they existed until
-the old `migrate_v4.sql` and were never queried. The reason is structural: **a view takes no
-parameters**. Reading history means hive + time window + LIMIT, which is
-`repository/letture.py::list_by_arnia` and `::series`. A view with a fixed 7-day window
-cannot express it, so it would have encapsulated everything except the part that
-matters.
+- **The hive list with its latest readings** was the view `v_arnie_stato`. It is now
+  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi` plus one `LATERAL` subquery for
+  the latest reading, so every "ultimo" value comes from the same row. That is what
+  `GET /api/user/arnie` returns.
+- **`nodi.ultimo_messaggio`** was set by `trigger_aggiorna_nodo` on every insert into
+  `letture`, with the reading's *reported* time and one UPDATE per row
+  ([issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17)). It is now
+  set by `services/ingest.py`, once per MQTT message, with the time it was
+  **received**. A node with a wrong clock, or a replay of buffered readings, can no
+  longer move it backwards, and a bulk insert into `letture` no longer touches `nodi`.
+  Only a message from the node counts: a reading entered through the API, or the
+  seed's sample readings, leave it alone.
 
-## Trigger
+Both were dropped by revision `0003`; its downgrade recreates them.
 
-One trigger, `trigger_aggiorna_nodo`: `AFTER INSERT ON letture FOR EACH ROW`, setting
-`nodi.ultimo_messaggio = NEW.timestamp`. Like the view, it is not described by the
-models: the baseline revision creates both as raw SQL.
-
-**`nodi.ultimo_messaggio` is owned by the database.** Writing it from Python
-accomplishes nothing — the trigger fires afterwards and overwrites you. Recording that
-a node was heard from is the *reading's* job, which is why
-`services/ingest.py` registers the node without touching that column.
-
-Two known defects, both tracked in
-[issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17):
-
-- **Wrong clock source.** It copies the *reported* timestamp, so a node with a wrong
-  clock reports itself as stale (or as reporting from the future). "When did we last
-  hear from this node" should be server time.
-- **`FOR EACH ROW` costs about 55× on bulk inserts.** A backfill fires one UPDATE per
-  row for a value only the last row's matters. `FOR EACH STATEMENT` would fix it.
+There never were `v_letture_recenti` or `v_serie_*` views worth keeping either — they
+existed until the old `migrate_v4.sql` and were never queried. **A view takes no
+parameters**, and reading history means hive + time window + LIMIT, which is
+`repository/letture.py::list_by_arnia` and `::series`.
 
 ## Changing the schema
 
@@ -180,7 +178,7 @@ next change would build the wrong schema. `tests/integration/test_migrations.py`
 builds the schema both ways — `create_all()` from the models and `upgrade head` from
 the revisions — and fails, printing both definitions, if anything differs.
 
-Views, triggers and functions are not compared either; write them with `op.execute`.
+Views, triggers and functions are not compared either — and there should be none: logic belongs in `meshbee_core`.
 
 ### Existing installations
 
@@ -212,6 +210,9 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | Revision | What it did |
 |---|---|
 | `0001` | Baseline: the schema as the hand-written migrations left it. |
+| `0002` | NOT NULL on the 16 columns the API returns as required. Fills existing NULLs first — flags to **false**, `ruolo` to `user`, `permessi` to `read` with the association deactivated, dates from the best evidence in the row — and **stops without changing anything** if a foreign key is NULL (an arnia without a node, a reading without an arnia), since those cannot be filled. |
+| `0003` | Dropped `trigger_aggiorna_nodo`, its function and `v_arnie_stato`: their logic moved to `services/ingest.py` and `repository/arnie.py` (#17). |
+| `0004` | Dropped the `uuid-ossp` extension, which `init.sql` installed and nothing ever used. Without CASCADE: anything depending on it makes the migration stop instead. |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:
@@ -250,7 +251,6 @@ Useful once you are in:
 ```sql
 \dt                                  -- tables
 \d+ letture                          -- one table, constraints included
-SELECT * FROM v_arnie_stato;
 SELECT id_arnia, count(*), max(timestamp) FROM letture GROUP BY id_arnia;
 ```
 
@@ -263,7 +263,7 @@ docker-compose exec api alembic check        # would autogenerate find anything?
 Tests that touch SQL live in `tests/integration/` — the repository tests verify column
 names, joins and parameter order against a real database, `test_migrations.py` that the
 revisions match the models, and `tests/integration/core/test_schemas.py` that the
-database and `meshbee_core/schemas.py` reject the same values. The test database is
+database and the API shapes in `meshbee_core/models.py` reject the same values. The test database is
 built with `upgrade head` on every run. See [`tests/`](../tests/README.md).
 
 ## Gotchas
@@ -278,7 +278,7 @@ built with `upgrade head` on every run. See [`tests/`](../tests/README.md).
 - **Nothing is hard-deleted.** Users, hives and nodes have an `attivo`/`attiva` flag,
   and readings are kept when their hive is retired. `ON DELETE CASCADE` is a safety
   net, not a workflow.
-- **`nodi.ultimo_messaggio` belongs to the trigger.** See [Trigger](#trigger).
+- **`nodi.ultimo_messaggio` is receipt time, and only MQTT sets it.** A reading posted through the API does not. See [No views, no triggers](#no-views-no-triggers).
 
 ## Related
 

@@ -16,8 +16,8 @@ from datetime import datetime, timedelta
 from pydantic import Field, SecretStr, ValidationError
 
 from meshbee_core.config import CoreSettings
-from meshbee_core.db import close_db_pool, get_db_cursor, init_db_pool
-from meshbee_core.schemas import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
+from meshbee_core.db import close_db_pool, get_session, init_db_pool
+from meshbee_core.models import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
 from meshbee_core.services import accessi as accessi_service
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import attivita as attivita_service
@@ -125,8 +125,8 @@ def create_users(users) -> dict:
 
     for user in users:
         try:
-            with get_db_cursor() as cursor:
-                row, created = utenti_service.ensure_utente(cursor, user)
+            with get_session() as session:
+                row, created = utenti_service.ensure_utente(session, user)
         except Exception as e:
             logger.error(f"  ✗ Errore per {user.email}: {e}")
             sys.exit(1)
@@ -150,17 +150,17 @@ def add_sample_apiary() -> None:
     """
     logger.info("\n=== Apiario di esempio ===")
 
-    with get_db_cursor() as cursor:
-        if arnie_service.list_ids(cursor):
+    with get_session() as session:
+        if arnie_service.list_ids(session):
             logger.info("  Arnie già presenti, skip")
             return
 
-        nodi_service.create_nodo(cursor, SAMPLE_NODO)
+        nodi_service.create_nodo(session, SAMPLE_NODO)
         now = datetime.now()
         for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE):
-            created = arnie_service.create_arnia(cursor, arnia)
+            created = arnie_service.create_arnia(session, arnia)
             for hours_ago, temperatura, umidita, peso in readings:
-                letture_service.record_reading(cursor, {
+                letture_service.record_reading(session, {
                     "id_arnia": created["id_arnia"],
                     "id_nodo": arnia.id_nodo,
                     "timestamp": now - timedelta(hours=hours_ago),
@@ -176,16 +176,16 @@ def associate_test_user(id_utente: int) -> list:
     """Give the test account access to every arnia already registered."""
     logger.info("\n=== Associazione utente-arnie ===")
 
-    with get_db_cursor() as cursor:
-        arnie = arnie_service.list_ids(cursor)
+    with get_session() as session:
+        arnie = arnie_service.list_ids(session)
 
     if not arnie:
         logger.info("  Nessuna arnia trovata, skip")
         return arnie
 
     for id_arnia in arnie:
-        with get_db_cursor() as cursor:
-            accessi_service.grant_if_absent(cursor, id_utente, id_arnia, "admin")
+        with get_session() as session:
+            accessi_service.grant_if_absent(session, id_utente, id_arnia, "admin")
 
     logger.info(f"  ✓ Utente {id_utente} associato a {len(arnie)} arnie")
     return arnie
@@ -195,13 +195,13 @@ def add_sample_activity(id_utente: int, id_arnia: int) -> None:
     """Give the first arnia one activity entry, so the app has something to show."""
     logger.info("\n=== Log attività di esempio ===")
 
-    with get_db_cursor() as cursor:
-        if attivita_service.count_for_arnia(cursor, id_arnia):
+    with get_session() as session:
+        if attivita_service.count_for_arnia(session, id_arnia):
             logger.info("  Log già esistente, skip")
             return
 
         attivita_service.create_attivita(
-            cursor,
+            session,
             id_utente,
             id_arnia,
             AttivitaCreate(

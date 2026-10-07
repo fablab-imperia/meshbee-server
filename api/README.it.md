@@ -7,7 +7,7 @@ l'app mobile. Gira sotto uvicorn sulla porta **8000**, con `--reload` in svilupp
 legge e scrive lo stesso database PostgreSQL su cui scrive l'handler MQTT — attraverso
 la stessa logica condivisa in [`meshbee_core/`](../meshbee_core/README.it.md).
 
-È volutamente **sottile**: ogni handler valida l'input, apre un cursore, chiama *un
+È volutamente **sottile**: ogni handler valida l'input, apre una sessione, chiama *un
 solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Contenuto
@@ -104,7 +104,7 @@ quello che invece deve restare identico è fissato da
 | GET | `/health` | nessuna | Verifica il database. |
 
 `/health` **risponde sempre 200** — il verdetto sta nel corpo (`"status": "healthy"` /
-`"unhealthy"`). Un sistema di monitoraggio deve leggere il corpo, non lo status code.
+`"unhealthy"`), mai il motivo: quello finisce nel log dell'API. Un sistema di monitoraggio deve leggere il corpo, non lo status code.
 
 ## Autenticazione e autorizzazione
 
@@ -142,7 +142,7 @@ Due cose da sapere sui token:
   tabella resta perché ha la forma giusta per la funzionalità:
   [issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
 - **Un database irraggiungibile non è un errore di credenziali.** `authenticate_user`
-  trasforma qualsiasi `psycopg2.Error` in **503** invece di lasciarla arrivare al 401,
+  trasforma qualsiasi `SQLAlchemyError` in **503** invece di lasciarla arrivare al 401,
   così un database giù non somiglia mai a una password sbagliata.
 
 Il login risponde con lo stesso 401 per email sconosciuta, password sbagliata e account
@@ -160,7 +160,7 @@ si incontrano:
 | `NotFound` | 404 |
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
-| `psycopg2.Error` durante il login | 503 |
+| `SQLAlchemyError` durante il login | 503 |
 | qualsiasi altra cosa | 500 `Errore interno del server`, con l'errore vero nel log |
 
 Il corpo del 500 resta volutamente vago: il testo dell'eccezione può nominare tabelle e

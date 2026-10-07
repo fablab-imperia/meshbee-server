@@ -37,10 +37,9 @@ class CoreSettings(BaseSettings):
     def database_url(self) -> str:
         """Build the database URL.
 
-        Nothing calls this today: `db.py` configures psycopg2's connection pool
-        with discrete host/port/database/user/password arguments, never a DSN.
-        It is kept because a DSN is what `create_engine()` takes, so this is the
-        seam SQLAlchemy will plug into when it arrives.
+        What `db.init_db_pool` hands to `create_engine()`, and what the
+        migrations connect with. `postgresql://` selects SQLAlchemy's default
+        driver for Postgres, psycopg2.
 
         `quote`, not `quote_plus`: the latter is form encoding and renders a
         space as `+`, which every DSN parser (urllib, SQLAlchemy's make_url,
