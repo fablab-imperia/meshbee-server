@@ -1,4 +1,4 @@
 # Only what the MQTT entry point needs on top of the shared library.
 # psycopg2 and pydantic come from meshbee-core (pyproject.toml), which the
 # Dockerfile installs editable.
-paho-mqtt==1.6.1
+paho-mqtt==2.1.0
