@@ -57,7 +57,7 @@ una fonte affidabile di INSERT falliti.
 | `id_nodo` | VARCHAR(50) | PK — l'id con cui pubblica il firmware. |
 | `nome_nodo`, `descrizione`, `posizione` | | Testo libero. |
 | `data_registrazione` | TIMESTAMP | |
-| `ultimo_messaggio` | TIMESTAMP | **Scritta da un trigger. Non impostarla mai da Python** — vedi [Trigger](#trigger). |
+| `ultimo_messaggio` | TIMESTAMP | Quando è stato **ricevuto** l'ultimo messaggio MQTT; la imposta `services/ingest.py` — vedi [Niente viste, niente trigger](#niente-viste-niente-trigger). |
 | `attivo` | BOOLEAN | Soft delete. |
 | `configurazione` | JSONB | Impostazioni specifiche del nodo. |
 
@@ -129,40 +129,32 @@ quindi niente nell'applicazione legge o scrive questa tabella. Resta perché ha 
 giusta per la funzionalità quando arriverà (revoca, `ip_address`, `user_agent`):
 [issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
 
-## Vista
+## Niente viste, niente trigger
 
-**`v_arnie_stato` è l'unica vista**, e se lo merita: `arnie LEFT JOIN nodi` più cinque
-sottoquery correlate per l'ultima `temperatura`, `umidita`, `peso`, `timestamp` e
-`batteria` (in fondo, così una migrazione può accodarla). È
-quello che restituisce `GET /api/user/arnie` — un elenco di arnie in cui ogni riga porta
-già il proprio stato attuale.
+**Il database non contiene logica**: nessuna vista, nessun trigger, nessuna funzione
+nostra. `tests/integration/test_migrations.py` fallisce se una migrazione ne lascia
+qualcuna. Quello che stava qui ora sta in `meshbee_core`, dove è dichiarato una volta
+sola e testato come il resto del codice:
 
-Non esiste una `v_letture_recenti` e non esistono viste `v_serie_*`; sono esistite fino
-al vecchio `migrate_v4.sql` e non sono mai state interrogate. Il motivo è strutturale: **una
-vista non accetta parametri**. Leggere lo storico significa arnia + intervallo + LIMIT,
-cioè `repository/letture.py::list_by_arnia` e `::series`. Una vista con finestra fissa a
-7 giorni non li accetta, quindi incapsulerebbe tutto tranne la parte che conta.
+- **L'elenco delle arnie con le ultime letture** era la vista `v_arnie_stato`. Ora è
+  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi` più un'unica sottoquery
+  `LATERAL` per l'ultima lettura, così ogni valore "ultimo" viene dalla stessa riga. È
+  quello che restituisce `GET /api/user/arnie`.
+- **`nodi.ultimo_messaggio`** veniva impostata da `trigger_aggiorna_nodo` a ogni insert
+  in `letture`, con l'ora *dichiarata* dalla lettura e una UPDATE per riga
+  ([issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17)). Ora la
+  imposta `services/ingest.py`, una volta per messaggio MQTT, con l'ora in cui è stato
+  **ricevuto**. Un nodo con l'orologio sbagliato, o la riproduzione di letture
+  accumulate, non può più farla tornare indietro, e un insert massivo in `letture` non
+  tocca più `nodi`. Conta solo un messaggio del nodo: una lettura inserita dall'API, o
+  quelle di esempio del seed, non la toccano.
 
-## Trigger
+Entrambi sono stati eliminati dalla revisione `0003`; il suo downgrade li ricrea.
 
-Un solo trigger, `trigger_aggiorna_nodo`: `AFTER INSERT ON letture FOR EACH ROW`, che
-imposta `nodi.ultimo_messaggio = NEW.timestamp`. Come la vista, non è descritto dai
-modelli: la revisione di partenza crea entrambi in SQL.
-
-**`nodi.ultimo_messaggio` appartiene al database.** Scriverla da Python non serve a
-niente — il trigger scatta dopo e ti sovrascrive. Registrare che un nodo si è fatto
-sentire è compito della *lettura*, ed è per questo che `services/ingest.py` registra il
-nodo senza toccare quella colonna.
-
-Due difetti noti, entrambi tracciati nella
-[issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17):
-
-- **Sorgente di orario sbagliata.** Copia il timestamp *dichiarato*, quindi un nodo con
-  l'orologio sbagliato si segnala come fermo (o come se trasmettesse dal futuro).
-  "Quando abbiamo sentito questo nodo l'ultima volta" dovrebbe essere ora del server.
-- **`FOR EACH ROW` costa circa 55× sugli insert massivi.** Un backfill fa scattare una
-  UPDATE per riga per un valore in cui conta solo l'ultima. `FOR EACH STATEMENT`
-  risolverebbe.
+Non sono mai esistite nemmeno viste `v_letture_recenti` o `v_serie_*` che valesse la
+pena tenere — sono esistite fino al vecchio `migrate_v4.sql` e non sono mai state
+interrogate. **Una vista non accetta parametri**, e leggere lo storico significa
+arnia + intervallo + LIMIT, cioè `repository/letture.py::list_by_arnia` e `::series`.
 
 ## Cambiare lo schema
 
@@ -186,7 +178,7 @@ modifica successiva costruirebbe lo schema sbagliato. `tests/integration/test_mi
 costruisce lo schema nei due modi — `create_all()` dai modelli e `upgrade head` dalle
 revisioni — e fallisce, stampando le due definizioni, se qualcosa differisce.
 
-Nemmeno viste, trigger e funzioni vengono confrontati; scrivili con `op.execute`.
+Nemmeno viste, trigger e funzioni vengono confrontati — e non ce ne devono essere: la logica sta in `meshbee_core`.
 
 ### Installazioni esistenti
 
@@ -220,6 +212,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 |---|---|
 | `0001` | Partenza: lo schema come l'hanno lasciato le migrazioni scritte a mano. |
 | `0002` | NOT NULL sulle 16 colonne che l'API restituisce come obbligatorie. Prima riempie i NULL esistenti — i flag a **false**, `ruolo` a `user`, `permessi` a `read` con l'associazione disattivata, le date dalla migliore informazione presente nella riga — e **si ferma senza cambiare niente** se una chiave esterna è NULL (un'arnia senza nodo, una lettura senza arnia), perché quelle non si possono riempire. |
+| `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:
@@ -258,7 +251,6 @@ Utili una volta dentro:
 ```sql
 \dt                                  -- le tabelle
 \d+ letture                          -- una tabella, vincoli compresi
-SELECT * FROM v_arnie_stato;
 SELECT id_arnia, count(*), max(timestamp) FROM letture GROUP BY id_arnia;
 ```
 
@@ -289,7 +281,7 @@ ogni esecuzione. Vedi [`tests/`](../tests/README.it.md).
 - **Niente viene cancellato davvero.** Utenti, arnie e nodi hanno un flag
   `attivo`/`attiva`, e le letture restano quando la loro arnia viene dismessa.
   `ON DELETE CASCADE` è una rete di sicurezza, non un flusso di lavoro.
-- **`nodi.ultimo_messaggio` è del trigger.** Vedi [Trigger](#trigger).
+- **`nodi.ultimo_messaggio` è l'ora di ricezione, e la imposta solo MQTT.** Una lettura inviata dall'API non la tocca. Vedi [Niente viste, niente trigger](#niente-viste-niente-trigger).
 
 ## Collegamenti
 

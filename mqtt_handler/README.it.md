@@ -81,9 +81,10 @@ Quattro dettagli facili da sbagliare:
   `peso` è valido; una `temperatura` di 200 no, e l'intero messaggio viene scartato. Gli
   stessi limiti esistono come vincoli CHECK nello schema — vedi
   [`database/`](../database/README.it.md).
-- **`timestamp` è quello che il trigger scrive in `nodi.ultimo_messaggio`**, non l'ora
-  di arrivo. Un nodo con l'orologio sbagliato si farà sembrare fermo
-  ([issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17)).
+- **`timestamp` è l'ora della lettura, non l'"ultimo contatto" del nodo.** Ogni
+  messaggio archiviato imposta `nodi.ultimo_messaggio` all'ora in cui è stato
+  *ricevuto*, quindi un nodo con l'orologio sbagliato risulta comunque vivo, e letture
+  vecchie riprodotte non possono farla tornare indietro.
 
 ## Schema
 
@@ -218,6 +219,6 @@ broker) e in `tests/integration/test_ingest_parity.py` — vedi
 - [`mosquitto/`](../mosquitto/README.it.md) — il broker: credenziali, persistenza, ACL.
 - [`meshbee_core/`](../meshbee_core/README.it.md) — `services/ingest.py`, dove la lettura viene scritta davvero.
 - [`api/`](../api/README.it.md) — l'altro scrittore, e `POST /api/admin/letture`.
-- [`database/`](../database/README.it.md) — `letture`, `nodi`, `arnie` e il trigger.
+- [`database/`](../database/README.it.md) — `letture`, `nodi`, `arnie`, e perché non c'è un trigger.
 - [Il contratto pubblicato](https://fablab-imperia.github.io/meshbee/contract/mqtt-payload/) — lo stesso payload, documentato per il firmware e per l'app.
 - [README](../README.it.md) principale — lo stack nel suo insieme.

@@ -1,6 +1,7 @@
 """Queries on `nodi`."""
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import func, update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, select
 
@@ -63,14 +64,24 @@ def register_if_absent(session: Session, id_nodo: str, nome_nodo: str) -> None:
     Make sure the node exists, leaving an already-registered one untouched.
 
     Used by the ingest path, where a node may start transmitting before anyone
-    has registered it through the admin API.
-
-    Deliberately does *not* write `ultimo_messaggio`: that column is owned by
-    the `trigger_aggiorna_nodo` trigger on `letture`, which fires immediately
-    after and overwrites whatever we put there.
+    has registered it through the admin API. Registering is not hearing from
+    it: `ultimo_messaggio` is `touch_ultimo_messaggio`'s, once a reading has
+    actually been stored.
     """
     session.exec(
         pg_insert(Nodo)
         .values(id_nodo=id_nodo, nome_nodo=nome_nodo, attivo=True)
         .on_conflict_do_nothing(index_elements=["id_nodo"])
+    )
+
+
+def touch_ultimo_messaggio(session: Session, id_nodo: str) -> None:
+    """
+    Record that the node was heard from just now — the database's clock.
+
+    The server's time, never the reading's: a node with a wrong clock, or a
+    replay of buffered readings, must not move "last heard from" backwards.
+    """
+    session.exec(
+        sql_update(Nodo).where(Nodo.id_nodo == id_nodo).values(ultimo_messaggio=func.now())
     )

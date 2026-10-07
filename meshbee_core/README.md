@@ -39,7 +39,7 @@ scripts/ ───────┘
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` is the only projection that includes `password_hash`. |
 | `nodi.py` | `nodi`, including `register_if_absent` for the ingest path. |
-| `arnie.py` | `arnie` and the `v_arnie_stato` view. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
+| `arnie.py` | `arnie`, and `STATO`: each hive with its node's name and latest reading. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
 | `letture.py` | `letture`. `insert` is the single INSERT both entry points reach; `series` whitelists the column name. |
 | `attivita.py` | `log_attivita`, with ownership-scoped update and delete. |
 | `accessi.py` | `utenti_arnie` — the association table. |
@@ -199,8 +199,9 @@ See [`tests/`](../tests/README.md).
 
 - **Adding a required field to `CoreSettings` can break services that never use it.**
   Narrowest class wins.
-- **Never write `nodi.ultimo_messaggio` from Python.** A database trigger on `letture`
-  owns that column and fires after you — see [`database/`](../database/README.md).
+- **`nodi.ultimo_messaggio` is set by `services/ingest.py` only.** It means "last MQTT
+  message received", in server time; a reading entered any other way must not touch it
+  — see [`database/`](../database/README.md#no-views-no-triggers).
 - **`repository/letture.py::series` whitelists the column name.** It is the one place a
   column name comes from a caller, so it is compared against `SERIES_FIELDS` and raises
   on anything else. Do not "simplify" it into an f-string.

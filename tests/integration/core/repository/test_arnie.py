@@ -111,8 +111,8 @@ def test_unmentioned_fields_keep_their_value(session, db, make_arnia):
     """
     A partial update is genuinely partial.
 
-    Asserted on the RETURNING row rather than v_arnie_stato, which projects only
-    the columns the app charts and does not carry `descrizione`.
+    Asserted on the returned row rather than the hive-state query (`STATO`),
+    which projects only the columns the app charts and does not carry `descrizione`.
     """
     arnia = make_arnia()
     arnie.update(session, arnia["id_arnia"], descrizione="Prima descrizione")

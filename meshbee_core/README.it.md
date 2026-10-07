@@ -39,7 +39,7 @@ scripts/ ───────┘
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` è l'unica proiezione che include `password_hash`. |
 | `nodi.py` | `nodi`, compreso `register_if_absent` per il percorso di ingest. |
-| `arnie.py` | `arnie` e la vista `v_arnie_stato`. `update` usa un sentinella `UNSET` così `attiva` viene toccata solo se passata esplicitamente. |
+| `arnie.py` | `arnie`, e `STATO`: ogni arnia con il nome del nodo e l'ultima lettura. `update` usa un sentinella `UNSET` così `attiva` viene toccata solo se passata esplicitamente. |
 | `letture.py` | `letture`. `insert` è l'unica INSERT a cui arrivano entrambi gli entry point; `series` mette in whitelist il nome della colonna. |
 | `attivita.py` | `log_attivita`, con update e delete limitati al proprietario. |
 | `accessi.py` | `utenti_arnie` — la tabella delle associazioni. |
@@ -204,9 +204,9 @@ un'istruzione, non che l'istruzione sia giusta. Vedi [`tests/`](../tests/README.
 
 - **Aggiungere un campo obbligatorio a `CoreSettings` può rompere servizi che non lo
   usano.** Vince la classe più stretta.
-- **Non scrivere mai `nodi.ultimo_messaggio` da Python.** Quella colonna appartiene a un
-  trigger sulle `letture` che scatta dopo di te — vedi
-  [`database/`](../database/README.it.md).
+- **`nodi.ultimo_messaggio` la imposta solo `services/ingest.py`.** Significa "ultimo
+  messaggio MQTT ricevuto", in ora del server; una lettura inserita in altro modo non
+  deve toccarla — vedi [`database/`](../database/README.it.md#niente-viste-niente-trigger).
 - **`repository/letture.py::series` mette in whitelist il nome della colonna.** È
   l'unico punto in cui un nome di colonna arriva da chi chiama, quindi viene confrontato
   con `SERIES_FIELDS` e solleva un errore per qualsiasi altra cosa. Non "semplificarlo"

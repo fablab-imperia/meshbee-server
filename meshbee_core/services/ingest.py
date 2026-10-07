@@ -27,8 +27,8 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
     Raises:
         NotFound: se non è possibile determinare l'arnia.
     """
-    # Registration only — `nodi.ultimo_messaggio` is maintained by the
-    # trigger on `letture`, so recording the sighting is the reading's job.
+    # Registration only: the node counts as heard from once its reading is
+    # stored, in `record_node_reading`.
     nodi.register_if_absent(session, id_nodo, f"Nodo {id_nodo}")
 
     if id_sensore:
@@ -57,7 +57,12 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
 
 def record_node_reading(session, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Store one reading from a node, provisioning the nodo and arnia as needed.
+    Store one reading from a node, provisioning the nodo and arnia as needed,
+    and stamp the node's `ultimo_messaggio` with the time it was received.
+
+    Only this path stamps it: a message from the node is what "ultimo
+    messaggio" means. A reading entered through the API is not one, so it
+    leaves the column alone.
 
     Raises:
         NotFound: se l'arnia non è determinabile.
@@ -66,7 +71,7 @@ def record_node_reading(session, payload: Dict[str, Any]) -> Dict[str, Any]:
     id_nodo = payload['id_nodo']
     id_arnia = register_node_and_resolve_arnia(session, id_nodo, payload.get('id_sensore'))
 
-    return letture.record_reading(session, {
+    lettura = letture.record_reading(session, {
         'id_arnia': id_arnia,
         'id_nodo': id_nodo,
         'timestamp': payload.get('timestamp'),
@@ -77,3 +82,7 @@ def record_node_reading(session, payload: Dict[str, Any]) -> Dict[str, Any]:
         'batteria': payload.get('bat'),
         'dati_raw': payload.get('dati_raw'),
     })
+    # After the reading, inside the same transaction: a message that is
+    # refused rolls this back with everything else.
+    nodi.touch_ultimo_messaggio(session, id_nodo)
+    return lettura

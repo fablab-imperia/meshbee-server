@@ -50,11 +50,12 @@ def build_from_models(schema):
 
 def catalog(cursor, schema):
     """
-    Everything about the schema's tables that a migration could get wrong.
+    Everything about the schema that a migration could get wrong.
 
-    Only base tables: the baseline still carries the trigger and the view, which
-    the models do not describe. Postgres qualifies names from a schema that is
-    not on the search_path, so the prefix is stripped to compare like for like.
+    Tables, and the logic a database could hold besides them — views, triggers,
+    functions — which the models never describe, so any found after a migration
+    is a difference. Postgres qualifies names from a schema that is not on the
+    search_path, so the prefix is stripped to compare like for like.
     """
     def unqualified(rows):
         return sorted(
@@ -109,7 +110,40 @@ def catalog(cursor, schema):
     )
     comments = unqualified(cursor.fetchall())
 
-    return {"columns": columns, "constraints": constraints, "indexes": indexes, "comments": comments}
+    return {
+        "columns": columns, "constraints": constraints, "indexes": indexes,
+        "comments": comments, "logic": logic(cursor, schema),
+    }
+
+
+def logic(cursor, schema):
+    """
+    Views, triggers and functions in the schema — what the database would be
+    deciding on its own. Functions an extension installed (uuid-ossp's) are not
+    ours and are left out.
+    """
+    cursor.execute(
+        """
+        SELECT 'view', viewname FROM pg_views WHERE schemaname = %(schema)s
+        UNION ALL
+        SELECT 'trigger', t.tgname
+        FROM pg_trigger t
+        JOIN pg_class cl ON cl.oid = t.tgrelid
+        JOIN pg_namespace n ON n.oid = cl.relnamespace
+        WHERE n.nspname = %(schema)s AND NOT t.tgisinternal
+        UNION ALL
+        SELECT 'function', p.proname
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = %(schema)s
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d
+              WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e'
+          )
+        """,
+        {"schema": schema},
+    )
+    return sorted(cursor.fetchall())
 
 
 def test_migrations_build_the_schema_the_models_describe(scratch_schemas):
@@ -127,6 +161,18 @@ def test_migrations_build_the_schema_the_models_describe(scratch_schemas):
             f"  only in the models:     {only_models}\n"
             f"  only in the migrations: {only_migrations}"
         )
+
+
+def test_the_migrated_database_holds_no_logic(scratch_schemas):
+    """
+    No view, trigger or function: the decisions live in meshbee_core.
+
+    The drift test above would already catch one, as a difference from the
+    models; this states the rule on its own so the failure says what it means.
+    """
+    upgrade(TEST_DB_URL, search_path=FROM_MIGRATIONS)
+
+    assert logic(scratch_schemas, FROM_MIGRATIONS) == []
 
 
 def test_upgrade_refuses_an_unstamped_database(scratch_schemas):

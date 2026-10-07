@@ -80,9 +80,9 @@ Four details that are easy to get wrong:
   `peso` is valid; a `temperatura` of 200 is not, and the whole message is dropped. The
   same limits exist as CHECK constraints in the schema — see
   [`database/`](../database/README.md).
-- **`timestamp` is what the trigger writes to `nodi.ultimo_messaggio`**, not arrival
-  time. A node with a wrong clock will make itself look stale
-  ([issue #17](https://github.com/fablab-imperia/meshbee-server/issues/17)).
+- **`timestamp` is the reading's time, not the node's "last heard from".** Every stored
+  message stamps `nodi.ultimo_messaggio` with the time it was *received*, so a node with
+  a wrong clock still shows as alive, and replayed old readings cannot rewind it.
 
 ## Schema
 
@@ -214,6 +214,6 @@ needed) and `tests/integration/test_ingest_parity.py` — see [`tests/`](../test
 - [`mosquitto/`](../mosquitto/README.md) — the broker: credentials, persistence, ACLs.
 - [`meshbee_core/`](../meshbee_core/README.md) — `services/ingest.py`, where the reading is actually written.
 - [`api/`](../api/README.md) — the other writer, and `POST /api/admin/letture`.
-- [`database/`](../database/README.md) — `letture`, `nodi`, `arnie` and the trigger.
+- [`database/`](../database/README.md) — `letture`, `nodi`, `arnie`, and why there is no trigger.
 - [The published contract](https://fablab-imperia.github.io/meshbee/contract/mqtt-payload/) — the same payload, documented for the firmware and the app.
 - Main [README](../README.md) — the stack as a whole.

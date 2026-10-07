@@ -23,8 +23,8 @@ def test_registering_a_known_node_changes_nothing(session, db):
     The second message must leave the existing row exactly as it stands.
 
     ON CONFLICT DO NOTHING rather than DO UPDATE: everything worth updating on
-    a repeat sighting is either owned elsewhere (`ultimo_messaggio`, by the
-    trigger) or an operator's to set (`nome_nodo`).
+    a repeat sighting is either stamped separately (`ultimo_messaggio`, by
+    `touch_ultimo_messaggio`) or an operator's to set (`nome_nodo`).
     """
     nodi.register_if_absent(session, "NODE-KNOWN", "Nodo NODE-KNOWN")
     before = nodi.get(session, "NODE-KNOWN")
@@ -76,32 +76,40 @@ def test_registering_alone_does_not_stamp_a_sighting(session, db):
     """
     Registering a node is not the same as having heard from it.
 
-    The column stays empty until a reading actually lands, which is what makes
-    the trigger the single writer.
+    The column stays empty until `touch_ultimo_messaggio` runs, which the
+    ingest service does once a reading is stored.
     """
     nodi.register_if_absent(session, "NODE-QUIET", "Nodo NODE-QUIET")
 
     assert nodi.get(session, "NODE-QUIET")["ultimo_messaggio"] is None
 
 
-def test_a_reading_is_what_stamps_the_node(session, db, make_arnia):
+def test_storing_a_reading_does_not_stamp_the_node(session, db, make_arnia):
     """
-    `trigger_aggiorna_nodo` on `letture` maintains `nodi.ultimo_messaggio`.
+    The database no longer decides this: there is no trigger on `letture`.
 
-    The ingest path relies on this: it deliberately writes nothing to the
-    column, because anything it wrote would be overwritten here anyway. If the
-    trigger is ever dropped, this fails rather than the column silently going
-    stale.
-
-    Asserted as "is stamped" rather than a specific value on purpose — see
-    CLAUDE.md on the trigger recording the sensor's clock rather than ours.
+    A reading inserted through the repository — as the API's manual insert and
+    the seed do — leaves the node alone. Pinned so that a trigger reappearing
+    fails here, as well as in tests/integration/test_migrations.py.
     """
     arnia = make_arnia(id_nodo="NODE-TALKING")
-    assert nodi.get(session, "NODE-TALKING")["ultimo_messaggio"] is None
 
     letture.insert(
         session, id_arnia=arnia["id_arnia"], id_nodo="NODE-TALKING", timestamp=None,
         temperatura=20, umidita=None, peso=None, dati_raw=None,
     )
 
-    assert nodi.get(session, "NODE-TALKING")["ultimo_messaggio"] is not None
+    assert nodi.get(session, "NODE-TALKING")["ultimo_messaggio"] is None
+
+
+def test_touching_stamps_the_database_clock(session, db):
+    nodi.register_if_absent(session, "NODE-HEARD", "Nodo NODE-HEARD")
+
+    nodi.touch_ultimo_messaggio(session, "NODE-HEARD")
+
+    db.execute(
+        "SELECT ultimo_messaggio = CURRENT_TIMESTAMP AS now FROM nodi WHERE id_nodo = %s",
+        ("NODE-HEARD",),
+    )
+    # One transaction, so CURRENT_TIMESTAMP is the same instant the UPDATE saw.
+    assert db.fetchone()["now"] is True
