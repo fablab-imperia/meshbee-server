@@ -213,6 +213,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0001` | Partenza: lo schema come l'hanno lasciato le migrazioni scritte a mano. |
 | `0002` | NOT NULL sulle 16 colonne che l'API restituisce come obbligatorie. Prima riempie i NULL esistenti — i flag a **false**, `ruolo` a `user`, `permessi` a `read` con l'associazione disattivata, le date dalla migliore informazione presente nella riga — e **si ferma senza cambiare niente** se una chiave esterna è NULL (un'arnia senza nodo, una lettura senza arnia), perché quelle non si possono riempire. |
 | `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
+| `0004` | Eliminata l'estensione `uuid-ossp`, installata da `init.sql` e mai usata. Senza CASCADE: se qualcosa ne dipende, la migrazione si ferma invece di eliminarlo. |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:

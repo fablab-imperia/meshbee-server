@@ -212,6 +212,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0001` | Baseline: the schema as the hand-written migrations left it. |
 | `0002` | NOT NULL on the 16 columns the API returns as required. Fills existing NULLs first — flags to **false**, `ruolo` to `user`, `permessi` to `read` with the association deactivated, dates from the best evidence in the row — and **stops without changing anything** if a foreign key is NULL (an arnia without a node, a reading without an arnia), since those cannot be filled. |
 | `0003` | Dropped `trigger_aggiorna_nodo`, its function and `v_arnie_stato`: their logic moved to `services/ingest.py` and `repository/arnie.py` (#17). |
+| `0004` | Dropped the `uuid-ossp` extension, which `init.sql` installed and nothing ever used. Without CASCADE: anything depending on it makes the migration stop instead. |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:

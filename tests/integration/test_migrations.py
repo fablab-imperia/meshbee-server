@@ -119,8 +119,8 @@ def catalog(cursor, schema):
 def logic(cursor, schema):
     """
     Views, triggers and functions in the schema — what the database would be
-    deciding on its own. Functions an extension installed (uuid-ossp's) are not
-    ours and are left out.
+    deciding on its own. Functions an extension installs are not ours and are
+    left out; which extensions exist is checked separately.
     """
     cursor.execute(
         """
@@ -173,6 +173,9 @@ def test_the_migrated_database_holds_no_logic(scratch_schemas):
     upgrade(TEST_DB_URL, search_path=FROM_MIGRATIONS)
 
     assert logic(scratch_schemas, FROM_MIGRATIONS) == []
+    # plpgsql ships with every database; anything else was installed by us.
+    scratch_schemas.execute("SELECT extname FROM pg_extension WHERE extname <> 'plpgsql'")
+    assert scratch_schemas.fetchall() == []
 
 
 def test_upgrade_refuses_an_unstamped_database(scratch_schemas):
