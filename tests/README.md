@@ -38,6 +38,14 @@ disappeared is worse than a red one.
 A new dev dependency means `docker-compose build api` (`requirements-dev.txt` is baked
 into the image). New *test files* need nothing — `tests/` is bind-mounted.
 
+**CI runs the same suite** on every pull request and every push to `main`
+(`.github/workflows/ci.yml`), outside Docker: Python 3.11 on the runner, a throwaway
+`postgres:15-alpine` service in place of `postgres-test`, and
+`TEST_DB_HOST=localhost` / `TEST_DB_SCHEMA=database/init.sql` pointing the fixtures at
+it. So a test may not depend on anything only the `api` container provides — a path
+under `/app`, or an environment variable compose sets. CI only exports
+`DB_PASSWORD` and `JWT_SECRET_KEY`.
+
 ## Two tiers
 
 ```
