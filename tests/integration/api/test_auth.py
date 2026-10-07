@@ -4,6 +4,7 @@ These exercise the SQL itself — column names, joins, parameter order and the
 CHECK constraints from meshbee_core/models.py — which the fake cursor in
 tests/unit/test_auth.py cannot verify.
 """
+
 import pytest
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
@@ -50,7 +51,9 @@ def test_authenticate_user_stamps_ultimo_accesso(db, utente, known_password):
 
     authenticate_user(utente["email"], known_password)
 
-    db.execute("SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
+    db.execute(
+        "SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (utente["id_utente"],)
+    )
     assert db.fetchone()["ultimo_accesso"] is not None
 
 
@@ -59,14 +62,19 @@ def test_authenticate_user_rejects_an_unknown_email(db, utente, known_password):
     assert authenticate_user("nobody@example.org", known_password) is None
 
 
-def test_authenticate_user_rejects_a_deactivated_user(db, use_db, make_utente, password_hash, known_password):
+def test_authenticate_user_rejects_a_deactivated_user(
+    db, use_db, make_utente, password_hash, known_password
+):
     """attivo=false denies the login and leaves ultimo_accesso untouched."""
     use_db(auth)
     inactive = make_utente(password_hash=password_hash, attivo=False)
 
     assert authenticate_user(inactive["email"], known_password) is None
 
-    db.execute("SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (inactive["id_utente"],))
+    db.execute(
+        "SELECT ultimo_accesso FROM utenti WHERE id_utente = %s",
+        (inactive["id_utente"],),
+    )
     assert db.fetchone()["ultimo_accesso"] is None
 
 
@@ -74,7 +82,9 @@ def test_authenticate_user_rejects_a_wrong_password(db, utente):
     """A wrong password denies the login and leaves ultimo_accesso untouched."""
     assert authenticate_user(utente["email"], "wrong-password") is None
 
-    db.execute("SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
+    db.execute(
+        "SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (utente["id_utente"],)
+    )
     assert db.fetchone()["ultimo_accesso"] is None
 
 
@@ -90,8 +100,16 @@ def test_get_current_user_resolves_a_valid_access_token(db, utente):
     assert result["id_utente"] == utente["id_utente"]
     # Selected by name in auth.py: a renamed column would break these.
     assert set(result) == {
-        "id_utente", "email", "nome", "cognome", "ruolo", "attivo",
-        "data_creazione", "data_attivazione", "data_disattivazione", "ultimo_accesso",
+        "id_utente",
+        "email",
+        "nome",
+        "cognome",
+        "ruolo",
+        "attivo",
+        "data_creazione",
+        "data_attivazione",
+        "data_disattivazione",
+        "ultimo_accesso",
     }
     # The password hash must never leave the database on this path.
     assert "password_hash" not in result
@@ -134,7 +152,9 @@ def test_get_current_user_rejects_a_deleted_user(db, utente):
 # ============================================
 
 
-def test_admin_reaches_any_arnia_without_an_association(db, use_db, make_utente, make_arnia):
+def test_admin_reaches_any_arnia_without_an_association(
+    db, use_db, make_utente, make_arnia
+):
     """Admins bypass utenti_arnie entirely, with no row associating them."""
     use_db(auth)
     admin = make_utente(ruolo="admin")
@@ -152,7 +172,9 @@ def test_user_without_an_association_is_denied(db, use_db, make_utente, make_arn
     assert check_user_arnia_access(utente["id_utente"], arnia["id_arnia"]) is False
 
 
-def test_an_inactive_association_is_denied(db, use_db, make_utente, make_arnia, grant_access):
+def test_an_inactive_association_is_denied(
+    db, use_db, make_utente, make_arnia, grant_access
+):
     """The query filters on attivo = true: a revoked association grants nothing."""
     use_db(auth)
     utente = make_utente()
@@ -162,7 +184,9 @@ def test_an_inactive_association_is_denied(db, use_db, make_utente, make_arnia, 
     assert check_user_arnia_access(utente["id_utente"], arnia["id_arnia"]) is False
 
 
-def test_access_is_scoped_to_the_associated_arnia(db, use_db, make_utente, make_arnia, grant_access):
+def test_access_is_scoped_to_the_associated_arnia(
+    db, use_db, make_utente, make_arnia, grant_access
+):
     """Permission on one arnia does not leak to another — the id_arnia filter works."""
     use_db(auth)
     utente = make_utente()
@@ -196,4 +220,7 @@ def test_permissions_are_hierarchical(
     arnia = make_arnia()
     grant_access(utente["id_utente"], arnia["id_arnia"], granted)
 
-    assert check_user_arnia_access(utente["id_utente"], arnia["id_arnia"], required) is expected
+    assert (
+        check_user_arnia_access(utente["id_utente"], arnia["id_arnia"], required)
+        is expected
+    )

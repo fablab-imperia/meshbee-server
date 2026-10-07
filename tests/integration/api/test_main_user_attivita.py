@@ -1,4 +1,5 @@
 """The /api/user/arnie/{id}/attivita CRUD endpoints."""
+
 from datetime import datetime, timedelta
 
 import pytest
@@ -40,23 +41,37 @@ def test_a_created_activity_is_attributed_to_its_author(as_user, scrittore, db):
     """id_utente comes from the token, not the body — authorship cannot be spoofed."""
     utente, arnia = scrittore
 
-    body = as_user(utente).post(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita",
-        json={"id_arnia": arnia["id_arnia"], "tipo_attivita": "ispezione", "id_utente": 999},
-    ).json()
+    body = (
+        as_user(utente)
+        .post(
+            f"/api/user/arnie/{arnia['id_arnia']}/attivita",
+            json={
+                "id_arnia": arnia["id_arnia"],
+                "tipo_attivita": "ispezione",
+                "id_utente": 999,
+            },
+        )
+        .json()
+    )
 
     assert body["id_utente"] == utente["id_utente"]
 
 
-def test_a_created_activity_belongs_to_the_arnia_in_the_path(as_user, scrittore, make_arnia):
+def test_a_created_activity_belongs_to_the_arnia_in_the_path(
+    as_user, scrittore, make_arnia
+):
     """The path parameter wins over any id_arnia in the body."""
     utente, arnia = scrittore
     other = make_arnia()
 
-    body = as_user(utente).post(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita",
-        json={"id_arnia": other["id_arnia"], "tipo_attivita": "ispezione"},
-    ).json()
+    body = (
+        as_user(utente)
+        .post(
+            f"/api/user/arnie/{arnia['id_arnia']}/attivita",
+            json={"id_arnia": other["id_arnia"], "tipo_attivita": "ispezione"},
+        )
+        .json()
+    )
 
     assert body["id_arnia"] == arnia["id_arnia"]
 
@@ -70,7 +85,10 @@ def test_a_created_activity_persists(as_user, scrittore, db):
         json={"id_arnia": arnia["id_arnia"], "tipo_attivita": "raccolta_miele"},
     )
 
-    db.execute("SELECT tipo_attivita FROM log_attivita WHERE id_arnia = %s", (arnia["id_arnia"],))
+    db.execute(
+        "SELECT tipo_attivita FROM log_attivita WHERE id_arnia = %s",
+        (arnia["id_arnia"],),
+    )
     assert db.fetchone()["tipo_attivita"] == "raccolta_miele"
 
 
@@ -78,14 +96,18 @@ def test_creating_an_activity_stores_structured_data(as_user, scrittore):
     """`dati` is serialised to JSONB and comes back as an object."""
     utente, arnia = scrittore
 
-    body = as_user(utente).post(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita",
-        json={
-            "id_arnia": arnia["id_arnia"],
-            "tipo_attivita": "trattamento",
-            "dati": {"prodotto": "acido ossalico", "dosaggio_ml": 5},
-        },
-    ).json()
+    body = (
+        as_user(utente)
+        .post(
+            f"/api/user/arnie/{arnia['id_arnia']}/attivita",
+            json={
+                "id_arnia": arnia["id_arnia"],
+                "tipo_attivita": "trattamento",
+                "dati": {"prodotto": "acido ossalico", "dosaggio_ml": 5},
+            },
+        )
+        .json()
+    )
 
     assert body["dati"] == {"prodotto": "acido ossalico", "dosaggio_ml": 5}
 
@@ -94,10 +116,14 @@ def test_creating_an_activity_defaults_the_timestamp_to_now(as_user, scrittore):
     """COALESCE(%s, CURRENT_TIMESTAMP) fills in the time when the client omits it."""
     utente, arnia = scrittore
 
-    body = as_user(utente).post(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita",
-        json={"id_arnia": arnia["id_arnia"], "tipo_attivita": "ispezione"},
-    ).json()
+    body = (
+        as_user(utente)
+        .post(
+            f"/api/user/arnie/{arnia['id_arnia']}/attivita",
+            json={"id_arnia": arnia["id_arnia"], "tipo_attivita": "ispezione"},
+        )
+        .json()
+    )
 
     assert body["timestamp"] is not None
 
@@ -120,7 +146,9 @@ def test_an_unsupported_activity_type_is_rejected(as_user, scrittore):
     assert response.json()["detail"][0]["loc"][-1] == "tipo_attivita"
 
 
-def test_an_unsupported_activity_type_is_rejected_on_update(as_user, scrittore, make_attivita):
+def test_an_unsupported_activity_type_is_rejected_on_update(
+    as_user, scrittore, make_attivita
+):
     """The same constraint applies when editing an existing activity."""
     utente, arnia = scrittore
     attivita = make_attivita(arnia, utente)
@@ -171,9 +199,14 @@ def test_activities_can_be_filtered_by_type(as_user, scrittore, make_attivita):
     make_attivita(arnia, utente, tipo_attivita="ispezione")
     make_attivita(arnia, utente, tipo_attivita="raccolta_miele")
 
-    body = as_user(utente).get(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita", params={"tipo_attivita": "ispezione"}
-    ).json()
+    body = (
+        as_user(utente)
+        .get(
+            f"/api/user/arnie/{arnia['id_arnia']}/attivita",
+            params={"tipo_attivita": "ispezione"},
+        )
+        .json()
+    )
 
     assert [row["tipo_attivita"] for row in body] == ["ispezione"]
 
@@ -186,7 +219,13 @@ def test_activities_include_every_selected_column(as_user, scrittore, make_attiv
     row = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/attivita").json()[0]
 
     assert set(row) == {
-        "id_log", "id_utente", "id_arnia", "timestamp", "tipo_attivita", "descrizione", "dati",
+        "id_log",
+        "id_utente",
+        "id_arnia",
+        "timestamp",
+        "tipo_attivita",
+        "descrizione",
+        "dati",
     }
 
 
@@ -196,9 +235,11 @@ def test_activities_respect_the_limit(as_user, scrittore, make_attivita):
     for _ in range(3):
         make_attivita(arnia, utente)
 
-    body = as_user(utente).get(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita", params={"limit": 2}
-    ).json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/attivita", params={"limit": 2})
+        .json()
+    )
 
     assert len(body) == 2
 
@@ -220,7 +261,9 @@ def test_activities_reject_an_out_of_range_limit(as_user, scrittore, limit):
 # ============================================
 
 
-def test_updating_an_activity_changes_the_named_fields(as_user, scrittore, make_attivita):
+def test_updating_an_activity_changes_the_named_fields(
+    as_user, scrittore, make_attivita
+):
     """A partial update rewrites only what was sent."""
     utente, arnia = scrittore
     attivita = make_attivita(arnia, utente, descrizione="Prima nota")
@@ -245,7 +288,9 @@ def test_updating_an_activity_persists(as_user, scrittore, make_attivita, db):
         json={"descrizione": "Nota corretta"},
     )
 
-    db.execute("SELECT descrizione FROM log_attivita WHERE id_log = %s", (attivita["id_log"],))
+    db.execute(
+        "SELECT descrizione FROM log_attivita WHERE id_log = %s", (attivita["id_log"],)
+    )
     assert db.fetchone()["descrizione"] == "Nota corretta"
 
 
@@ -284,7 +329,8 @@ def test_updating_a_missing_activity_is_404(as_user, scrittore):
     utente, arnia = scrittore
 
     response = as_user(utente).patch(
-        f"/api/user/arnie/{arnia['id_arnia']}/attivita/999999", json={"descrizione": "x"}
+        f"/api/user/arnie/{arnia['id_arnia']}/attivita/999999",
+        json={"descrizione": "x"},
     )
 
     assert response.status_code == 404
@@ -329,6 +375,8 @@ def test_deleting_a_missing_activity_is_404(as_user, scrittore):
     """Nothing to delete is not found."""
     utente, arnia = scrittore
 
-    response = as_user(utente).delete(f"/api/user/arnie/{arnia['id_arnia']}/attivita/999999")
+    response = as_user(utente).delete(
+        f"/api/user/arnie/{arnia['id_arnia']}/attivita/999999"
+    )
 
     assert response.status_code == 404

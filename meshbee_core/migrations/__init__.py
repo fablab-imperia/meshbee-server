@@ -14,8 +14,8 @@ Either way the database URL is handed to `env.py` as a config *attribute*, not
 as `sqlalchemy.url`: the ini parser interpolates `%`, and a URL-encoded
 password is full of them.
 """
+
 from pathlib import Path
-from typing import Optional
 
 from alembic import command
 from alembic.config import Config
@@ -31,7 +31,7 @@ class UnstampedDatabase(RuntimeError):
     """The schema exists but Alembic has never been told which revision it is at."""
 
 
-def alembic_config(url: str, *, search_path: Optional[str] = None) -> Config:
+def alembic_config(url: str, *, search_path: str | None = None) -> Config:
     """
     An Alembic config pointed at this package and at `url`.
 
@@ -45,7 +45,7 @@ def alembic_config(url: str, *, search_path: Optional[str] = None) -> Config:
     return config
 
 
-def check_stamped(url: str, *, search_path: Optional[str] = None) -> None:
+def check_stamped(url: str, *, search_path: str | None = None) -> None:
     """
     Refuse to migrate a pre-Alembic database that was never stamped.
 
@@ -68,7 +68,9 @@ def check_stamped(url: str, *, search_path: Optional[str] = None) -> None:
         )
 
 
-def upgrade(url: str, revision: str = "head", *, search_path: Optional[str] = None) -> None:
+def upgrade(
+    url: str, revision: str = "head", *, search_path: str | None = None
+) -> None:
     """Bring the database at `url` up to `revision`."""
     check_stamped(url, search_path=search_path)
     command.upgrade(alembic_config(url, search_path=search_path), revision)

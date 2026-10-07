@@ -1,4 +1,5 @@
 """Tests for the readings service (meshbee_core/services/letture.py)."""
+
 from datetime import datetime, timedelta
 
 import pytest
@@ -25,7 +26,9 @@ OUT_OF_RANGE = [
 ]
 
 
-@pytest.mark.parametrize("field, value", OUT_OF_RANGE, ids=[f"{f}={v}" for f, v in OUT_OF_RANGE])
+@pytest.mark.parametrize(
+    "field, value", OUT_OF_RANGE, ids=[f"{f}={v}" for f, v in OUT_OF_RANGE]
+)
 def test_an_out_of_range_measurement_is_refused(fake_session, field, value):
     """
     The service refuses what the schema's CHECK constraints would refuse.
@@ -41,12 +44,18 @@ def test_an_out_of_range_measurement_is_refused(fake_session, field, value):
     assert session.added == [], "nessuna INSERT deve essere tentata"
 
 
-@pytest.mark.parametrize("field, value", [
-    ("temperatura", -50), ("temperatura", 100),
-    ("umidita", 0), ("umidita", 100),
-    ("peso", 0),
-    ("batteria", 0), ("batteria", 5),
-])
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("temperatura", -50),
+        ("temperatura", 100),
+        ("umidita", 0),
+        ("umidita", 100),
+        ("peso", 0),
+        ("batteria", 0),
+        ("batteria", 5),
+    ],
+)
 def test_the_inclusive_boundary_is_accepted(fake_session, field, value):
     """The bounds are inclusive on both sides, matching the CHECK constraints."""
     session = fake_session()
@@ -64,7 +73,9 @@ def test_a_missing_measurement_is_allowed(fake_session):
 
     [lettura] = session.added
     assert lettura.temperatura == 20
-    assert lettura.umidita is None and lettura.peso is None, "le misure assenti arrivano come NULL"
+    assert lettura.umidita is None and lettura.peso is None, (
+        "le misure assenti arrivano come NULL"
+    )
 
 
 def test_an_already_validated_model_is_not_revalidated(fake_session):

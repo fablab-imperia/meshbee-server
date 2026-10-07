@@ -1,4 +1,5 @@
 """Tests for the engine meshbee_core.db builds (meshbee_core/db.py)."""
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
@@ -13,11 +14,16 @@ HASH = "$2b$12$not-for-the-logs"
 @pytest.fixture
 def engine(build_core_settings, test_schema):
     """The production engine, pointed at postgres-test."""
-    core_db.init_db_pool(build_core_settings(
-        DB_HOST=TEST_DB_PARAMS["host"], DB_PORT=TEST_DB_PARAMS["port"],
-        DB_NAME=TEST_DB_PARAMS["dbname"], DB_USER=TEST_DB_PARAMS["user"],
-        DB_PASSWORD=TEST_DB_PARAMS["password"],
-    ), maxconn=1)
+    core_db.init_db_pool(
+        build_core_settings(
+            DB_HOST=TEST_DB_PARAMS["host"],
+            DB_PORT=TEST_DB_PARAMS["port"],
+            DB_NAME=TEST_DB_PARAMS["dbname"],
+            DB_USER=TEST_DB_PARAMS["user"],
+            DB_PASSWORD=TEST_DB_PARAMS["password"],
+        ),
+        maxconn=1,
+    )
     yield core_db.engine
     core_db.close_db_pool()
 

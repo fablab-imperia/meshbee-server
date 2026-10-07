@@ -1,5 +1,6 @@
 """Queries on `arnie`, and the hive state with its latest reading."""
-from typing import Any, Dict, List, Optional
+
+from typing import Any
 
 from sqlalchemy import func, true
 from sqlmodel import Session, select
@@ -14,8 +15,13 @@ UNSET = object()
 # The most recent reading of the arnia in the outer query. LATERAL, so it runs
 # once per arnia and every "ultimo" value comes from the same row.
 _latest = (
-    select(Lettura.temperatura, Lettura.umidita, Lettura.peso, Lettura.batteria,
-           Lettura.timestamp)
+    select(
+        Lettura.temperatura,
+        Lettura.umidita,
+        Lettura.peso,
+        Lettura.batteria,
+        Lettura.timestamp,
+    )
     .where(Lettura.id_arnia == Arnia.id_arnia)
     .order_by(Lettura.timestamp.desc())
     .limit(1)
@@ -26,9 +32,18 @@ _latest = (
 # The columns are those of the former `v_arnie_stato` view, in the same order.
 STATO = (
     select(
-        Arnia.id_arnia, Arnia.id_nodo, Arnia.id_sensore_fisico, Arnia.nome_arnia,
-        Nodo.nome_nodo, Arnia.posizione, Arnia.latitudine, Arnia.longitudine,
-        Arnia.data_installazione, Arnia.data_rimozione, Arnia.attiva, Arnia.metadati,
+        Arnia.id_arnia,
+        Arnia.id_nodo,
+        Arnia.id_sensore_fisico,
+        Arnia.nome_arnia,
+        Nodo.nome_nodo,
+        Arnia.posizione,
+        Arnia.latitudine,
+        Arnia.longitudine,
+        Arnia.data_installazione,
+        Arnia.data_rimozione,
+        Arnia.attiva,
+        Arnia.metadati,
         _latest.c.temperatura.label("ultima_temperatura"),
         _latest.c.umidita.label("ultima_umidita"),
         _latest.c.peso.label("ultimo_peso"),
@@ -41,19 +56,21 @@ STATO = (
 )
 
 
-def stato_rows(session: Session, query) -> List[Dict[str, Any]]:
+def stato_rows(session: Session, query) -> list[dict[str, Any]]:
     return [mapping(row) for row in session.exec(query).all()]
 
 
-def list_stato(session: Session) -> List[Dict[str, Any]]:
+def list_stato(session: Session) -> list[dict[str, Any]]:
     return stato_rows(session, STATO.order_by(Arnia.id_arnia))
 
 
-def list_stato_attive(session: Session) -> List[Dict[str, Any]]:
-    return stato_rows(session, STATO.where(Arnia.attiva.is_(True)).order_by(Arnia.nome_arnia))
+def list_stato_attive(session: Session) -> list[dict[str, Any]]:
+    return stato_rows(
+        session, STATO.where(Arnia.attiva.is_(True)).order_by(Arnia.nome_arnia)
+    )
 
 
-def list_stato_for_utente(session: Session, id_utente: int) -> List[Dict[str, Any]]:
+def list_stato_for_utente(session: Session, id_utente: int) -> list[dict[str, Any]]:
     return stato_rows(
         session,
         STATO.join(UtenteArnia, UtenteArnia.id_arnia == Arnia.id_arnia)
@@ -66,11 +83,11 @@ def list_stato_for_utente(session: Session, id_utente: int) -> List[Dict[str, An
     )
 
 
-def get_stato(session: Session, id_arnia: int) -> Optional[Dict[str, Any]]:
+def get_stato(session: Session, id_arnia: int) -> dict[str, Any] | None:
     return mapping(session.exec(STATO.where(Arnia.id_arnia == id_arnia)).first())
 
 
-def list_ids(session: Session) -> List[Dict[str, Any]]:
+def list_ids(session: Session) -> list[dict[str, Any]]:
     """
     Just the identifiers, for callers that only need to iterate.
 
@@ -81,23 +98,46 @@ def list_ids(session: Session) -> List[Dict[str, Any]]:
     return [{"id_arnia": id_arnia} for id_arnia in ids]
 
 
-def insert(session: Session, *, id_nodo: str, id_sensore_fisico: str, nome_arnia: str,
-           descrizione: Optional[str] = None, posizione: Optional[str] = None,
-           latitudine=None, longitudine=None,
-           metadati: Optional[dict] = None) -> Dict[str, Any]:
+def insert(
+    session: Session,
+    *,
+    id_nodo: str,
+    id_sensore_fisico: str,
+    nome_arnia: str,
+    descrizione: str | None = None,
+    posizione: str | None = None,
+    latitudine=None,
+    longitudine=None,
+    metadati: dict | None = None,
+) -> dict[str, Any]:
     arnia = Arnia(
-        id_nodo=id_nodo, id_sensore_fisico=id_sensore_fisico, nome_arnia=nome_arnia,
-        descrizione=descrizione, posizione=posizione, latitudine=latitudine,
-        longitudine=longitudine, attiva=True, metadati=metadati or None,
+        id_nodo=id_nodo,
+        id_sensore_fisico=id_sensore_fisico,
+        nome_arnia=nome_arnia,
+        descrizione=descrizione,
+        posizione=posizione,
+        latitudine=latitudine,
+        longitudine=longitudine,
+        attiva=True,
+        metadati=metadati or None,
     )
     session.add(arnia)
     session.flush()
     return as_dict(arnia)
 
 
-def update(session: Session, id_arnia: int, *, nome_arnia=None, descrizione=None, posizione=None,
-           latitudine=None, longitudine=None, metadati=None,
-           attiva=UNSET) -> Optional[Dict[str, Any]]:
+def update(
+    session: Session,
+    id_arnia: int,
+    *,
+    nome_arnia=None,
+    descrizione=None,
+    posizione=None,
+    latitudine=None,
+    longitudine=None,
+    metadati=None,
+    attiva=UNSET,
+) -> dict[str, Any] | None:
     """
     Partial update: a None argument (or an empty metadati) leaves the column untouched.
 
@@ -110,8 +150,11 @@ def update(session: Session, id_arnia: int, *, nome_arnia=None, descrizione=None
         return None
 
     changes = {
-        "nome_arnia": nome_arnia, "descrizione": descrizione, "posizione": posizione,
-        "latitudine": latitudine, "longitudine": longitudine,
+        "nome_arnia": nome_arnia,
+        "descrizione": descrizione,
+        "posizione": posizione,
+        "latitudine": latitudine,
+        "longitudine": longitudine,
     }
     if attiva is not UNSET:
         changes["attiva"] = attiva
@@ -124,7 +167,7 @@ def update(session: Session, id_arnia: int, *, nome_arnia=None, descrizione=None
     return as_dict(arnia)
 
 
-def deactivate(session: Session, id_arnia: int) -> Optional[Dict[str, Any]]:
+def deactivate(session: Session, id_arnia: int) -> dict[str, Any] | None:
     arnia = session.get(Arnia, id_arnia)
     if arnia is None:
         return None
@@ -134,16 +177,23 @@ def deactivate(session: Session, id_arnia: int) -> Optional[Dict[str, Any]]:
     return {"id_arnia": arnia.id_arnia}
 
 
-def find_id_by_nodo_sensore(session: Session, id_nodo: str, id_sensore: str) -> Optional[Dict[str, Any]]:
+def find_id_by_nodo_sensore(
+    session: Session, id_nodo: str, id_sensore: str
+) -> dict[str, Any] | None:
     found = session.exec(
-        select(Arnia.id_arnia).where(Arnia.id_nodo == id_nodo, Arnia.id_sensore_fisico == id_sensore)
+        select(Arnia.id_arnia).where(
+            Arnia.id_nodo == id_nodo, Arnia.id_sensore_fisico == id_sensore
+        )
     ).first()
     return {"id_arnia": found} if found is not None else None
 
 
-def find_first_id_by_nodo(session: Session, id_nodo: str) -> Optional[Dict[str, Any]]:
+def find_first_id_by_nodo(session: Session, id_nodo: str) -> dict[str, Any] | None:
     """Fallback for readings that carry no sensor id: the node's lowest arnia."""
     found = session.exec(
-        select(Arnia.id_arnia).where(Arnia.id_nodo == id_nodo).order_by(Arnia.id_arnia).limit(1)
+        select(Arnia.id_arnia)
+        .where(Arnia.id_nodo == id_nodo)
+        .order_by(Arnia.id_arnia)
+        .limit(1)
     ).first()
     return {"id_arnia": found} if found is not None else None

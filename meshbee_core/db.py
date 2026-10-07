@@ -10,9 +10,10 @@ days: **the caller owns the session**. Services and repositories take one and
 never open one, and one `with get_session()` block is one transaction —
 committed on a clean exit, rolled back on an exception.
 """
-from contextlib import contextmanager
+
 import logging
-from typing import Iterator, Optional
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, func
 from sqlalchemy.engine import Engine
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 UNIQUE_VIOLATION = "23505"
 FOREIGN_KEY_VIOLATION = "23503"
 
-engine: Optional[Engine] = None
+engine: Engine | None = None
 
 
 def init_db_pool(settings: CoreSettings, *, maxconn: int = 20) -> None:

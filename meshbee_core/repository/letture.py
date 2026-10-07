@@ -1,5 +1,6 @@
 """Queries on `letture`."""
-from typing import Any, Dict, List, Optional
+
+from typing import Any
 
 from sqlmodel import Session, select
 
@@ -11,9 +12,18 @@ from meshbee_core.repository import as_dict, as_dicts, mapping
 SERIES_FIELDS = ("temperatura", "umidita", "peso", "batteria")
 
 
-def insert(session: Session, *, id_arnia: int, id_nodo: str, timestamp, temperatura,
-           umidita, peso, dati_raw: Optional[dict],
-           batteria=None) -> Dict[str, Any]:
+def insert(
+    session: Session,
+    *,
+    id_arnia: int,
+    id_nodo: str,
+    timestamp,
+    temperatura,
+    umidita,
+    peso,
+    dati_raw: dict | None,
+    batteria=None,
+) -> dict[str, Any]:
     """
     Persist one reading. A null timestamp defaults to now, in the database.
 
@@ -21,8 +31,13 @@ def insert(session: Session, *, id_arnia: int, id_nodo: str, timestamp, temperat
     endpoint and the MQTT ingest path.
     """
     lettura = Lettura(
-        id_arnia=id_arnia, id_nodo=id_nodo, timestamp=timestamp,
-        temperatura=temperatura, umidita=umidita, peso=peso, batteria=batteria,
+        id_arnia=id_arnia,
+        id_nodo=id_nodo,
+        timestamp=timestamp,
+        temperatura=temperatura,
+        umidita=umidita,
+        peso=peso,
+        batteria=batteria,
         dati_raw=dati_raw or None,
     )
     session.add(lettura)
@@ -30,28 +45,34 @@ def insert(session: Session, *, id_arnia: int, id_nodo: str, timestamp, temperat
     return as_dict(lettura)
 
 
-def list_by_arnia(session: Session, id_arnia: int, data_inizio, data_fine,
-                  limit: int) -> List[Dict[str, Any]]:
-    return as_dicts(session.exec(
-        select(Lettura)
-        .where(
-            Lettura.id_arnia == id_arnia,
-            Lettura.timestamp >= data_inizio,
-            Lettura.timestamp <= data_fine,
-        )
-        .order_by(Lettura.timestamp.desc())
-        .limit(limit)
-    ).all())
+def list_by_arnia(
+    session: Session, id_arnia: int, data_inizio, data_fine, limit: int
+) -> list[dict[str, Any]]:
+    return as_dicts(
+        session.exec(
+            select(Lettura)
+            .where(
+                Lettura.id_arnia == id_arnia,
+                Lettura.timestamp >= data_inizio,
+                Lettura.timestamp <= data_fine,
+            )
+            .order_by(Lettura.timestamp.desc())
+            .limit(limit)
+        ).all()
+    )
 
 
-def list_all(session: Session, limit: int) -> List[Dict[str, Any]]:
-    return as_dicts(session.exec(
-        select(Lettura).order_by(Lettura.timestamp.desc()).limit(limit)
-    ).all())
+def list_all(session: Session, limit: int) -> list[dict[str, Any]]:
+    return as_dicts(
+        session.exec(
+            select(Lettura).order_by(Lettura.timestamp.desc()).limit(limit)
+        ).all()
+    )
 
 
-def series(session: Session, id_arnia: int, field: str, data_inizio, data_fine,
-           limit: int) -> List[Dict[str, Any]]:
+def series(
+    session: Session, id_arnia: int, field: str, data_inizio, data_fine, limit: int
+) -> list[dict[str, Any]]:
     """
     Timestamp plus one measurement, skipping rows where it is null.
 

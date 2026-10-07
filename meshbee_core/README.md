@@ -80,7 +80,7 @@ a new topic is a thin call into an existing service. **SQL appearing in `api/`,
 never open one.
 
 ```python
-with get_session() as session:           # one block == one transaction
+with get_session() as session:  # one block == one transaction
     utenti_service.create_utente(session, user)
 ```
 

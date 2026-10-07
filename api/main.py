@@ -8,42 +8,72 @@ README.md for where new code belongs.
 Handlers are plain `def`, not `async def`: the database calls are synchronous,
 so FastAPI must run them in its threadpool rather than on the event loop.
 """
-from fastapi import FastAPI, Depends, HTTPException, status, Query
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager, contextmanager
-from typing import List, Optional, Dict
-from datetime import datetime
-import logging
 
-from api.config import settings
+import logging
+from contextlib import asynccontextmanager, contextmanager
+from datetime import datetime
+
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+
 from api.auth import (
-    authenticate_user, create_access_token, create_refresh_token,
-    get_current_active_user, get_current_admin_user,
-    check_user_arnia_access
+    authenticate_user,
+    check_user_arnia_access,
+    create_access_token,
+    create_refresh_token,
+    get_current_active_user,
+    get_current_admin_user,
 )
-from meshbee_core.db import init_db_pool, close_db_pool, get_session, ping
+from api.config import settings
+from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.models import (
+    ArniaConStato,
+    ArniaCreate,
+    ArniaResponse,
+    ArniaUpdate,
+    AttivitaCreate,
+    AttivitaResponse,
+    AttivitaUpdate,
+    LetturaCreate,
+    LetturaResponse,
+    MessageResponse,
+    NodoCreate,
+    NodoResponse,
+    PasswordChange,
+    SerieBatteriaResponse,
+    SeriePesoResponse,
+    SerieTemperaturaResponse,
+    SerieUmiditaResponse,
+    Token,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserUpdate,
+    UtenteArniaCreate,
+)
 from meshbee_core.services import (
     accessi as accessi_service,
-    arnie as arnie_service,
-    attivita as attivita_service,
-    letture as letture_service,
-    nodi as nodi_service,
-    utenti as utenti_service,
 )
-from meshbee_core.models import (
-    UserLogin, Token, UserCreate, UserResponse, UserUpdate,
-    NodoCreate, NodoResponse, ArniaCreate, ArniaResponse, ArniaUpdate, ArniaConStato,
-    LetturaCreate, LetturaResponse, AttivitaCreate, AttivitaUpdate, AttivitaResponse,
-    SerieTemperaturaResponse, SerieUmiditaResponse, SeriePesoResponse,
-    SerieBatteriaResponse,
-    UtenteArniaCreate, PasswordChange, MessageResponse, ErrorResponse
+from meshbee_core.services import (
+    arnie as arnie_service,
+)
+from meshbee_core.services import (
+    attivita as attivita_service,
+)
+from meshbee_core.services import (
+    letture as letture_service,
+)
+from meshbee_core.services import (
+    nodi as nodi_service,
+)
+from meshbee_core.services import (
+    utenti as utenti_service,
 )
 
 # Configurazione logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -66,7 +96,7 @@ app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
     description=settings.API_DESCRIPTION,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Configurazione CORS
@@ -107,21 +137,22 @@ def db_operation(descrizione: str):
     except HTTPException:
         raise
     except tuple(ERROR_STATUS) as e:
-        raise HTTPException(status_code=ERROR_STATUS[type(e)], detail=str(e))
+        raise HTTPException(status_code=ERROR_STATUS[type(e)], detail=str(e)) from e
     except Exception as e:
         logger.error(f"Errore {descrizione}: {e}")
-        raise HTTPException(status_code=500, detail="Errore interno del server")
+        raise HTTPException(status_code=500, detail="Errore interno del server") from e
 
 
-def require_arnia_access(current_user: Dict, id_arnia: int, permesso: str, detail: str):
+def require_arnia_access(current_user: dict, id_arnia: int, permesso: str, detail: str):
     """Guard an arnia-scoped endpoint, answering 403 when the user is not allowed."""
-    if not check_user_arnia_access(current_user['id_utente'], id_arnia, permesso):
+    if not check_user_arnia_access(current_user["id_utente"], id_arnia, permesso):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 # ============================================
 # ENDPOINT AUTENTICAZIONE
 # ============================================
+
 
 @app.post("/api/auth/login", response_model=Token, tags=["Autenticazione"])
 def login(user_login: UserLogin):
@@ -140,13 +171,13 @@ def login(user_login: UserLogin):
         )
 
     # Crea token
-    access_token = create_access_token(data={"sub": user['email']})
-    refresh_token = create_refresh_token(data={"sub": user['email']})
+    access_token = create_access_token(data={"sub": user["email"]})
+    refresh_token = create_refresh_token(data={"sub": user["email"]})
 
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
     }
 
 
@@ -165,7 +196,8 @@ def get_me(current_user: dict = Depends(get_current_active_user)):
 # ENDPOINT UTENTE (User APIs)
 # ============================================
 
-@app.get("/api/user/arnie", response_model=List[ArniaConStato], tags=["Utente"])
+
+@app.get("/api/user/arnie", response_model=list[ArniaConStato], tags=["Utente"])
 def get_user_arnie(current_user: dict = Depends(get_current_active_user)):
     """
     Ottieni lista delle arnie associate all'utente con lo stato attuale
@@ -177,13 +209,19 @@ def get_user_arnie(current_user: dict = Depends(get_current_active_user)):
         return arnie_service.list_for_utente(session, current_user)
 
 
-@app.get("/api/user/arnie/{id_arnia}/letture", response_model=List[LetturaResponse], tags=["Utente"])
+@app.get(
+    "/api/user/arnie/{id_arnia}/letture",
+    response_model=list[LetturaResponse],
+    tags=["Utente"],
+)
 def get_user_letture(
     id_arnia: int,
-    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
-    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = Query(
+        None, description="Data inizio (default: 1 anno fa)"
+    ),
+    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
     limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Ottieni letture di un'arnia
@@ -197,20 +235,30 @@ def get_user_letture(
     Returns:
         Lista di letture ordinate per timestamp (più recente prima)
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("recupero letture") as session:
-        return letture_service.list_for_arnia(session, id_arnia, data_inizio, data_fine, limit)
+        return letture_service.list_for_arnia(
+            session, id_arnia, data_inizio, data_fine, limit
+        )
 
 
-@app.get("/api/user/arnie/{id_arnia}/attivita", response_model=List[AttivitaResponse], tags=["Utente"])
+@app.get(
+    "/api/user/arnie/{id_arnia}/attivita",
+    response_model=list[AttivitaResponse],
+    tags=["Utente"],
+)
 def get_user_attivita(
     id_arnia: int,
-    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
-    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
-    tipo_attivita: Optional[str] = Query(None, description="Filtra per tipo attività"),
+    data_inizio: datetime | None = Query(
+        None, description="Data inizio (default: 1 anno fa)"
+    ),
+    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
+    tipo_attivita: str | None = Query(None, description="Filtra per tipo attività"),
     limit: int = Query(100, ge=1, le=1000, description="Numero massimo di attività"),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Ottieni log attività di un'arnia
@@ -225,7 +273,9 @@ def get_user_attivita(
     Returns:
         Lista di attività ordinate per timestamp (più recente prima)
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("recupero attività") as session:
         return attivita_service.list_for_arnia(
@@ -233,11 +283,15 @@ def get_user_attivita(
         )
 
 
-@app.post("/api/user/arnie/{id_arnia}/attivita", response_model=AttivitaResponse, tags=["Utente"])
+@app.post(
+    "/api/user/arnie/{id_arnia}/attivita",
+    response_model=AttivitaResponse,
+    tags=["Utente"],
+)
 def create_attivita(
     id_arnia: int,
     attivita: AttivitaCreate,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Registra una nuova attività per un'arnia
@@ -255,16 +309,20 @@ def create_attivita(
 
     with db_operation("creazione attività") as session:
         return attivita_service.create_attivita(
-            session, current_user['id_utente'], id_arnia, attivita
+            session, current_user["id_utente"], id_arnia, attivita
         )
 
 
-@app.patch("/api/user/arnie/{id_arnia}/attivita/{id_log}", response_model=AttivitaResponse, tags=["Utente"])
+@app.patch(
+    "/api/user/arnie/{id_arnia}/attivita/{id_log}",
+    response_model=AttivitaResponse,
+    tags=["Utente"],
+)
 def update_user_attivita(
     id_arnia: int,
     id_log: int,
     attivita_update: AttivitaUpdate,
-    current_user: Dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Aggiorna un'attività di un'arnia (solo se appartiene all'utente)
@@ -275,15 +333,17 @@ def update_user_attivita(
 
     with db_operation("aggiornamento attività") as session:
         return attivita_service.update_attivita(
-            session, id_log, id_arnia, current_user['id_utente'], attivita_update
+            session, id_log, id_arnia, current_user["id_utente"], attivita_update
         )
 
 
-@app.delete("/api/user/arnie/{id_arnia}/attivita/{id_log}", response_model=MessageResponse, tags=["Utente"])
+@app.delete(
+    "/api/user/arnie/{id_arnia}/attivita/{id_log}",
+    response_model=MessageResponse,
+    tags=["Utente"],
+)
 def delete_user_attivita(
-    id_arnia: int,
-    id_log: int,
-    current_user: Dict = Depends(get_current_active_user)
+    id_arnia: int, id_log: int, current_user: dict = Depends(get_current_active_user)
 ):
     """
     Elimina un'attività di un'arnia (solo se appartiene all'utente)
@@ -293,23 +353,33 @@ def delete_user_attivita(
     )
 
     with db_operation("eliminazione attività") as session:
-        attivita_service.delete_attivita(session, id_log, id_arnia, current_user['id_utente'])
+        attivita_service.delete_attivita(
+            session, id_log, id_arnia, current_user["id_utente"]
+        )
         return {"message": "Attività eliminata con successo"}
 
 
-@app.get("/api/user/arnie/{id_arnia}/letture/temperatura", response_model=List[SerieTemperaturaResponse], tags=["Utente"])
+@app.get(
+    "/api/user/arnie/{id_arnia}/letture/temperatura",
+    response_model=list[SerieTemperaturaResponse],
+    tags=["Utente"],
+)
 def get_serie_temperatura(
     id_arnia: int,
-    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
-    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = Query(
+        None, description="Data inizio (default: 1 anno fa)"
+    ),
+    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
     limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Serie storica temperatura per un'arnia.
     Restituisce solo timestamp e temperatura, ottimizzato per grafici.
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("serie temperatura") as session:
         return letture_service.get_series(
@@ -317,19 +387,27 @@ def get_serie_temperatura(
         )
 
 
-@app.get("/api/user/arnie/{id_arnia}/letture/umidita", response_model=List[SerieUmiditaResponse], tags=["Utente"])
+@app.get(
+    "/api/user/arnie/{id_arnia}/letture/umidita",
+    response_model=list[SerieUmiditaResponse],
+    tags=["Utente"],
+)
 def get_serie_umidita(
     id_arnia: int,
-    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
-    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = Query(
+        None, description="Data inizio (default: 1 anno fa)"
+    ),
+    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
     limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Serie storica umidità per un'arnia.
     Restituisce solo timestamp e umidita, ottimizzato per grafici.
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("serie umidita") as session:
         return letture_service.get_series(
@@ -337,19 +415,27 @@ def get_serie_umidita(
         )
 
 
-@app.get("/api/user/arnie/{id_arnia}/letture/peso", response_model=List[SeriePesoResponse], tags=["Utente"])
+@app.get(
+    "/api/user/arnie/{id_arnia}/letture/peso",
+    response_model=list[SeriePesoResponse],
+    tags=["Utente"],
+)
 def get_serie_peso(
     id_arnia: int,
-    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
-    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = Query(
+        None, description="Data inizio (default: 1 anno fa)"
+    ),
+    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
     limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Serie storica peso per un'arnia.
     Restituisce solo timestamp e peso, ottimizzato per grafici.
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("serie peso") as session:
         return letture_service.get_series(
@@ -357,19 +443,27 @@ def get_serie_peso(
         )
 
 
-@app.get("/api/user/arnie/{id_arnia}/letture/batteria", response_model=List[SerieBatteriaResponse], tags=["Utente"])
+@app.get(
+    "/api/user/arnie/{id_arnia}/letture/batteria",
+    response_model=list[SerieBatteriaResponse],
+    tags=["Utente"],
+)
 def get_serie_batteria(
     id_arnia: int,
-    data_inizio: Optional[datetime] = Query(None, description="Data inizio (default: 1 anno fa)"),
-    data_fine: Optional[datetime] = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = Query(
+        None, description="Data inizio (default: 1 anno fa)"
+    ),
+    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
     limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Battery voltage time series for one hive's node.
     Returns only timestamp and batteria, shaped for charts.
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("serie batteria") as session:
         return letture_service.get_series(
@@ -377,12 +471,12 @@ def get_serie_batteria(
         )
 
 
-
 # ============================================
 # ENDPOINT ADMIN
 # ============================================
 
-@app.get("/api/admin/utenti", response_model=List[UserResponse], tags=["Admin"])
+
+@app.get("/api/admin/utenti", response_model=list[UserResponse], tags=["Admin"])
 def get_all_users(current_user: dict = Depends(get_current_admin_user)):
     """
     Ottieni lista di tutti gli utenti (solo admin)
@@ -395,10 +489,7 @@ def get_all_users(current_user: dict = Depends(get_current_admin_user)):
 
 
 @app.post("/api/admin/utenti", response_model=UserResponse, tags=["Admin"])
-def create_user(
-    user: UserCreate,
-    current_user: dict = Depends(get_current_admin_user)
-):
+def create_user(user: UserCreate, current_user: dict = Depends(get_current_admin_user)):
     """
     Crea un nuovo utente (solo admin)
 
@@ -416,7 +507,7 @@ def create_user(
 def update_user(
     id_utente: int,
     user_update: UserUpdate,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Aggiorna un utente (solo admin)
@@ -432,7 +523,7 @@ def update_user(
         return utenti_service.update_utente(session, id_utente, user_update)
 
 
-@app.get("/api/admin/nodi", response_model=List[NodoResponse], tags=["Admin"])
+@app.get("/api/admin/nodi", response_model=list[NodoResponse], tags=["Admin"])
 def get_all_nodi(current_user: dict = Depends(get_current_admin_user)):
     """
     Ottieni lista di tutti i nodi (solo admin)
@@ -444,7 +535,7 @@ def get_all_nodi(current_user: dict = Depends(get_current_admin_user)):
         return nodi_service.list_nodi(session)
 
 
-@app.get("/api/admin/arnie", response_model=List[ArniaConStato], tags=["Admin"])
+@app.get("/api/admin/arnie", response_model=list[ArniaConStato], tags=["Admin"])
 def get_all_arnie(current_user: dict = Depends(get_current_admin_user)):
     """
     Ottieni lista di tutte le arnie con stato (solo admin)
@@ -458,8 +549,7 @@ def get_all_arnie(current_user: dict = Depends(get_current_admin_user)):
 
 @app.post("/api/admin/arnie", response_model=ArniaResponse, tags=["Admin"])
 def create_arnia(
-    arnia: ArniaCreate,
-    current_user: dict = Depends(get_current_admin_user)
+    arnia: ArniaCreate, current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Crea una nuova arnia (solo admin)
@@ -477,7 +567,7 @@ def create_arnia(
 @app.post("/api/admin/utenti-arnie", response_model=MessageResponse, tags=["Admin"])
 def associate_user_arnia(
     associazione: UtenteArniaCreate,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Associa un utente a un'arnia (solo admin)
@@ -493,10 +583,10 @@ def associate_user_arnia(
         return {"message": "Associazione creata con successo"}
 
 
-@app.get("/api/admin/letture", response_model=List[LetturaResponse], tags=["Admin"])
+@app.get("/api/admin/letture", response_model=list[LetturaResponse], tags=["Admin"])
 def get_all_letture(
     limit: int = Query(1000, ge=1, le=10000),
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Ottieni tutte le letture (solo admin)
@@ -511,10 +601,10 @@ def get_all_letture(
         return letture_service.list_all(session, limit)
 
 
-@app.get("/api/admin/attivita", response_model=List[AttivitaResponse], tags=["Admin"])
+@app.get("/api/admin/attivita", response_model=list[AttivitaResponse], tags=["Admin"])
 def get_all_attivita(
     limit: int = Query(100, ge=1, le=1000),
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Ottieni tutte le attività (solo admin)
@@ -529,16 +619,13 @@ def get_all_attivita(
         return attivita_service.list_all(session, limit)
 
 
-
 # ============================================
 # ENDPOINT ADMIN - NODI
 # ============================================
 
+
 @app.post("/api/admin/nodi", response_model=NodoResponse, tags=["Admin - Nodi"])
-def create_nodo(
-    nodo: NodoCreate,
-    current_user: dict = Depends(get_current_admin_user)
-):
+def create_nodo(nodo: NodoCreate, current_user: dict = Depends(get_current_admin_user)):
     """
     Registra un nuovo nodo trasmettitore (solo admin).
     """
@@ -546,11 +633,10 @@ def create_nodo(
         return nodi_service.create_nodo(session, nodo)
 
 
-@app.get("/api/admin/nodi/{id_nodo}", response_model=NodoResponse, tags=["Admin - Nodi"])
-def get_nodo(
-    id_nodo: str,
-    current_user: dict = Depends(get_current_admin_user)
-):
+@app.get(
+    "/api/admin/nodi/{id_nodo}", response_model=NodoResponse, tags=["Admin - Nodi"]
+)
+def get_nodo(id_nodo: str, current_user: dict = Depends(get_current_admin_user)):
     """
     Dettagli di un singolo nodo (solo admin).
     """
@@ -558,11 +644,11 @@ def get_nodo(
         return nodi_service.get_nodo(session, id_nodo)
 
 
-@app.put("/api/admin/nodi/{id_nodo}", response_model=NodoResponse, tags=["Admin - Nodi"])
+@app.put(
+    "/api/admin/nodi/{id_nodo}", response_model=NodoResponse, tags=["Admin - Nodi"]
+)
 def update_nodo(
-    id_nodo: str,
-    nodo: NodoCreate,
-    current_user: dict = Depends(get_current_admin_user)
+    id_nodo: str, nodo: NodoCreate, current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Aggiorna un nodo esistente (solo admin).
@@ -571,11 +657,10 @@ def update_nodo(
         return nodi_service.update_nodo(session, id_nodo, nodo)
 
 
-@app.delete("/api/admin/nodi/{id_nodo}", response_model=MessageResponse, tags=["Admin - Nodi"])
-def delete_nodo(
-    id_nodo: str,
-    current_user: dict = Depends(get_current_admin_user)
-):
+@app.delete(
+    "/api/admin/nodi/{id_nodo}", response_model=MessageResponse, tags=["Admin - Nodi"]
+)
+def delete_nodo(id_nodo: str, current_user: dict = Depends(get_current_admin_user)):
     """
     Disattiva un nodo (soft delete, solo admin).
     Le arnie e le letture associate vengono mantenute.
@@ -589,10 +674,12 @@ def delete_nodo(
 # ENDPOINT ADMIN - ARNIE (crud completo)
 # ============================================
 
-@app.get("/api/admin/arnie/{id_arnia}", response_model=ArniaConStato, tags=["Admin - Arnie"])
+
+@app.get(
+    "/api/admin/arnie/{id_arnia}", response_model=ArniaConStato, tags=["Admin - Arnie"]
+)
 def get_arnia_admin(
-    id_arnia: int,
-    current_user: dict = Depends(get_current_admin_user)
+    id_arnia: int, current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Dettagli di una singola arnia con ultimo stato (solo admin).
@@ -601,11 +688,13 @@ def get_arnia_admin(
         return arnie_service.get_arnia(session, id_arnia)
 
 
-@app.put("/api/admin/arnie/{id_arnia}", response_model=ArniaResponse, tags=["Admin - Arnie"])
+@app.put(
+    "/api/admin/arnie/{id_arnia}", response_model=ArniaResponse, tags=["Admin - Arnie"]
+)
 def update_arnia_admin(
     id_arnia: int,
     arnia: ArniaUpdate,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Aggiorna una arnia (solo admin).
@@ -614,11 +703,12 @@ def update_arnia_admin(
         return arnie_service.update_arnia(session, id_arnia, arnia, allow_attiva=True)
 
 
-@app.delete("/api/admin/arnie/{id_arnia}", response_model=MessageResponse, tags=["Admin - Arnie"])
-def delete_arnia(
-    id_arnia: int,
-    current_user: dict = Depends(get_current_admin_user)
-):
+@app.delete(
+    "/api/admin/arnie/{id_arnia}",
+    response_model=MessageResponse,
+    tags=["Admin - Arnie"],
+)
+def delete_arnia(id_arnia: int, current_user: dict = Depends(get_current_admin_user)):
     """
     Disattiva un'arnia (soft delete, solo admin).
     Le letture storiche vengono mantenute.
@@ -628,25 +718,28 @@ def delete_arnia(
         return {"message": f"Arnia {id_arnia} disattivata con successo"}
 
 
-@app.delete("/api/admin/utenti-arnie", response_model=MessageResponse, tags=["Admin - Utenti"])
+@app.delete(
+    "/api/admin/utenti-arnie", response_model=MessageResponse, tags=["Admin - Utenti"]
+)
 def remove_user_arnia(
-    id_utente: int,
-    id_arnia: int,
-    current_user: dict = Depends(get_current_admin_user)
+    id_utente: int, id_arnia: int, current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Rimuove l'associazione tra un utente e un'arnia (solo admin).
     """
     with db_operation("rimozione associazione") as session:
         accessi_service.revoke(session, id_utente, id_arnia)
-        return {"message": f"Associazione utente {id_utente} - arnia {id_arnia} rimossa"}
+        return {
+            "message": f"Associazione utente {id_utente} - arnia {id_arnia} rimossa"
+        }
 
 
-@app.delete("/api/admin/utenti/{id_utente}", response_model=MessageResponse, tags=["Admin - Utenti"])
-def delete_user(
-    id_utente: int,
-    current_user: dict = Depends(get_current_admin_user)
-):
+@app.delete(
+    "/api/admin/utenti/{id_utente}",
+    response_model=MessageResponse,
+    tags=["Admin - Utenti"],
+)
+def delete_user(id_utente: int, current_user: dict = Depends(get_current_admin_user)):
     """
     Disattiva un utente (soft delete, solo admin).
     Non è possibile disattivare se stessi.
@@ -658,11 +751,15 @@ def delete_user(
         return {"message": f"Utente {id_utente} disattivato con successo"}
 
 
-@app.put("/api/admin/utenti/{id_utente}/password", response_model=MessageResponse, tags=["Admin - Utenti"])
+@app.put(
+    "/api/admin/utenti/{id_utente}/password",
+    response_model=MessageResponse,
+    tags=["Admin - Utenti"],
+)
 def reset_user_password(
     id_utente: int,
     body: PasswordChange,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Reset password di un utente (solo admin).
@@ -676,15 +773,17 @@ def reset_user_password(
 # ENDPOINT USER - ARNIE (update permesso write)
 # ============================================
 
+
 @app.get("/api/user/arnie/{id_arnia}", response_model=ArniaConStato, tags=["Utente"])
 def get_arnia_user(
-    id_arnia: int,
-    current_user: dict = Depends(get_current_active_user)
+    id_arnia: int, current_user: dict = Depends(get_current_active_user)
 ):
     """
     Dettagli di una singola arnia con ultimo stato.
     """
-    require_arnia_access(current_user, id_arnia, "read", "Non hai accesso a questa arnia")
+    require_arnia_access(
+        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+    )
 
     with db_operation("recupero arnia") as session:
         return arnie_service.get_arnia(session, id_arnia)
@@ -694,7 +793,7 @@ def get_arnia_user(
 def update_arnia_user(
     id_arnia: int,
     arnia: ArniaUpdate,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Aggiorna un'arnia (richiede permesso write o admin sull'arnia).
@@ -711,8 +810,7 @@ def update_arnia_user(
 
 @app.put("/api/user/password", response_model=MessageResponse, tags=["Utente"])
 def change_own_password(
-    body: PasswordChange,
-    current_user: dict = Depends(get_current_active_user)
+    body: PasswordChange, current_user: dict = Depends(get_current_active_user)
 ):
     """
     Cambia la propria password.
@@ -726,8 +824,7 @@ def change_own_password(
 
 @app.post("/api/admin/letture", response_model=LetturaResponse, tags=["Admin - Nodi"])
 def create_lettura_manuale(
-    lettura: LetturaCreate,
-    current_user: dict = Depends(get_current_admin_user)
+    lettura: LetturaCreate, current_user: dict = Depends(get_current_admin_user)
 ):
     """
     Inserisce una lettura manualmente (solo admin, utile per test e backfill).
@@ -735,9 +832,11 @@ def create_lettura_manuale(
     with db_operation("inserimento lettura") as session:
         return letture_service.record_reading(session, lettura)
 
+
 # ============================================
 # ENDPOINT INFO E HEALTH
 # ============================================
+
 
 @app.get("/", tags=["Info"])
 def root():
@@ -747,7 +846,7 @@ def root():
         "version": settings.API_VERSION,
         "description": settings.API_DESCRIPTION,
         "docs_url": "/docs",
-        "redoc_url": "/redoc"
+        "redoc_url": "/redoc",
     }
 
 
@@ -762,7 +861,7 @@ def health_check():
         return {
             "status": "healthy",
             "database": "connected",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
         # The reason goes to the log only. This endpoint is public, and a
@@ -771,10 +870,11 @@ def health_check():
         return {
             "status": "unhealthy",
             "database": "disconnected",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

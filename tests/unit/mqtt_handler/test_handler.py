@@ -5,6 +5,7 @@ subscriber, because paho would keep delivering to a handler that has stopped
 working. The happy path is covered end-to-end in
 tests/integration/test_ingest_parity.py.
 """
+
 import json
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -63,6 +64,7 @@ def test_a_database_failure_does_not_propagate(monkeypatch):
     handler that raises risks a subscriber that is up but no longer storing
     anything.
     """
+
     @contextmanager
     def _broken_session():
         raise RuntimeError("database non raggiungibile")
@@ -102,8 +104,11 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
 
     def _store(session, payload):
         return {
-            "id_arnia": 7, "id_nodo": "NODE001",
-            "temperatura": 34.5, "umidita": 65.0, "peso": 42.35,
+            "id_arnia": 7,
+            "id_nodo": "NODE001",
+            "temperatura": 34.5,
+            "umidita": 65.0,
+            "peso": 42.35,
             "batteria": 4.01,
         }
 

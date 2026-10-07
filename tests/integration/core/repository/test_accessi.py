@@ -4,6 +4,7 @@ The upsert revives and re-levels associations, which is easy to get subtly
 wrong: a revoked association that comes back at the wrong permission level is a
 silent authorization bug.
 """
+
 from meshbee_core.repository import accessi
 
 
@@ -12,17 +13,29 @@ def test_a_grant_creates_an_active_association(session, db, make_utente, make_ar
 
     accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
 
-    assert accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])["permessi"] == "read"
+    assert (
+        accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
+            "permessi"
+        ]
+        == "read"
+    )
 
 
-def test_granting_again_changes_the_permission_level(session, db, make_utente, make_arnia):
+def test_granting_again_changes_the_permission_level(
+    session, db, make_utente, make_arnia
+):
     """UNIQUE(id_utente, id_arnia) means the second grant must update, not fail."""
     utente, arnia = make_utente(), make_arnia()
     accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
 
     accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "admin")
 
-    assert accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])["permessi"] == "admin"
+    assert (
+        accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
+            "permessi"
+        ]
+        == "admin"
+    )
 
 
 def test_a_revoked_association_is_invisible(session, db, make_utente, make_arnia):
@@ -35,7 +48,9 @@ def test_a_revoked_association_is_invisible(session, db, make_utente, make_arnia
     assert accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"]) is None
 
 
-def test_granting_again_revives_a_revoked_association(session, db, make_utente, make_arnia):
+def test_granting_again_revives_a_revoked_association(
+    session, db, make_utente, make_arnia
+):
     """
     Re-granting clears the revocation date as well as the flag.
 
@@ -48,7 +63,12 @@ def test_granting_again_revives_a_revoked_association(session, db, make_utente, 
 
     accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
 
-    assert accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])["permessi"] == "read"
+    assert (
+        accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
+            "permessi"
+        ]
+        == "read"
+    )
     db.execute(
         "SELECT data_disassociazione FROM utenti_arnie WHERE id_utente = %s AND id_arnia = %s",
         (utente["id_utente"], arnia["id_arnia"]),
@@ -56,17 +76,23 @@ def test_granting_again_revives_a_revoked_association(session, db, make_utente, 
     assert db.fetchone()["data_disassociazione"] is None
 
 
-def test_revoking_an_absent_association_reports_nothing(session, db, make_utente, make_arnia):
+def test_revoking_an_absent_association_reports_nothing(
+    session, db, make_utente, make_arnia
+):
     """The service turns this into a 404 rather than a silent success."""
     utente, arnia = make_utente(), make_arnia()
 
     assert accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is None
 
 
-def test_revoking_twice_reports_nothing_the_second_time(session, db, make_utente, make_arnia):
+def test_revoking_twice_reports_nothing_the_second_time(
+    session, db, make_utente, make_arnia
+):
     """`attivo = true` is in the WHERE clause, so the second call matches no row."""
     utente, arnia = make_utente(), make_arnia()
     accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
 
-    assert accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is not None
+    assert (
+        accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is not None
+    )
     assert accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is None

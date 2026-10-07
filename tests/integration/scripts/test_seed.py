@@ -4,6 +4,7 @@ The seed runs on every `docker-compose up`, so idempotency is its whole
 contract: re-running it must not fail, must not reset a password an operator has
 changed, and must not undo an access revocation. None of that was covered before.
 """
+
 import pytest
 from pydantic import ValidationError
 
@@ -138,8 +139,12 @@ def test_rerunning_does_not_reset_a_changed_password(session, db, run_seed):
     """
     users = seed_script.default_users(run_seed)
     seed_script.create_users(users)
-    ids = {u.email: utenti.find_id_by_email(session, u.email)["id_utente"] for u in users}
-    utenti.set_password_hash(session, ids[seed_script.ADMIN_EMAIL], "hash-scelto-dall-operatore")
+    ids = {
+        u.email: utenti.find_id_by_email(session, u.email)["id_utente"] for u in users
+    }
+    utenti.set_password_hash(
+        session, ids[seed_script.ADMIN_EMAIL], "hash-scelto-dall-operatore"
+    )
 
     seed_script.create_users(users)
 
@@ -181,7 +186,9 @@ def test_an_install_with_its_own_hives_gets_no_sample_apiary(db, run_seed, make_
     assert db.fetchone()["n"] == 0
 
 
-def test_the_test_account_is_associated_with_every_arnia(session, db, run_seed, make_arnia):
+def test_the_test_account_is_associated_with_every_arnia(
+    session, db, run_seed, make_arnia
+):
     """Whatever hives already exist, the demo account can see them."""
     make_arnia()
     make_arnia()
@@ -202,7 +209,9 @@ def test_no_arnie_is_not_an_error(db, run_seed):
     assert seed_script.associate_test_user(ids[seed_script.TEST_EMAIL]) == []
 
 
-def test_rerunning_does_not_revive_a_revoked_association(session, db, run_seed, make_arnia):
+def test_rerunning_does_not_revive_a_revoked_association(
+    session, db, run_seed, make_arnia
+):
     """
     The reason this uses insert-if-absent rather than the reviving upsert.
 
@@ -243,7 +252,9 @@ def test_the_sample_activity_is_backdated(db, run_seed, make_arnia):
 
     seed_script.add_sample_activity(ids[seed_script.TEST_EMAIL], arnia["id_arnia"])
 
-    db.execute("SELECT timestamp FROM log_attivita WHERE id_arnia = %s", (arnia["id_arnia"],))
+    db.execute(
+        "SELECT timestamp FROM log_attivita WHERE id_arnia = %s", (arnia["id_arnia"],)
+    )
     age = datetime.now() - db.fetchone()["timestamp"]
     assert timedelta(days=6) < age < timedelta(days=8)
 
@@ -256,11 +267,16 @@ def test_the_sample_activity_is_not_duplicated(db, run_seed, make_arnia):
 
     seed_script.add_sample_activity(ids[seed_script.TEST_EMAIL], arnia["id_arnia"])
 
-    db.execute("SELECT COUNT(*) AS n FROM log_attivita WHERE id_arnia = %s", (arnia["id_arnia"],))
+    db.execute(
+        "SELECT COUNT(*) AS n FROM log_attivita WHERE id_arnia = %s",
+        (arnia["id_arnia"],),
+    )
     assert db.fetchone()["n"] == 1
 
 
-def test_an_arnia_with_its_own_history_is_left_alone(db, run_seed, make_arnia, make_utente, make_attivita):
+def test_an_arnia_with_its_own_history_is_left_alone(
+    db, run_seed, make_arnia, make_utente, make_attivita
+):
     """
     Real entries suppress the example, rather than the example joining them.
 
@@ -273,5 +289,7 @@ def test_an_arnia_with_its_own_history_is_left_alone(db, run_seed, make_arnia, m
 
     seed_script.add_sample_activity(ids[seed_script.TEST_EMAIL], arnia["id_arnia"])
 
-    db.execute("SELECT descrizione FROM log_attivita WHERE id_arnia = %s", (arnia["id_arnia"],))
+    db.execute(
+        "SELECT descrizione FROM log_attivita WHERE id_arnia = %s", (arnia["id_arnia"],)
+    )
     assert [row["descrizione"] for row in db.fetchall()] == ["Ispezione vera"]

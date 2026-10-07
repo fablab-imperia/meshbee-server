@@ -9,6 +9,7 @@ esiste già viene lasciato com'è, password comprese.
 
 Come i due entry point, non contiene SQL: chiama i service di meshbee_core.
 """
+
 import logging
 import sys
 from datetime import datetime, timedelta
@@ -25,7 +26,7 @@ from meshbee_core.services import letture as letture_service
 from meshbee_core.services import nodi as nodi_service
 from meshbee_core.services import utenti as utenti_service
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # A seed opens two connections in sequence and exits.
@@ -133,7 +134,9 @@ def create_users(users) -> dict:
 
         user_ids[user.email] = row["id_utente"]
         if created:
-            logger.info(f"  ✓ Creato: {user.email} (id={row['id_utente']}, ruolo={user.ruolo})")
+            logger.info(
+                f"  ✓ Creato: {user.email} (id={row['id_utente']}, ruolo={user.ruolo})"
+            )
         else:
             logger.info(f"  Utente già esistente, skip: {user.email}")
 
@@ -157,17 +160,20 @@ def add_sample_apiary() -> None:
 
         nodi_service.create_nodo(session, SAMPLE_NODO)
         now = datetime.now()
-        for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE):
+        for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE, strict=True):
             created = arnie_service.create_arnia(session, arnia)
             for hours_ago, temperatura, umidita, peso in readings:
-                letture_service.record_reading(session, {
-                    "id_arnia": created["id_arnia"],
-                    "id_nodo": arnia.id_nodo,
-                    "timestamp": now - timedelta(hours=hours_ago),
-                    "temperatura": temperatura,
-                    "umidita": umidita,
-                    "peso": peso,
-                })
+                letture_service.record_reading(
+                    session,
+                    {
+                        "id_arnia": created["id_arnia"],
+                        "id_nodo": arnia.id_nodo,
+                        "timestamp": now - timedelta(hours=hours_ago),
+                        "temperatura": temperatura,
+                        "umidita": umidita,
+                        "peso": peso,
+                    },
+                )
 
     logger.info(f"  ✓ Nodo {SAMPLE_NODO.id_nodo} con {len(SAMPLE_ARNIE)} arnie creato")
 

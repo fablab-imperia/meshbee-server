@@ -7,6 +7,7 @@ Thin entry point: the callback parses the payload, opens a session and calls one
 service in `meshbee_core`. There is no SQL here — the same service backs the
 API's manual-insert endpoint, so the two paths cannot drift.
 """
+
 import logging
 import signal
 import sys
@@ -22,8 +23,7 @@ from mqtt_handler.payload import parse_message
 
 # Configurazione logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -115,10 +115,10 @@ class BeehiveMQTTHandler:
                     self.settings.MQTT_USER,
                     self.settings.MQTT_PASSWORD.get_secret_value(),
                 )
-                logger.info(f"Autenticazione MQTT con utente: {self.settings.MQTT_USER}")
-            self.client.connect(
-                self.settings.MQTT_BROKER, self.settings.MQTT_PORT, 60
-            )
+                logger.info(
+                    f"Autenticazione MQTT con utente: {self.settings.MQTT_USER}"
+                )
+            self.client.connect(self.settings.MQTT_BROKER, self.settings.MQTT_PORT, 60)
             self.client.loop_start()
 
             # Mantieni il processo in esecuzione
@@ -173,5 +173,5 @@ def main():
         close_db_pool()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

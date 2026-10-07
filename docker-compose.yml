@@ -180,6 +180,7 @@ services:
       - ./scripts:/app/scripts
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini:ro
+      - ./ruff.toml:/app/ruff.toml:ro
       # For the alembic CLI: `docker-compose exec api alembic revision --autogenerate ...`
       - ./alembic.ini:/app/alembic.ini:ro
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload

@@ -1,4 +1,5 @@
 """The /api/user/arnie/{id}/letture endpoints, including the four chart series."""
+
 from datetime import datetime, timedelta
 
 import pytest
@@ -18,8 +19,14 @@ def arnia_con_letture(utente_con_arnia, make_lettura):
     """A readable arnia with three readings, one per hour, oldest first."""
     utente, arnia = utente_con_arnia("read")
     letture = [
-        make_lettura(arnia, timestamp=NOW - timedelta(hours=h), temperatura=str(20 + h),
-                     umidita=str(50 + h), peso=str(40 + h), batteria=str(4 - h / 10))
+        make_lettura(
+            arnia,
+            timestamp=NOW - timedelta(hours=h),
+            temperatura=str(20 + h),
+            umidita=str(50 + h),
+            peso=str(40 + h),
+            batteria=str(4 - h / 10),
+        )
         for h in (2, 1, 0)
     ]
     return utente, arnia, letture
@@ -47,8 +54,15 @@ def test_letture_carry_every_measurement_column(as_user, arnia_con_letture):
     row = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture").json()[0]
 
     assert set(row) == {
-        "id_lettura", "id_arnia", "id_nodo", "timestamp",
-        "temperatura", "umidita", "peso", "batteria", "dati_raw",
+        "id_lettura",
+        "id_arnia",
+        "id_nodo",
+        "timestamp",
+        "temperatura",
+        "umidita",
+        "peso",
+        "batteria",
+        "dati_raw",
     }
 
 
@@ -70,9 +84,11 @@ def test_letture_respect_the_limit(as_user, arnia_con_letture):
     """LIMIT caps the result set."""
     utente, arnia, _ = arnia_con_letture
 
-    body = as_user(utente).get(
-        f"/api/user/arnie/{arnia['id_arnia']}/letture", params={"limit": 2}
-    ).json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/letture", params={"limit": 2})
+        .json()
+    )
 
     assert len(body) == 2
 
@@ -81,13 +97,17 @@ def test_letture_respect_the_date_window(as_user, arnia_con_letture):
     """data_inizio/data_fine filter on timestamp inclusively."""
     utente, arnia, _ = arnia_con_letture
 
-    body = as_user(utente).get(
-        f"/api/user/arnie/{arnia['id_arnia']}/letture",
-        params={
-            "data_inizio": (NOW - timedelta(hours=1)).isoformat(),
-            "data_fine": NOW.isoformat(),
-        },
-    ).json()
+    body = (
+        as_user(utente)
+        .get(
+            f"/api/user/arnie/{arnia['id_arnia']}/letture",
+            params={
+                "data_inizio": (NOW - timedelta(hours=1)).isoformat(),
+                "data_fine": NOW.isoformat(),
+            },
+        )
+        .json()
+    )
 
     assert len(body) == 2
 
@@ -95,7 +115,9 @@ def test_letture_respect_the_date_window(as_user, arnia_con_letture):
 def test_letture_default_to_the_last_year(as_user, utente_con_arnia, make_lettura):
     """With no window the endpoint looks back 365 days, so older rows drop out."""
     utente, arnia = utente_con_arnia("read")
-    make_lettura(arnia, timestamp=datetime.now() - timedelta(days=400), temperatura="10")
+    make_lettura(
+        arnia, timestamp=datetime.now() - timedelta(days=400), temperatura="10"
+    )
     make_lettura(arnia, temperatura="20")
 
     body = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture").json()
@@ -138,7 +160,11 @@ def test_series_return_only_timestamp_and_the_measurement(
     utente, arnia = utente_con_arnia("read")
     make_lettura(arnia, **{field: value})
 
-    body = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}").json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}")
+        .json()
+    )
 
     assert set(body[0]) == {"timestamp", field}
     assert float(body[0][field]) == float(value)
@@ -153,7 +179,11 @@ def test_series_skip_rows_where_the_measurement_is_null(
     make_lettura(arnia, **{field: value})
     make_lettura(arnia)  # every measurement null
 
-    body = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}").json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}")
+        .json()
+    )
 
     assert len(body) == 1
 
@@ -163,7 +193,11 @@ def test_series_are_newest_first(as_user, arnia_con_letture, path, field, value)
     """Same ordering as the raw readings endpoint."""
     utente, arnia, _ = arnia_con_letture
 
-    body = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}").json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}")
+        .json()
+    )
 
     timestamps = [row["timestamp"] for row in body]
     assert timestamps == sorted(timestamps, reverse=True)
@@ -174,9 +208,11 @@ def test_series_respect_the_limit(as_user, arnia_con_letture, path):
     """LIMIT applies to the series endpoints too."""
     utente, arnia, _ = arnia_con_letture
 
-    body = as_user(utente).get(
-        f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}", params={"limit": 2}
-    ).json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}", params={"limit": 2})
+        .json()
+    )
 
     assert len(body) == 2
 
@@ -191,6 +227,10 @@ def test_series_are_scoped_to_the_requested_arnia(
     grant_access(utente["id_utente"], other["id_arnia"], "read")
     make_lettura(other, temperatura="99", umidita="99", peso="99", batteria="3")
 
-    body = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}").json()
+    body = (
+        as_user(utente)
+        .get(f"/api/user/arnie/{arnia['id_arnia']}/letture/{path}")
+        .json()
+    )
 
     assert len(body) == len(letture)

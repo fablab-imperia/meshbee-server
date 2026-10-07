@@ -1,6 +1,7 @@
 """The authentication endpoints in api/main.py."""
-from sqlalchemy.exc import OperationalError
+
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from api.auth import decode_token
 
@@ -51,13 +52,16 @@ def test_login_rejects_a_wrong_password(client, utente):
 def test_login_rejects_an_unknown_email(client, known_password):
     """An account that does not exist gets the same 401 as a wrong password."""
     response = client.post(
-        "/api/auth/login", json={"email": "nobody@example.org", "password": known_password}
+        "/api/auth/login",
+        json={"email": "nobody@example.org", "password": known_password},
     )
 
     assert response.status_code == 401
 
 
-def test_login_rejects_a_deactivated_account(client, make_utente, password_hash, known_password):
+def test_login_rejects_a_deactivated_account(
+    client, make_utente, password_hash, known_password
+):
     """Deactivating a user blocks login even with the correct password."""
     inactive = make_utente(password_hash=password_hash, attivo=False)
 
@@ -74,7 +78,8 @@ def test_login_does_not_distinguish_unknown_from_wrong(client, utente, known_pas
         "/api/auth/login", json={"email": utente["email"], "password": "wrong-password"}
     )
     unknown = client.post(
-        "/api/auth/login", json={"email": "nobody@example.org", "password": known_password}
+        "/api/auth/login",
+        json={"email": "nobody@example.org", "password": known_password},
     )
 
     assert wrong.json()["detail"] == unknown.json()["detail"]
@@ -103,7 +108,9 @@ def test_login_ignores_surrounding_whitespace(client, utente, known_password):
     assert response.status_code == 200
 
 
-def test_a_malformed_login_email_fails_authentication_not_validation(client, known_password):
+def test_a_malformed_login_email_fails_authentication_not_validation(
+    client, known_password
+):
     """
     UserLogin normalises but does not validate the format.
 
@@ -147,15 +154,16 @@ def test_me_never_exposes_the_password_hash(as_user, utente):
 # ============================================
 
 
-def test_login_during_a_database_outage_is_service_unavailable(client, fake_db, known_password):
+def test_login_during_a_database_outage_is_service_unavailable(
+    client, fake_db, known_password
+):
     """
     An unreachable database answers 503, not 401.
 
     A 401 would tell the user their password is wrong and send the client
     straight back to the login form, retrying against a database in trouble.
     """
-    from api import auth
-    from api import main
+    from api import auth, main
 
     outage = OperationalError("SELECT 1", {}, Exception("could not connect to server"))
     fake_db(auth, error=outage)

@@ -3,7 +3,7 @@
 
 .PHONY: help start stop restart restart-api restart-mqtt logs logs-api logs-mqtt \
         status build clean clean-all certs db-shell db-backup db-restore \
-        dev-setup dev-api dev-mqtt test test-health openapi mqtt-schema contract \
+        dev-setup dev-api dev-mqtt test test-health lint format openapi mqtt-schema contract \
         mqtt-passwd setup install info endpoints
 
 # Variabili
@@ -108,6 +108,14 @@ dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
 # Test Commands
 test: ## Esegue tutti i test dell'API nel container
 	$(COMPOSE) exec api pytest
+
+lint: ## Controlla lint e formattazione con ruff nel container
+	$(COMPOSE) exec api ruff check .
+	$(COMPOSE) exec api ruff format --check .
+
+format: ## Applica le correzioni automatiche e la formattazione di ruff nel container
+	$(COMPOSE) exec api ruff check --fix .
+	$(COMPOSE) exec api ruff format .
 
 test-health: ## Test health endpoint
 	@curl -s http://localhost:8000/health | $(PYTHON) -m json.tool

@@ -22,14 +22,21 @@ deliberate: on the wire a field is *absent* — a node with only a scale sends o
 becoming `["string", "null"]`. Pydantic does not validate defaults, so `None`
 never trips a bound.
 """
+
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from meshbee_core.limits import (
-    BATTERIA_MAX, BATTERIA_MIN, ID_MAX_LENGTH, PESO_MIN, TEMPERATURA_MAX,
-    TEMPERATURA_MIN, UMIDITA_MAX, UMIDITA_MIN,
+    BATTERIA_MAX,
+    BATTERIA_MIN,
+    ID_MAX_LENGTH,
+    PESO_MIN,
+    TEMPERATURA_MAX,
+    TEMPERATURA_MIN,
+    UMIDITA_MAX,
+    UMIDITA_MIN,
 )
 
 # Where the artifact is served and what its own `$id` claims: this file, on this
@@ -45,7 +52,6 @@ SCHEMA_ID = (
     "/mqtt_handler/mqtt-payload.schema.json"
 )
 SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
-
 
 
 class MqttPayload(BaseModel):
@@ -114,7 +120,7 @@ class MqttPayload(BaseModel):
             "Node battery voltage in V. Out of range drops the whole message."
         ),
     )
-    dati_raw: Dict[str, Any] = Field(
+    dati_raw: dict[str, Any] = Field(
         default=None,
         # A `Dict[str, Any]` renders as a bare `{"type": "object"}` — pydantic
         # omits `additionalProperties` when the value schema is `Any`. Stated

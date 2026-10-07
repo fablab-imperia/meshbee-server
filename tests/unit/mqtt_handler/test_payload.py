@@ -3,8 +3,9 @@
 The handler had no tests at all before the refactor, and this is the layer that
 faces the firmware: whatever an ESP32 puts on the wire arrives here first.
 """
+
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -79,7 +80,7 @@ def test_a_zulu_timestamp_is_understood():
     """
     parsed = parse_timestamp("2024-02-01T12:00:00Z")
 
-    assert parsed == datetime(2024, 2, 1, 12, 0, tzinfo=timezone.utc)
+    assert parsed == datetime(2024, 2, 1, 12, 0, tzinfo=UTC)
 
 
 def test_an_offset_timestamp_is_understood():
@@ -105,14 +106,19 @@ def test_an_absent_timestamp_falls_back_to_now():
 
 def test_the_measurements_are_passed_through_untouched():
     """Parsing does not validate ranges — that is the service's job."""
-    parsed = parse_message(TOPIC, encode({
-        "id_sensore": "SENSOR01",
-        "temperatura": 34.5,
-        "umidita": 65.0,
-        "peso": 42.35,
-        "bat": 4.01,
-        "dati_raw": {"rssi": -70},
-    }))
+    parsed = parse_message(
+        TOPIC,
+        encode(
+            {
+                "id_sensore": "SENSOR01",
+                "temperatura": 34.5,
+                "umidita": 65.0,
+                "peso": 42.35,
+                "bat": 4.01,
+                "dati_raw": {"rssi": -70},
+            }
+        ),
+    )
 
     assert parsed["id_sensore"] == "SENSOR01"
     assert parsed["temperatura"] == 34.5
@@ -141,11 +147,21 @@ def test_the_esp32_payload_parses_as_sent():
     Strings pass through as-is — LetturaCreate turns them into Decimals — and
     `receiver` / `alarm` are dropped rather than stored.
     """
-    parsed = parse_message(TOPIC, encode({
-        "id_nodo": "1234", "id_sensore": "2", "temperatura": "28.69",
-        "umidita": "0.00", "peso": "0.00", "receiver": "1111", "alarm": "0",
-        "bat": "4.01",
-    }))
+    parsed = parse_message(
+        TOPIC,
+        encode(
+            {
+                "id_nodo": "1234",
+                "id_sensore": "2",
+                "temperatura": "28.69",
+                "umidita": "0.00",
+                "peso": "0.00",
+                "receiver": "1111",
+                "alarm": "0",
+                "bat": "4.01",
+            }
+        ),
+    )
 
     assert parsed["bat"] == "4.01"
     assert parsed["temperatura"] == "28.69"

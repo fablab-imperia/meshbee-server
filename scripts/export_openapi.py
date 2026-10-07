@@ -16,6 +16,7 @@ the host it fails before reaching the schema:
 The output is sorted and indented so regenerating an unchanged API produces an
 empty diff.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -28,7 +29,9 @@ DEFAULT_OUTPUT = Path("api/openapi.json")
 
 def render() -> str:
     """The exact bytes of the artifact, so a test can compare without guessing."""
-    return json.dumps(app.openapi(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    return (
+        json.dumps(app.openapi(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    )
 
 
 def export(destination: Path) -> None:

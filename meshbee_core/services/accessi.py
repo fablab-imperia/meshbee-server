@@ -1,4 +1,5 @@
 """Granting and revoking a user's access to an arnia."""
+
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import NotFound
 from meshbee_core.repository import accessi

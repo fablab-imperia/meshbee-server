@@ -232,6 +232,18 @@ docker-compose exec api pytest -m "not integration"  # senza database
 Vedi [`tests/README.it.md`](tests/README.it.md) per i due livelli, le fixture e dove va
 un test nuovo.
 
+**Lint e formattazione** con [Ruff](https://docs.astral.sh/ruff/), anche questi nel
+container (configurazione in `ruff.toml`, versione fissata in `api/requirements-dev.txt`):
+
+```bash
+docker-compose exec api ruff check .          # lint (make lint esegue entrambi i controlli)
+docker-compose exec api ruff format --check . # formattazione
+docker-compose exec api ruff check --fix .    # applica le correzioni sicure (make format)
+docker-compose exec api ruff format .         # riformatta
+```
+
+Le nuove revisioni Alembic passano da Ruff appena generate (`alembic.ini`).
+
 **Dopo aver cambiato una rotta, uno schema o la forma del payload**, rigenera gli
 artefatti del contratto committati:
 
@@ -354,12 +366,13 @@ PR crea il tag (`1.3.0`, senza `v`) e la release su GitHub. Quindi:
   un Conventional Commit resta fuori dal changelog.
 - **Per scegliere tu la versione**, metti `Release-As: 2.0.0` nel corpo di un commit.
 
-Ogni pull request esegue tre controlli, che devono passare tutti prima del merge:
+Ogni pull request esegue quattro controlli, che devono passare tutti prima del merge:
 
 - **`ci / test`**: l'intera suite di test su un PostgreSQL usa e getta
   ([dettagli](tests/README.it.md#esecuzione)). Comprende i controlli che
   `api/openapi.json` e `mqtt_handler/mqtt-payload.schema.json` committati
   corrispondano al codice.
+- **`ci / lint`**: `ruff check` e `ruff format --check` non segnalano nulla.
 - **`ci / images`**: entrambe le immagini Docker si costruiscono ancora.
 - **`pr-title`**: il titolo della PR è un Conventional Commit, perché diventa il
   commit squashato che release-please legge.

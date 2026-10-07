@@ -1,6 +1,6 @@
 """The /api/user/arnie endpoints: listing, detail and update."""
-import pytest
 
+import pytest
 
 # ============================================
 # GET /api/user/arnie
@@ -32,7 +32,9 @@ def test_listing_excludes_revoked_associations(
 def test_listing_excludes_deactivated_arnie(as_user, utente_con_arnia, db):
     """`vs.attiva = true`: an arnia taken out of service drops off the list."""
     utente, arnia = utente_con_arnia("read")
-    db.execute("UPDATE arnie SET attiva = false WHERE id_arnia = %s", (arnia["id_arnia"],))
+    db.execute(
+        "UPDATE arnie SET attiva = false WHERE id_arnia = %s", (arnia["id_arnia"],)
+    )
 
     assert as_user(utente).get("/api/user/arnie").json() == []
 
@@ -49,7 +51,9 @@ def test_admins_see_every_active_arnia(as_user, make_utente, make_arnia):
 def test_listing_carries_the_latest_readings(as_user, utente_con_arnia, make_lettura):
     """The hive list surfaces the most recent values alongside the arnia."""
     utente, arnia = utente_con_arnia("read")
-    make_lettura(arnia, temperatura="35.5", umidita="60.0", peso="42.250", batteria="3.85")
+    make_lettura(
+        arnia, temperatura="35.5", umidita="60.0", peso="42.250", batteria="3.85"
+    )
 
     row = as_user(utente).get("/api/user/arnie").json()[0]
 

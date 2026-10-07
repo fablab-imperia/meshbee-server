@@ -10,15 +10,16 @@ called it: every key is a SERIAL/BIGSERIAL or a node id.
 No CASCADE: if an install has grown something that depends on it, Postgres
 refuses with the dependency named, and nothing is dropped with it.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0004"
-down_revision: Union[str, Sequence[str], None] = "0003"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0003"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

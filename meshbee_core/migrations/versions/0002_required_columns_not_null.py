@@ -31,23 +31,23 @@ stop leaves the database exactly as it was.
 The values are literals on purpose: a revision is history and must not change
 when `limits.py` does.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0002"
-down_revision: Union[str, Sequence[str], None] = "0001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0001"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Rows a NOT NULL foreign key would reject and nothing can fill.
 ORPHANS = {
     "arnie without id_nodo": "SELECT count(*) FROM arnie WHERE id_nodo IS NULL",
     "letture without id_arnia": "SELECT count(*) FROM letture WHERE id_arnia IS NULL",
     "log_attivita without id_arnia": "SELECT count(*) FROM log_attivita WHERE id_arnia IS NULL",
-    "utenti_arnie without id_utente or id_arnia":
-        "SELECT count(*) FROM utenti_arnie WHERE id_utente IS NULL OR id_arnia IS NULL",
+    "utenti_arnie without id_utente or id_arnia": "SELECT count(*) FROM utenti_arnie WHERE id_utente IS NULL OR id_arnia IS NULL",
 }
 
 FILLS = (
@@ -62,22 +62,18 @@ FILLS = (
     # valid_association_dates: a filled start must not follow an existing end.
     "UPDATE utenti_arnie SET data_associazione = data_disassociazione "
     "WHERE data_disassociazione IS NOT NULL AND data_associazione > data_disassociazione",
-
     "UPDATE utenti SET ruolo = 'user' WHERE ruolo IS NULL",
     "UPDATE utenti SET attivo = false WHERE attivo IS NULL",
     "UPDATE utenti SET data_creazione = COALESCE(data_attivazione, ultimo_accesso, CURRENT_TIMESTAMP) "
     "WHERE data_creazione IS NULL",
-
     "UPDATE nodi SET attivo = false WHERE attivo IS NULL",
     "UPDATE nodi SET data_registrazione = COALESCE("
     "(SELECT min(l.timestamp) FROM letture l WHERE l.id_nodo = nodi.id_nodo), CURRENT_TIMESTAMP) "
     "WHERE data_registrazione IS NULL",
-
     "UPDATE arnie SET attiva = false WHERE attiva IS NULL",
     "UPDATE arnie SET data_installazione = COALESCE("
     "(SELECT min(l.timestamp) FROM letture l WHERE l.id_arnia = arnie.id_arnia), CURRENT_TIMESTAMP) "
     "WHERE data_installazione IS NULL",
-
     "UPDATE log_attivita SET timestamp = CURRENT_TIMESTAMP WHERE timestamp IS NULL",
 )
 
@@ -87,7 +83,13 @@ REQUIRED = {
     "arnie": ("id_nodo", "data_installazione", "attiva"),
     "letture": ("id_arnia",),
     "log_attivita": ("id_arnia", "timestamp"),
-    "utenti_arnie": ("id_utente", "id_arnia", "data_associazione", "permessi", "attivo"),
+    "utenti_arnie": (
+        "id_utente",
+        "id_arnia",
+        "data_associazione",
+        "permessi",
+        "attivo",
+    ),
 }
 
 

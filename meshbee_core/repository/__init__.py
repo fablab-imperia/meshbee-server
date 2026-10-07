@@ -8,13 +8,16 @@ generated values (ids, server defaults) are available straight away.
 Results are plain dicts, not model instances: what leaves this layer is data,
 detached from the session that produced it.
 """
-from typing import Any, Dict, Iterable, Optional
+
+from collections.abc import Iterable
+from typing import Any
 
 from sqlmodel import SQLModel
 
 
-def as_dict(obj: Optional[SQLModel], *, only: Iterable[str] = None,
-            exclude: Iterable[str] = ()) -> Optional[Dict[str, Any]]:
+def as_dict(
+    obj: SQLModel | None, *, only: Iterable[str] = None, exclude: Iterable[str] = ()
+) -> dict[str, Any] | None:
     """
     A table row as a dict of its columns, or None for no row.
 
@@ -35,6 +38,6 @@ def as_dicts(rows) -> list:
     return [as_dict(row) for row in rows]
 
 
-def mapping(row) -> Optional[Dict[str, Any]]:
+def mapping(row) -> dict[str, Any] | None:
     """A result row of individual columns as a dict, or None for no row."""
     return dict(row._mapping) if row is not None else None

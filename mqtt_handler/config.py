@@ -8,8 +8,8 @@ Note DB_PASSWORD is now required, where this process used to read it with
 operationally — a missing password now fails at startup with a clear message
 instead of at connect time with an authentication error.
 """
+
 from functools import lru_cache
-from typing import Optional
 
 from pydantic import SecretStr
 
@@ -25,8 +25,8 @@ class Settings(CoreSettings):
     MQTT_CLIENT_ID: str = "beehive-mqtt-handler"
     # Anonymous connection when unset; the broker in docker-compose does not
     # allow it, but a local broker might.
-    MQTT_USER: Optional[str] = None
-    MQTT_PASSWORD: Optional[SecretStr] = None
+    MQTT_USER: str | None = None
+    MQTT_PASSWORD: SecretStr | None = None
 
 
 @lru_cache

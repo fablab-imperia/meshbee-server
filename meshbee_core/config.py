@@ -6,6 +6,7 @@ MQTT handler — so neither process is forced to carry a required setting it has
 no use for. A required field added here must exist in the environment of
 *every* service, so add sparingly.
 """
+
 from functools import lru_cache
 from urllib.parse import quote
 

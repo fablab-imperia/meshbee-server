@@ -32,23 +32,46 @@ Two quirks of the pinned versions shape the declarations:
 - Decimal precision is `sa_type=Numeric(p, s)`, not `max_digits`: pydantic 2.5
   rejects `max_digits` on an Optional[Decimal].
 """
+
+from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import (
-    BigInteger, CheckConstraint, Index, Numeric, String, Text, UniqueConstraint, text,
+    BigInteger,
+    CheckConstraint,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 from meshbee_core.limits import (
-    BATTERIA_MAX, BATTERIA_MIN, ID_MAX_LENGTH, LATITUDINE_MAX, LATITUDINE_MIN,
-    LONGITUDINE_MAX, LONGITUDINE_MIN, PERMESSI, PESO_MIN, RUOLI, TEMPERATURA_MAX,
-    TEMPERATURA_MIN, TIPI_ATTIVITA, UMIDITA_MAX, UMIDITA_MIN,
+    BATTERIA_MAX,
+    BATTERIA_MIN,
+    ID_MAX_LENGTH,
+    LATITUDINE_MAX,
+    LATITUDINE_MIN,
+    LONGITUDINE_MAX,
+    LONGITUDINE_MIN,
+    PERMESSI,
+    PESO_MIN,
+    RUOLI,
+    TEMPERATURA_MAX,
+    TEMPERATURA_MIN,
+    TIPI_ATTIVITA,
+    UMIDITA_MAX,
+    UMIDITA_MIN,
     # Re-exported: the value sets are part of this module's public surface.
-    Permesso, Ruolo, TipoAttivita,
+    Permesso,
+    Ruolo,
+    TipoAttivita,
 )
 
 NOW = {"server_default": text("CURRENT_TIMESTAMP")}
@@ -83,6 +106,7 @@ def default(value: str) -> dict:
 # Autenticazione
 # ============================================
 
+
 def normalize_email(value: str) -> str:
     """Trim and lowercase an address, so stored and submitted values match."""
     return value.strip().lower()
@@ -111,10 +135,11 @@ def validate_password_length(value: str) -> str:
 
 class UserLogin(BaseModel):
     """Dati per login utente"""
+
     email: str
     password: str
 
-    @field_validator('email')
+    @field_validator("email")
     @classmethod
     def normalize_email_case(cls, v):
         """
@@ -126,6 +151,7 @@ class UserLogin(BaseModel):
 
 class Token(BaseModel):
     """Token di accesso"""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -133,43 +159,49 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     """Dati contenuti nel token"""
-    email: Optional[str] = None
-    id_utente: Optional[int] = None
-    ruolo: Optional[str] = None
+
+    email: str | None = None
+    id_utente: int | None = None
+    ruolo: str | None = None
 
 
 # ============================================
 # Utenti
 # ============================================
 
+
 class UserBase(SQLModel):
     """Base utente"""
-    email: str = Field(sa_type=String(255), unique=True)  # str, non EmailStr: domini .local
+
+    email: str = Field(
+        sa_type=String(255), unique=True
+    )  # str, non EmailStr: domini .local
     nome: str = Field(sa_type=String(100))
     cognome: str = Field(sa_type=String(100))
 
-    @field_validator('email')
+    @field_validator("email")
     @classmethod
     def validate_email_format(cls, v):
         """Validazione email minimale: deve contenere @ e un dominio"""
         v = normalize_email(v)
-        if '@' not in v:
-            raise ValueError('Email non valida: manca @')
-        local, _, domain = v.partition('@')
-        if not local or not domain or '.' not in domain:
-            raise ValueError('Email non valida: formato scorretto')
+        if "@" not in v:
+            raise ValueError("Email non valida: manca @")
+        local, _, domain = v.partition("@")
+        if not local or not domain or "." not in domain:
+            raise ValueError("Email non valida: formato scorretto")
         return v
 
 
 class UserCreate(UserBase):
     """Creazione utente"""
+
     password: str = Field(
         min_length=PASSWORD_MIN_LENGTH,
-        description=f"Password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)"
+        description=f"Password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
     )
     ruolo: Ruolo = "user"
 
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
     def check_password_length(cls, v):
         return validate_password_length(v)
@@ -177,21 +209,23 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     """Aggiornamento utente"""
-    email: Optional[str] = None
-    nome: Optional[str] = None
-    cognome: Optional[str] = None
-    ruolo: Optional[Ruolo] = None
-    attivo: Optional[bool] = None
+
+    email: str | None = None
+    nome: str | None = None
+    cognome: str | None = None
+    ruolo: Ruolo | None = None
+    attivo: bool | None = None
 
 
 class UserResponse(UserBase):
     """Risposta con dati utente"""
+
     id_utente: int = Field(primary_key=True)
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("user"))
     data_creazione: datetime = Field(sa_column_kwargs=NOW)
-    data_attivazione: Optional[datetime] = None
-    data_disattivazione: Optional[datetime] = None
-    ultimo_accesso: Optional[datetime] = None
+    data_attivazione: datetime | None = None
+    data_disattivazione: datetime | None = None
+    ultimo_accesso: datetime | None = None
     attivo: bool = Field(sa_column_kwargs=TRUE)
 
     model_config = ConfigDict(from_attributes=True)
@@ -215,13 +249,14 @@ class Utente(UserResponse, table=True):
 
 class PasswordChange(BaseModel):
     """Cambio password"""
+
     new_password: str = Field(
         min_length=PASSWORD_MIN_LENGTH,
-        description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)"
+        description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
     )
-    current_password: Optional[str] = None  # Richiesta solo per cambio proprio
+    current_password: str | None = None  # Richiesta solo per cambio proprio
 
-    @field_validator('new_password')
+    @field_validator("new_password")
     @classmethod
     def check_password_length(cls, v):
         return validate_password_length(v)
@@ -231,25 +266,29 @@ class PasswordChange(BaseModel):
 # Nodi
 # ============================================
 
+
 class NodoBase(SQLModel):
     """Base nodo"""
+
     id_nodo: str = Field(primary_key=True, sa_type=ID)
-    nome_nodo: Optional[str] = Field(None, sa_type=String(100))
-    descrizione: Optional[str] = Field(None, sa_type=Text)
-    posizione: Optional[str] = Field(None, sa_type=String(255))
+    nome_nodo: str | None = Field(None, sa_type=String(100))
+    descrizione: str | None = Field(None, sa_type=Text)
+    posizione: str | None = Field(None, sa_type=String(255))
 
 
 class NodoCreate(NodoBase):
     """Creazione nodo"""
-    configurazione: Optional[Dict[str, Any]] = None
+
+    configurazione: dict[str, Any] | None = None
 
 
 class NodoResponse(NodoBase):
     """Risposta con dati nodo"""
+
     data_registrazione: datetime = Field(sa_column_kwargs=NOW)
-    ultimo_messaggio: Optional[datetime] = None
+    ultimo_messaggio: datetime | None = None
     attivo: bool = Field(sa_column_kwargs=TRUE)
-    configurazione: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+    configurazione: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -263,46 +302,67 @@ class Nodo(NodoResponse, table=True):
 # Arnie
 # ============================================
 
+
 class ArniaBase(SQLModel):
     """Base arnia"""
+
     id_nodo: str = Field(sa_type=ID, foreign_key="nodi.id_nodo", ondelete="CASCADE")
     id_sensore_fisico: str = Field(sa_type=ID)
-    nome_arnia: Optional[str] = Field(None, sa_type=String(100))
-    descrizione: Optional[str] = Field(None, sa_type=Text)
-    posizione: Optional[str] = Field(None, sa_type=String(255))
-    latitudine: Optional[Decimal] = Field(
-        None, ge=LATITUDINE_MIN, le=LATITUDINE_MAX, sa_type=Numeric(9, 6),
+    nome_arnia: str | None = Field(None, sa_type=String(100))
+    descrizione: str | None = Field(None, sa_type=Text)
+    posizione: str | None = Field(None, sa_type=String(255))
+    latitudine: Decimal | None = Field(
+        None,
+        ge=LATITUDINE_MIN,
+        le=LATITUDINE_MAX,
+        sa_type=Numeric(9, 6),
         description="Latitudine in formato DD, es: 45.464200",
     )
-    longitudine: Optional[Decimal] = Field(
-        None, ge=LONGITUDINE_MIN, le=LONGITUDINE_MAX, sa_type=Numeric(9, 6),
+    longitudine: Decimal | None = Field(
+        None,
+        ge=LONGITUDINE_MIN,
+        le=LONGITUDINE_MAX,
+        sa_type=Numeric(9, 6),
         description="Longitudine in formato DD, es: 9.190000",
     )
 
 
 class ArniaCreate(ArniaBase):
     """Creazione arnia"""
-    metadati: Optional[Dict[str, Any]] = None
+
+    metadati: dict[str, Any] | None = None
 
 
 class ArniaUpdate(BaseModel):
     """Aggiornamento arnia"""
-    nome_arnia: Optional[str] = None
-    descrizione: Optional[str] = None
-    posizione: Optional[str] = None
-    latitudine: Optional[Decimal] = Field(None, ge=LATITUDINE_MIN, le=LATITUDINE_MAX, description="Latitudine in formato DD")
-    longitudine: Optional[Decimal] = Field(None, ge=LONGITUDINE_MIN, le=LONGITUDINE_MAX, description="Longitudine in formato DD")
-    attiva: Optional[bool] = None
-    metadati: Optional[Dict[str, Any]] = None
+
+    nome_arnia: str | None = None
+    descrizione: str | None = None
+    posizione: str | None = None
+    latitudine: Decimal | None = Field(
+        None,
+        ge=LATITUDINE_MIN,
+        le=LATITUDINE_MAX,
+        description="Latitudine in formato DD",
+    )
+    longitudine: Decimal | None = Field(
+        None,
+        ge=LONGITUDINE_MIN,
+        le=LONGITUDINE_MAX,
+        description="Longitudine in formato DD",
+    )
+    attiva: bool | None = None
+    metadati: dict[str, Any] | None = None
 
 
 class ArniaResponse(ArniaBase):
     """Risposta con dati arnia"""
+
     id_arnia: int = Field(primary_key=True)
     data_installazione: datetime = Field(sa_column_kwargs=NOW)
-    data_rimozione: Optional[datetime] = None
+    data_rimozione: datetime | None = None
     attiva: bool = Field(sa_column_kwargs=TRUE)
-    metadati: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+    metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -310,12 +370,16 @@ class ArniaResponse(ArniaBase):
 class Arnia(ArniaResponse, table=True):
     __tablename__ = "arnie"
     __table_args__ = (
-        UniqueConstraint("id_nodo", "id_sensore_fisico", name="arnie_id_nodo_id_sensore_fisico_key"),
-        CheckConstraint(
-            in_range("latitudine", LATITUDINE_MIN, LATITUDINE_MAX), name="valid_latitudine"
+        UniqueConstraint(
+            "id_nodo", "id_sensore_fisico", name="arnie_id_nodo_id_sensore_fisico_key"
         ),
         CheckConstraint(
-            in_range("longitudine", LONGITUDINE_MIN, LONGITUDINE_MAX), name="valid_longitudine"
+            in_range("latitudine", LATITUDINE_MIN, LATITUDINE_MAX),
+            name="valid_latitudine",
+        ),
+        CheckConstraint(
+            in_range("longitudine", LONGITUDINE_MIN, LONGITUDINE_MAX),
+            name="valid_longitudine",
         ),
         {"comment": "Arnie monitorate con sensori"},
     )
@@ -323,69 +387,78 @@ class Arnia(ArniaResponse, table=True):
 
 class ArniaConStato(ArniaResponse):
     """Arnia con ultime letture e coordinate"""
-    ultima_temperatura: Optional[Decimal] = None
-    ultima_umidita: Optional[Decimal] = None
-    ultimo_peso: Optional[Decimal] = None
-    ultima_batteria: Optional[Decimal] = None
-    ultimo_aggiornamento: Optional[datetime] = None
+
+    ultima_temperatura: Decimal | None = None
+    ultima_umidita: Decimal | None = None
+    ultimo_peso: Decimal | None = None
+    ultima_batteria: Decimal | None = None
+    ultimo_aggiornamento: datetime | None = None
 
 
 # ============================================
 # Letture
 # ============================================
 
+
 class LetturaBase(SQLModel):
     """Base lettura"""
-    temperatura: Optional[Decimal] = Field(None, sa_type=Numeric(5, 2))
-    umidita: Optional[Decimal] = Field(None, sa_type=Numeric(5, 2))
-    peso: Optional[Decimal] = Field(None, sa_type=Numeric(10, 3))
-    # Node battery voltage; the payload key is `bat`.
-    batteria: Optional[Decimal] = Field(None, sa_type=Numeric(4, 3))
 
-    @field_validator('temperatura')
+    temperatura: Decimal | None = Field(None, sa_type=Numeric(5, 2))
+    umidita: Decimal | None = Field(None, sa_type=Numeric(5, 2))
+    peso: Decimal | None = Field(None, sa_type=Numeric(10, 3))
+    # Node battery voltage; the payload key is `bat`.
+    batteria: Decimal | None = Field(None, sa_type=Numeric(4, 3))
+
+    @field_validator("temperatura")
     @classmethod
     def validate_temperatura(cls, v):
         if v is not None and (v < TEMPERATURA_MIN or v > TEMPERATURA_MAX):
-            raise ValueError(f'Temperatura deve essere tra {TEMPERATURA_MIN} e {TEMPERATURA_MAX}°C')
+            raise ValueError(
+                f"Temperatura deve essere tra {TEMPERATURA_MIN} e {TEMPERATURA_MAX}°C"
+            )
         return v
 
-    @field_validator('umidita')
+    @field_validator("umidita")
     @classmethod
     def validate_umidita(cls, v):
         if v is not None and (v < UMIDITA_MIN or v > UMIDITA_MAX):
-            raise ValueError(f'Umidità deve essere tra {UMIDITA_MIN} e {UMIDITA_MAX}%')
+            raise ValueError(f"Umidità deve essere tra {UMIDITA_MIN} e {UMIDITA_MAX}%")
         return v
 
-    @field_validator('peso')
+    @field_validator("peso")
     @classmethod
     def validate_peso(cls, v):
         if v is not None and v < PESO_MIN:
-            raise ValueError('Peso deve essere positivo')
+            raise ValueError("Peso deve essere positivo")
         return v
 
-    @field_validator('batteria')
+    @field_validator("batteria")
     @classmethod
     def validate_batteria(cls, v):
         if v is not None and (v < BATTERIA_MIN or v > BATTERIA_MAX):
-            raise ValueError(f'Batteria deve essere tra {BATTERIA_MIN} e {BATTERIA_MAX} V')
+            raise ValueError(
+                f"Batteria deve essere tra {BATTERIA_MIN} e {BATTERIA_MAX} V"
+            )
         return v
 
 
 class LetturaCreate(LetturaBase):
     """Creazione lettura"""
+
     id_arnia: int
     id_nodo: str
-    timestamp: Optional[datetime] = None
-    dati_raw: Optional[Dict[str, Any]] = None
+    timestamp: datetime | None = None
+    dati_raw: dict[str, Any] | None = None
 
 
 class LetturaResponse(LetturaBase):
     """Risposta con dati lettura"""
+
     id_lettura: int = Field(primary_key=True, sa_type=BigInteger)
     id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
     id_nodo: str = Field(sa_type=ID)
     timestamp: datetime = Field(sa_column_kwargs=NOW)
-    dati_raw: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+    dati_raw: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -394,9 +467,12 @@ class Lettura(LetturaResponse, table=True):
     __tablename__ = "letture"
     __table_args__ = (
         CheckConstraint(
-            in_range("temperatura", TEMPERATURA_MIN, TEMPERATURA_MAX), name="valid_temperatura"
+            in_range("temperatura", TEMPERATURA_MIN, TEMPERATURA_MAX),
+            name="valid_temperatura",
         ),
-        CheckConstraint(in_range("umidita", UMIDITA_MIN, UMIDITA_MAX), name="valid_umidita"),
+        CheckConstraint(
+            in_range("umidita", UMIDITA_MIN, UMIDITA_MAX), name="valid_umidita"
+        ),
         CheckConstraint(in_range("peso", PESO_MIN), name="valid_peso"),
         CheckConstraint(
             in_range("batteria", BATTERIA_MIN, BATTERIA_MAX), name="valid_batteria"
@@ -407,6 +483,7 @@ class Lettura(LetturaResponse, table=True):
 
 class SerieTemperaturaResponse(BaseModel):
     """Risposta serie storica temperatura"""
+
     timestamp: datetime
     temperatura: Decimal
 
@@ -415,6 +492,7 @@ class SerieTemperaturaResponse(BaseModel):
 
 class SerieUmiditaResponse(BaseModel):
     """Risposta serie storica umidita"""
+
     timestamp: datetime
     umidita: Decimal
 
@@ -423,6 +501,7 @@ class SerieUmiditaResponse(BaseModel):
 
 class SeriePesoResponse(BaseModel):
     """Risposta serie storica peso"""
+
     timestamp: datetime
     peso: Decimal
 
@@ -431,6 +510,7 @@ class SeriePesoResponse(BaseModel):
 
 class SerieBatteriaResponse(BaseModel):
     """Battery voltage time series."""
+
     timestamp: datetime
     batteria: Decimal
 
@@ -439,8 +519,9 @@ class SerieBatteriaResponse(BaseModel):
 
 class LettureQueryParams(BaseModel):
     """Parametri per query letture"""
-    data_inizio: Optional[datetime] = None
-    data_fine: Optional[datetime] = None
+
+    data_inizio: datetime | None = None
+    data_fine: datetime | None = None
     limit: int = Field(default=1000, ge=1, le=10000)
     offset: int = Field(default=0, ge=0)
 
@@ -449,32 +530,39 @@ class LettureQueryParams(BaseModel):
 # Attività
 # ============================================
 
+
 class AttivitaBase(SQLModel):
     """Base attività"""
+
     tipo_attivita: TipoAttivita = Field(sa_type=String(50))
-    descrizione: Optional[str] = Field(None, sa_type=Text)
-    dati: Optional[Dict[str, Any]] = Field(None, sa_type=JSONB)
+    descrizione: str | None = Field(None, sa_type=Text)
+    dati: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
 
 class AttivitaCreate(AttivitaBase):
     """Creazione attività"""
+
     id_arnia: int
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
 
 
 class AttivitaUpdate(BaseModel):
     """Aggiornamento attività"""
-    tipo_attivita: Optional[TipoAttivita] = None
-    descrizione: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    dati: Optional[Dict[str, Any]] = None
+
+    tipo_attivita: TipoAttivita | None = None
+    descrizione: str | None = None
+    timestamp: datetime | None = None
+    dati: dict[str, Any] | None = None
 
 
 class AttivitaResponse(AttivitaBase):
     """Risposta con dati attività"""
+
     id_log: int = Field(primary_key=True, sa_type=BigInteger)
     # Nullable on purpose: ON DELETE SET NULL keeps the entry when the account goes.
-    id_utente: Optional[int] = Field(None, foreign_key="utenti.id_utente", ondelete="SET NULL")
+    id_utente: int | None = Field(
+        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+    )
     id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
     timestamp: datetime = Field(sa_column_kwargs=NOW)
 
@@ -491,9 +579,10 @@ class LogAttivita(AttivitaResponse, table=True):
 
 class AttivitaQueryParams(BaseModel):
     """Parametri per query attività"""
-    data_inizio: Optional[datetime] = None
-    data_fine: Optional[datetime] = None
-    tipo_attivita: Optional[str] = None
+
+    data_inizio: datetime | None = None
+    data_fine: datetime | None = None
+    tipo_attivita: str | None = None
     limit: int = Field(default=100, ge=1, le=1000)
     offset: int = Field(default=0, ge=0)
 
@@ -502,8 +591,10 @@ class AttivitaQueryParams(BaseModel):
 # Associazione utente-arnia
 # ============================================
 
+
 class UtenteArniaCreate(BaseModel):
     """Associazione utente-arnia"""
+
     id_utente: int
     id_arnia: int
     permessi: Permesso = "read"
@@ -511,11 +602,12 @@ class UtenteArniaCreate(BaseModel):
 
 class UtenteArniaResponse(SQLModel):
     """Risposta associazione"""
+
     id: int = Field(primary_key=True)
     id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
     id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
     data_associazione: datetime = Field(sa_column_kwargs=NOW)
-    data_disassociazione: Optional[datetime] = None
+    data_disassociazione: datetime | None = None
     permessi: str = Field(sa_type=String(20), sa_column_kwargs=default("read"))
     attivo: bool = Field(sa_column_kwargs=TRUE)
 
@@ -525,8 +617,12 @@ class UtenteArniaResponse(SQLModel):
 class UtenteArnia(UtenteArniaResponse, table=True):
     __tablename__ = "utenti_arnie"
     __table_args__ = (
-        UniqueConstraint("id_utente", "id_arnia", name="utenti_arnie_id_utente_id_arnia_key"),
-        CheckConstraint(one_of("permessi", PERMESSI), name="utenti_arnie_permessi_check"),
+        UniqueConstraint(
+            "id_utente", "id_arnia", name="utenti_arnie_id_utente_id_arnia_key"
+        ),
+        CheckConstraint(
+            one_of("permessi", PERMESSI), name="utenti_arnie_permessi_check"
+        ),
         CheckConstraint(
             "data_disassociazione IS NULL OR data_disassociazione >= data_associazione",
             name="valid_association_dates",
@@ -538,37 +634,42 @@ class UtenteArnia(UtenteArniaResponse, table=True):
 # Token di sessione (no API shape)
 # ============================================
 
+
 class TokenSessione(SQLModel, table=True):
     """Unused on purpose: refresh tokens are stateless (#16). Kept for later."""
+
     __tablename__ = "token_sessione"
 
-    id_token: Optional[int] = Field(default=None, primary_key=True)
-    id_utente: Optional[int] = Field(
+    id_token: int | None = Field(default=None, primary_key=True)
+    id_utente: int | None = Field(
         default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
     )
     refresh_token: str = Field(sa_type=String(500), unique=True)
-    data_creazione: Optional[datetime] = Field(default=None, sa_column_kwargs=NOW)
+    data_creazione: datetime | None = Field(default=None, sa_column_kwargs=NOW)
     data_scadenza: datetime
-    revocato: Optional[bool] = Field(default=None, sa_column_kwargs=FALSE)
-    ip_address: Optional[str] = Field(default=None, sa_type=String(45))
-    user_agent: Optional[str] = Field(default=None, sa_type=Text)
+    revocato: bool | None = Field(default=None, sa_column_kwargs=FALSE)
+    ip_address: str | None = Field(default=None, sa_type=String(45))
+    user_agent: str | None = Field(default=None, sa_type=Text)
 
 
 # ============================================
 # Risposte generiche
 # ============================================
 
+
 class MessageResponse(BaseModel):
     """Messaggio generico"""
+
     message: str
-    detail: Optional[str] = None
+    detail: str | None = None
 
 
 class ErrorResponse(BaseModel):
     """Risposta errore"""
+
     error: str
-    detail: Optional[str] = None
-    code: Optional[int] = None
+    detail: str | None = None
+    code: int | None = None
 
 
 # Indexes are declared after the classes so they can name real columns, sort

@@ -231,6 +231,18 @@ docker-compose exec api pytest -m "not integration"  # no database needed
 See [`tests/README.md`](tests/README.md) for the two tiers, the fixtures and where a new
 test belongs.
 
+**Lint and format** with [Ruff](https://docs.astral.sh/ruff/), also in the container
+(config in `ruff.toml`, version pinned in `api/requirements-dev.txt`):
+
+```bash
+docker-compose exec api ruff check .          # lint (make lint runs both checks)
+docker-compose exec api ruff format --check . # formatting
+docker-compose exec api ruff check --fix .    # apply the safe fixes (make format)
+docker-compose exec api ruff format .         # reformat
+```
+
+New Alembic revisions are run through Ruff as they are generated (`alembic.ini`).
+
 **After changing a route, a schema or the payload shape**, regenerate the committed
 contract artifacts:
 
@@ -347,11 +359,12 @@ in `pyproject.toml` and a new entry in `CHANGELOG.md`. Merging that PR creates t
   left out of the changelog.
 - **To pick a version yourself**, put `Release-As: 2.0.0` in the body of a commit.
 
-Every pull request runs three checks, all of which should pass before merging:
+Every pull request runs four checks, all of which should pass before merging:
 
 - **`ci / test`**: the whole test suite against a throwaway PostgreSQL
   ([details](tests/README.md#running)). It includes the checks that the committed
   `api/openapi.json` and `mqtt_handler/mqtt-payload.schema.json` match the code.
+- **`ci / lint`**: `ruff check` and `ruff format --check` are clean.
 - **`ci / images`**: both Docker images still build.
 - **`pr-title`**: the PR title is a Conventional Commit, since it becomes the
   squashed commit release-please reads.

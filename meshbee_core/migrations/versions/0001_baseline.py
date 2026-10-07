@@ -15,15 +15,16 @@ describe; a later revision moves both into meshbee_core and drops them.
 `exec_driver_sql` rather than `op.execute`: the latter parses `:word` as a
 bind parameter, and the comments in this script are full of colons.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"
-down_revision: Union[str, Sequence[str], None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 SCHEMA = r"""
 -- ============================================
@@ -164,7 +165,7 @@ CREATE TABLE log_attivita (
     descrizione TEXT,
     dati JSONB, -- dati strutturati dell'attività
     CONSTRAINT valid_activity CHECK (tipo_attivita IN (
-        'ispezione', 'trattamento', 'raccolta_miele', 'nutrizione', 
+        'ispezione', 'trattamento', 'raccolta_miele', 'nutrizione',
         'sostituzione_regina', 'controllo_salute', 'manutenzione', 'altro'
     ))
 );
@@ -200,8 +201,8 @@ CREATE INDEX idx_token_revocato ON token_sessione(revocato);
 CREATE OR REPLACE FUNCTION aggiorna_ultimo_messaggio_nodo()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE nodi 
-    SET ultimo_messaggio = NEW.timestamp 
+    UPDATE nodi
+    SET ultimo_messaggio = NEW.timestamp
     WHERE id_nodo = NEW.id_nodo;
     RETURN NEW;
 END;
@@ -213,7 +214,7 @@ FOR EACH ROW
 EXECUTE FUNCTION aggiorna_ultimo_messaggio_nodo();
 
 CREATE OR REPLACE VIEW v_arnie_stato AS
-SELECT 
+SELECT
     a.id_arnia,
     a.id_nodo,
     a.id_sensore_fisico,
@@ -244,7 +245,13 @@ COMMENT ON TABLE log_attivita IS 'Registro interventi e attività degli apicolto
 """
 
 TABLES = (
-    "token_sessione", "log_attivita", "letture", "utenti_arnie", "arnie", "nodi", "utenti",
+    "token_sessione",
+    "log_attivita",
+    "letture",
+    "utenti_arnie",
+    "arnie",
+    "nodi",
+    "utenti",
 )
 
 

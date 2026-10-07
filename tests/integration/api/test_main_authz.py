@@ -7,6 +7,7 @@ refactor fails here, whatever else still works.
 The two failure modes are deliberately distinct: **401** means "authenticate and
 try again", **403** means "you are authenticated but not allowed".
 """
+
 import pytest
 
 # Reachable without a token and always 200. Login is public too, but answers 401
@@ -19,8 +20,11 @@ PUBLIC_OPEN = [
 # Admin-only: Depends(get_current_admin_user).
 ADMIN_ONLY = [
     ("get", "/api/admin/utenti", None),
-    ("post", "/api/admin/utenti",
-     {"email": "n@b.org", "nome": "N", "cognome": "C", "password": "secret123"}),
+    (
+        "post",
+        "/api/admin/utenti",
+        {"email": "n@b.org", "nome": "N", "cognome": "C", "password": "secret123"},
+    ),
     ("put", "/api/admin/utenti/1", {}),
     ("delete", "/api/admin/utenti/1", None),
     ("put", "/api/admin/utenti/1/password", {"new_password": "secret123"}),
@@ -34,7 +38,11 @@ ADMIN_ONLY = [
     ("get", "/api/admin/arnie/1", None),
     ("put", "/api/admin/arnie/1", {}),
     ("delete", "/api/admin/arnie/1", None),
-    ("post", "/api/admin/utenti-arnie", {"id_utente": 1, "id_arnia": 1, "permessi": "read"}),
+    (
+        "post",
+        "/api/admin/utenti-arnie",
+        {"id_utente": 1, "id_arnia": 1, "permessi": "read"},
+    ),
     ("delete", "/api/admin/utenti-arnie?id_utente=1&id_arnia=1", None),
     ("get", "/api/admin/letture", None),
     ("post", "/api/admin/letture", {"id_arnia": 1, "id_nodo": "NODE-X"}),
@@ -45,7 +53,11 @@ ADMIN_ONLY = [
 USER_GLOBAL = [
     ("get", "/api/auth/me", None),
     ("get", "/api/user/arnie", None),
-    ("put", "/api/user/password", {"new_password": "secret123", "current_password": "old"}),
+    (
+        "put",
+        "/api/user/password",
+        {"new_password": "secret123", "current_password": "old"},
+    ),
 ]
 
 # Scoped to {id_arnia}: guarded by check_user_arnia_access. `{}` is substituted.
@@ -58,7 +70,11 @@ ARNIA_SCOPED = [
     ("get", "/api/user/arnie/{}/letture/peso", None),
     ("get", "/api/user/arnie/{}/letture/batteria", None),
     ("get", "/api/user/arnie/{}/attivita", None),
-    ("post", "/api/user/arnie/{}/attivita", {"id_arnia": 1, "tipo_attivita": "ispezione"}),
+    (
+        "post",
+        "/api/user/arnie/{}/attivita",
+        {"id_arnia": 1, "tipo_attivita": "ispezione"},
+    ),
     ("patch", "/api/user/arnie/{}/attivita/1", {}),
     ("delete", "/api/user/arnie/{}/attivita/1", None),
 ]
@@ -132,7 +148,9 @@ def test_login_is_reachable_without_a_token(client):
 
 
 @pytest.mark.parametrize("method, path, body", ADMIN_ONLY, ids=ids(ADMIN_ONLY))
-def test_admin_endpoints_reject_a_regular_user(as_user, make_utente, method, path, body):
+def test_admin_endpoints_reject_a_regular_user(
+    as_user, make_utente, method, path, body
+):
     """A logged-in non-admin is refused by get_current_admin_user."""
     response = call(as_user(make_utente(ruolo="user")), method, path, body)
 
@@ -159,7 +177,9 @@ def test_arnia_endpoints_reject_a_user_without_an_association(
 ):
     """A user with no row in utenti_arnie cannot touch the arnia."""
     arnia = make_arnia()
-    response = call(as_user(make_utente()), method, path.format(arnia["id_arnia"]), body)
+    response = call(
+        as_user(make_utente()), method, path.format(arnia["id_arnia"]), body
+    )
 
     assert response.status_code == 403
 
@@ -175,10 +195,14 @@ def test_arnia_endpoints_admit_an_associated_user(
     assert response.status_code != 403
 
 
-def test_admins_reach_arnie_they_are_not_associated_with(as_user, make_utente, make_arnia):
+def test_admins_reach_arnie_they_are_not_associated_with(
+    as_user, make_utente, make_arnia
+):
     """check_user_arnia_access short-circuits for admins, so no association is needed."""
     arnia = make_arnia()
-    response = as_user(make_utente(ruolo="admin")).get(f"/api/user/arnie/{arnia['id_arnia']}")
+    response = as_user(make_utente(ruolo="admin")).get(
+        f"/api/user/arnie/{arnia['id_arnia']}"
+    )
 
     assert response.status_code == 200
 
@@ -212,7 +236,9 @@ def test_updating_an_arnia_requires_write_permission(as_user, utente_con_arnia):
 
 
 @pytest.mark.parametrize("method", ["patch", "delete"])
-def test_editing_an_activity_requires_write_permission(as_user, utente_con_arnia, db, method):
+def test_editing_an_activity_requires_write_permission(
+    as_user, utente_con_arnia, db, method
+):
     """
     Editing and deleting need "write", the same level creating one needs.
 

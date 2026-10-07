@@ -6,6 +6,7 @@ repositories read. Nothing at runtime connects the four — the model is
 deliberately *not* used to validate incoming messages — so this module is the
 only thing keeping them from drifting apart.
 """
+
 import json
 import re
 from pathlib import Path
