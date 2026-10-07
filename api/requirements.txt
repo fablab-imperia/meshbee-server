@@ -6,3 +6,7 @@ uvicorn[standard]==0.27.0
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
+# Transitive (starlette), pinned: anyio 4.15 deprecates `anyio.abc.BlockingPortal`,
+# which starlette 0.35's TestClient still uses, so every test run warned. Lift it
+# together with a fastapi/starlette upgrade.
+anyio==4.14.2

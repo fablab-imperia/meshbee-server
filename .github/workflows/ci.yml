@@ -20,7 +20,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     # The CI counterpart of the `postgres-test` compose service: throwaway, and
-    # the fixtures reload database/init.sql on every run, so it starts empty.
+    # the fixtures rebuild it with `alembic upgrade head` on every run.
     services:
       postgres:
         image: postgres:15-alpine
@@ -35,9 +35,8 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      # tests/conftest.py defaults to the compose hostname and the container path.
+      # tests/conftest.py defaults to the compose hostname.
       TEST_DB_HOST: localhost
-      TEST_DB_SCHEMA: database/init.sql
       # api/config.py builds Settings at import; these are the two fields with no
       # default. Dummy values — the tests never reach a real database or token.
       DB_PASSWORD: ci-not-a-secret
