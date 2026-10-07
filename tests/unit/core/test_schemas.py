@@ -4,6 +4,7 @@ Scope: the validation *we* declare — the custom email/lettura validators, the
 Field bounds, and the defaults that have to agree with meshbee_core/models.py.
 Pydantic's own machinery (required fields, datetime parsing) is not retested.
 """
+
 from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -43,7 +44,10 @@ def arnia(**overrides):
 def test_email_is_normalised():
     """Emails are trimmed and lowercased, so lookups match regardless of input casing."""
     user = UserCreate(
-        email="  ApiColtore@Example.ORG  ", nome="Giulia", cognome="Rossi", password="secret123"
+        email="  ApiColtore@Example.ORG  ",
+        nome="Giulia",
+        cognome="Rossi",
+        password="secret123",
     )
 
     assert user.email == "apicoltore@example.org"
@@ -61,11 +65,11 @@ def test_internal_domains_are_accepted():
 @pytest.mark.parametrize(
     "invalid_email",
     [
-        "no-at-sign",           # missing @
-        "@example.org",         # empty local part
-        "utente@",              # empty domain
-        "utente@nodot",         # domain without a dot
-        "",                     # empty string
+        "no-at-sign",  # missing @
+        "@example.org",  # empty local part
+        "utente@",  # empty domain
+        "utente@nodot",  # domain without a dot
+        "",  # empty string
     ],
 )
 def test_malformed_emails_are_rejected(invalid_email):
@@ -119,10 +123,16 @@ def test_userupdate_does_not_validate_the_email():
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("temperatura", "-50"), ("temperatura", "0"), ("temperatura", "100"),
-        ("umidita", "0"), ("umidita", "100"),
-        ("peso", "0"), ("peso", "42.5"),
-        ("batteria", "0"), ("batteria", "4.01"), ("batteria", "5"),
+        ("temperatura", "-50"),
+        ("temperatura", "0"),
+        ("temperatura", "100"),
+        ("umidita", "0"),
+        ("umidita", "100"),
+        ("peso", "0"),
+        ("peso", "42.5"),
+        ("batteria", "0"),
+        ("batteria", "4.01"),
+        ("batteria", "5"),
     ],
 )
 def test_readings_accept_values_inside_the_range(field, value):
@@ -135,10 +145,13 @@ def test_readings_accept_values_inside_the_range(field, value):
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("temperatura", "-50.01"), ("temperatura", "100.01"),
-        ("umidita", "-0.01"), ("umidita", "100.01"),
+        ("temperatura", "-50.01"),
+        ("temperatura", "100.01"),
+        ("umidita", "-0.01"),
+        ("umidita", "100.01"),
         ("peso", "-0.01"),
-        ("batteria", "-0.01"), ("batteria", "5.01"),
+        ("batteria", "-0.01"),
+        ("batteria", "5.01"),
     ],
 )
 def test_readings_reject_values_outside_the_range(field, value):
@@ -152,7 +165,10 @@ def test_readings_are_all_optional():
     lettura = LetturaBase()
 
     assert (lettura.temperatura, lettura.umidita, lettura.peso, lettura.batteria) == (
-        None, None, None, None
+        None,
+        None,
+        None,
+        None,
     )
 
 
@@ -164,8 +180,12 @@ def test_readings_are_all_optional():
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("latitudine", "-90"), ("latitudine", "90"), ("latitudine", "45.4642"),
-        ("longitudine", "-180"), ("longitudine", "180"), ("longitudine", "9.19"),
+        ("latitudine", "-90"),
+        ("latitudine", "90"),
+        ("latitudine", "45.4642"),
+        ("longitudine", "-180"),
+        ("longitudine", "180"),
+        ("longitudine", "9.19"),
     ],
 )
 def test_coordinates_accept_values_inside_the_range(field, value):
@@ -176,8 +196,10 @@ def test_coordinates_accept_values_inside_the_range(field, value):
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("latitudine", "-90.01"), ("latitudine", "90.01"),
-        ("longitudine", "-180.01"), ("longitudine", "180.01"),
+        ("latitudine", "-90.01"),
+        ("latitudine", "90.01"),
+        ("longitudine", "-180.01"),
+        ("longitudine", "180.01"),
     ],
 )
 def test_coordinates_reject_values_outside_the_range(field, value):
@@ -191,7 +213,9 @@ def test_coordinates_are_optional():
     assert arnia().latitudine is None
 
 
-@pytest.mark.parametrize("field, value", [("latitudine", "90.01"), ("longitudine", "180.01")])
+@pytest.mark.parametrize(
+    "field, value", [("latitudine", "90.01"), ("longitudine", "180.01")]
+)
 def test_arnia_update_applies_the_same_coordinate_bounds(field, value):
     """Editing an arnia cannot bypass the bounds that creation enforces."""
     with pytest.raises(ValidationError):
@@ -278,7 +302,10 @@ def test_a_password_bcrypt_would_truncate_is_refused_when_creating_a_user():
     """The byte cap applies on creation too, not only on change."""
     with pytest.raises(ValidationError):
         UserCreate(
-            email="a@b.org", nome="A", cognome="B", password="x" * (BCRYPT_MAX_BYTES + 1)
+            email="a@b.org",
+            nome="A",
+            cognome="B",
+            password="x" * (BCRYPT_MAX_BYTES + 1),
         )
 
 
@@ -323,7 +350,9 @@ def test_valid_roles_are_accepted(ruolo):
 def test_an_unknown_role_is_rejected(ruolo):
     """Anything outside the schema's CHECK fails validation, not the database."""
     with pytest.raises(ValidationError):
-        UserCreate(email="a@b.org", nome="A", cognome="B", password="secret123", ruolo=ruolo)
+        UserCreate(
+            email="a@b.org", nome="A", cognome="B", password="secret123", ruolo=ruolo
+        )
 
 
 def test_an_unknown_role_is_rejected_on_update():
@@ -335,7 +364,10 @@ def test_an_unknown_role_is_rejected_on_update():
 @pytest.mark.parametrize("permesso", ["read", "write", "admin"])
 def test_valid_permissions_are_accepted(permesso):
     """The three levels understood by check_user_arnia_access."""
-    assert UtenteArniaCreate(id_utente=1, id_arnia=1, permessi=permesso).permessi == permesso
+    assert (
+        UtenteArniaCreate(id_utente=1, id_arnia=1, permessi=permesso).permessi
+        == permesso
+    )
 
 
 @pytest.mark.parametrize("permesso", ["superuser", "readonly", "READ"])
@@ -348,8 +380,14 @@ def test_an_unknown_permission_is_rejected(permesso):
 @pytest.mark.parametrize(
     "tipo",
     [
-        "ispezione", "trattamento", "raccolta_miele", "nutrizione",
-        "sostituzione_regina", "controllo_salute", "manutenzione", "altro",
+        "ispezione",
+        "trattamento",
+        "raccolta_miele",
+        "nutrizione",
+        "sostituzione_regina",
+        "controllo_salute",
+        "manutenzione",
+        "altro",
     ],
 )
 def test_valid_activity_types_are_accepted(tipo):
@@ -386,11 +424,11 @@ def test_attivita_query_defaults():
 @pytest.mark.parametrize(
     "model, field, value",
     [
-        (LettureQueryParams, "limit", 0),        # below the minimum
-        (LettureQueryParams, "limit", 10001),    # above the cap
+        (LettureQueryParams, "limit", 0),  # below the minimum
+        (LettureQueryParams, "limit", 10001),  # above the cap
         (LettureQueryParams, "offset", -1),
         (AttivitaQueryParams, "limit", 0),
-        (AttivitaQueryParams, "limit", 1001),    # lower cap than letture
+        (AttivitaQueryParams, "limit", 1001),  # lower cap than letture
         (AttivitaQueryParams, "offset", -1),
     ],
 )

@@ -6,13 +6,13 @@ dependencies that turn one into a user. Who a password belongs to and what a
 user may do with an arnia live in `meshbee_core.services.auth`; this module
 opens the session and translates failures into status codes.
 """
-from datetime import datetime, timedelta
-from typing import Optional, Dict
-from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import logging
 
+import logging
+from datetime import datetime, timedelta
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
@@ -45,14 +45,14 @@ def database_unavailable_error(exc: Exception) -> HTTPException:
     )
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """
     Crea un JWT access token
-    
+
     Args:
         data: Dati da includere nel token
         expires_delta: Durata del token (default: da config)
-    
+
     Returns:
         Token JWT
     """
@@ -60,59 +60,73 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+        expire = datetime.utcnow() + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
+
     to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY.get_secret_value(), algorithm=settings.JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.JWT_SECRET_KEY.get_secret_value(),
+        algorithm=settings.JWT_ALGORITHM,
+    )
     return encoded_jwt
 
 
 def create_refresh_token(data: dict) -> str:
     """
     Crea un JWT refresh token
-    
+
     Args:
         data: Dati da includere nel token
-    
+
     Returns:
         Refresh token JWT
     """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY.get_secret_value(), algorithm=settings.JWT_ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.JWT_SECRET_KEY.get_secret_value(),
+        algorithm=settings.JWT_ALGORITHM,
+    )
     return encoded_jwt
 
 
-def decode_token(token: str) -> Dict:
+def decode_token(token: str) -> dict:
     """
     Decodifica un JWT token
-    
+
     Args:
         token: Token JWT
-    
+
     Returns:
         Payload del token
-    
+
     Raises:
         JWTError: Se il token non è valido
     """
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY.get_secret_value(), algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY.get_secret_value(),
+            algorithms=[settings.JWT_ALGORITHM],
+        )
         return payload
     except JWTError as e:
         logger.error(f"Errore decodifica token: {e}")
         raise
 
 
-def authenticate_user(email: str, password: str) -> Optional[Dict]:
+def authenticate_user(email: str, password: str) -> dict | None:
     """
     Autentica un utente
-    
+
     Args:
         email: Email dell'utente
         password: Password in chiaro
-    
+
     Returns:
         Dati utente se autenticazione riuscita, None altrimenti
     """
@@ -120,21 +134,21 @@ def authenticate_user(email: str, password: str) -> Optional[Dict]:
         with get_session() as session:
             return auth_service.authenticate(session, email, password)
     except SQLAlchemyError as e:
-        raise database_unavailable_error(e)
+        raise database_unavailable_error(e) from e
 
 
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict:
     """
     Dependency per ottenere l'utente corrente dal token JWT
-    
+
     Args:
         credentials: Credenziali HTTP Bearer
-    
+
     Returns:
         Dati dell'utente corrente
-    
+
     Raises:
         HTTPException: Se il token non è valido o l'utente non esiste
     """
@@ -151,20 +165,20 @@ def get_current_user(
     try:
         token = credentials.credentials
         payload = decode_token(token)
-        
+
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
-        
+
         # Verifica che sia un access token
         if payload.get("type") != "access":
             raise credentials_exception
-        
+
         token_data = TokenData(email=email)
-        
-    except JWTError:
-        raise credentials_exception
-    
+
+    except JWTError as e:
+        raise credentials_exception from e
+
     # Recupera utente dal database
     try:
         with get_session() as session:
@@ -177,47 +191,50 @@ def get_current_user(
     except HTTPException:
         raise
     except SQLAlchemyError as e:
-        raise database_unavailable_error(e)
+        raise database_unavailable_error(e) from e
 
 
-async def get_current_active_user(current_user: Dict = Depends(get_current_user)) -> Dict:
+async def get_current_active_user(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
     """
     Dependency per verificare che l'utente sia attivo
-    
+
     Args:
         current_user: Utente corrente
-    
+
     Returns:
         Dati dell'utente se attivo
-    
+
     Raises:
         HTTPException: Se l'utente non è attivo
     """
-    if not current_user.get('attivo'):
+    if not current_user.get("attivo"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Utente non attivo"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Utente non attivo"
         )
     return current_user
 
 
-async def get_current_admin_user(current_user: Dict = Depends(get_current_active_user)) -> Dict:
+async def get_current_admin_user(
+    current_user: dict = Depends(get_current_active_user),
+) -> dict:
     """
     Dependency per verificare che l'utente sia admin
-    
+
     Args:
         current_user: Utente corrente
-    
+
     Returns:
         Dati dell'utente se admin
-    
+
     Raises:
         HTTPException: Se l'utente non è admin
     """
-    if current_user.get('ruolo') != 'admin':
+    if current_user.get("ruolo") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permessi insufficienti - richiesto ruolo admin"
+            detail="Permessi insufficienti - richiesto ruolo admin",
         )
     return current_user
 
@@ -245,4 +262,4 @@ def check_user_arnia_access(
                 session, id_utente, id_arnia, required_permission
             )
     except SQLAlchemyError as e:
-        raise database_unavailable_error(e)
+        raise database_unavailable_error(e) from e

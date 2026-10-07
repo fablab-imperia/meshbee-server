@@ -10,6 +10,7 @@ Everything here goes through the real entry points — `handler.on_message` with
 real MQTT message object, and an HTTP request through the TestClient — so it
 fails if either stops routing through the shared service.
 """
+
 import json
 from types import SimpleNamespace
 
@@ -84,7 +85,11 @@ def test_a_reading_via_mqtt_and_via_the_api_produce_equivalent_rows(
 
     response = as_user(admin).post(
         "/api/admin/letture",
-        json={"id_arnia": arnia["id_arnia"], "id_nodo": arnia["id_nodo"], **MEASUREMENTS},
+        json={
+            "id_arnia": arnia["id_arnia"],
+            "id_nodo": arnia["id_nodo"],
+            **MEASUREMENTS,
+        },
     )
     assert response.status_code == 200
 
@@ -98,8 +103,9 @@ def test_a_reading_via_mqtt_and_via_the_api_produce_equivalent_rows(
         assert from_mqtt[column] == from_api[column], f"colonna divergente: {column}"
 
 
-def test_both_paths_write_the_measurements_they_were_given(db, deliver, as_user,
-                                                           make_utente, make_arnia):
+def test_both_paths_write_the_measurements_they_were_given(
+    db, deliver, as_user, make_utente, make_arnia
+):
     """Equivalence would be vacuous if both paths stored nothing."""
     arnia = make_arnia(id_nodo="NODE-PARITY")
 
@@ -117,8 +123,9 @@ def test_both_paths_write_the_measurements_they_were_given(db, deliver, as_user,
     assert row["id_nodo"] == arnia["id_nodo"]
 
 
-def test_both_paths_refuse_the_same_out_of_range_reading(db, deliver, as_user,
-                                                         make_utente, make_arnia):
+def test_both_paths_refuse_the_same_out_of_range_reading(
+    db, deliver, as_user, make_utente, make_arnia
+):
     """
     A value the API rejects is now also rejected on ingest.
 
@@ -135,7 +142,11 @@ def test_both_paths_refuse_the_same_out_of_range_reading(db, deliver, as_user,
 
     response = as_user(admin).post(
         "/api/admin/letture",
-        json={"id_arnia": arnia["id_arnia"], "id_nodo": arnia["id_nodo"], "temperatura": 500},
+        json={
+            "id_arnia": arnia["id_arnia"],
+            "id_nodo": arnia["id_nodo"],
+            "temperatura": 500,
+        },
     )
 
     assert response.status_code == 422
@@ -170,7 +181,10 @@ def test_ingest_provisions_the_arnia_the_api_would_have_refused(db, deliver):
     Same reading the API refuses above, arriving over MQTT, is stored — against
     a nodo and arnia the handler creates on the spot.
     """
-    deliver("beehive/NODE-NEW/data", {"id_sensore": "SENSOR-NEW", **on_the_wire(MEASUREMENTS)})
+    deliver(
+        "beehive/NODE-NEW/data",
+        {"id_sensore": "SENSOR-NEW", **on_the_wire(MEASUREMENTS)},
+    )
 
     db.execute("SELECT id_arnia FROM arnie WHERE id_nodo = %s", ("NODE-NEW",))
     created = db.fetchone()

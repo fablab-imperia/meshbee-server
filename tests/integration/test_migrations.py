@@ -10,6 +10,7 @@ once with `metadata.create_all()`, once with `upgrade head` — and compares the
 catalogs Postgres itself reports. Any difference, a CHECK body included, fails
 here with both versions printed.
 """
+
 import datetime
 
 import psycopg2
@@ -31,7 +32,9 @@ def scratch_schemas():
     connection.autocommit = True
     cursor = connection.cursor()
     for schema in (FROM_MODELS, FROM_MIGRATIONS):
-        cursor.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE; CREATE SCHEMA {schema}")
+        cursor.execute(
+            f"DROP SCHEMA IF EXISTS {schema} CASCADE; CREATE SCHEMA {schema}"
+        )
     try:
         yield cursor
     finally:
@@ -41,7 +44,9 @@ def scratch_schemas():
 
 
 def build_from_models(schema):
-    engine = create_engine(TEST_DB_URL, connect_args={"options": f"-csearch_path={schema}"})
+    engine = create_engine(
+        TEST_DB_URL, connect_args={"options": f"-csearch_path={schema}"}
+    )
     try:
         metadata.create_all(engine)
     finally:
@@ -57,9 +62,12 @@ def catalog(cursor, schema):
     is a difference. Postgres qualifies names from a schema that is not on the
     search_path, so the prefix is stripped to compare like for like.
     """
+
     def unqualified(rows):
         return sorted(
-            tuple(str(v).replace(f"{schema}.", "") if v is not None else None for v in row)
+            tuple(
+                str(v).replace(f"{schema}.", "") if v is not None else None for v in row
+            )
             for row in rows
         )
 
@@ -111,8 +119,11 @@ def catalog(cursor, schema):
     comments = unqualified(cursor.fetchall())
 
     return {
-        "columns": columns, "constraints": constraints, "indexes": indexes,
-        "comments": comments, "logic": logic(cursor, schema),
+        "columns": columns,
+        "constraints": constraints,
+        "indexes": indexes,
+        "comments": comments,
+        "logic": logic(cursor, schema),
     }
 
 
@@ -150,7 +161,10 @@ def test_migrations_build_the_schema_the_models_describe(scratch_schemas):
     build_from_models(FROM_MODELS)
     upgrade(TEST_DB_URL, search_path=FROM_MIGRATIONS)
 
-    models, migrations = catalog(scratch_schemas, FROM_MODELS), catalog(scratch_schemas, FROM_MIGRATIONS)
+    models, migrations = (
+        catalog(scratch_schemas, FROM_MODELS),
+        catalog(scratch_schemas, FROM_MIGRATIONS),
+    )
 
     for part in models:
         only_models = sorted(set(models[part]) - set(migrations[part]))
@@ -174,7 +188,9 @@ def test_the_migrated_database_holds_no_logic(scratch_schemas):
 
     assert logic(scratch_schemas, FROM_MIGRATIONS) == []
     # plpgsql ships with every database; anything else was installed by us.
-    scratch_schemas.execute("SELECT extname FROM pg_extension WHERE extname <> 'plpgsql'")
+    scratch_schemas.execute(
+        "SELECT extname FROM pg_extension WHERE extname <> 'plpgsql'"
+    )
     assert scratch_schemas.fetchall() == []
 
 
@@ -238,13 +254,17 @@ def test_0002_fills_nulls_without_reviving_anything(at_0001):
 
     # A NULL flag read as "not true" before, so it must stay off.
     assert row(at_0001, "SELECT ruolo, attivo, data_creazione::date FROM utenti") == (
-        "user", False, datetime.date(2024, 1, 2)
+        "user",
+        False,
+        datetime.date(2024, 1, 2),
     )
     assert row(at_0001, "SELECT attivo, data_registrazione::date FROM nodi") == (
-        False, datetime.date(2024, 3, 4)
+        False,
+        datetime.date(2024, 3, 4),
     )
     assert row(at_0001, "SELECT attiva, data_installazione::date FROM arnie") == (
-        False, datetime.date(2024, 3, 4)
+        False,
+        datetime.date(2024, 3, 4),
     )
     assert row(at_0001, "SELECT timestamp IS NOT NULL FROM log_attivita") == (True,)
     # A NULL permission granted nothing; it still grants nothing.
@@ -257,9 +277,13 @@ def test_0002_fills_nulls_without_reviving_anything(at_0001):
 
 def test_0002_refuses_rows_it_cannot_fill_and_changes_nothing(at_0001):
     at_0001.execute("INSERT INTO nodi (id_nodo) VALUES ('N1')")
-    at_0001.execute("INSERT INTO arnie (id_nodo, id_sensore_fisico) VALUES (NULL, 'S1')")
-    at_0001.execute("INSERT INTO utenti (email, password_hash, nome, cognome, ruolo)"
-                    " VALUES ('a@b.org', 'x', 'n', 'c', NULL)")
+    at_0001.execute(
+        "INSERT INTO arnie (id_nodo, id_sensore_fisico) VALUES (NULL, 'S1')"
+    )
+    at_0001.execute(
+        "INSERT INTO utenti (email, password_hash, nome, cognome, ruolo)"
+        " VALUES ('a@b.org', 'x', 'n', 'c', NULL)"
+    )
 
     with pytest.raises(RuntimeError, match="1 arnie without id_nodo"):
         upgrade(TEST_DB_URL, "0002", search_path=FROM_MIGRATIONS)

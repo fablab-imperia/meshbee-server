@@ -17,6 +17,7 @@ The output is sorted and indented so regenerating an unchanged contract produces
 an empty diff, and `tests/unit/mqtt_handler/test_contract.py` fails for as long
 as the committed file and the model disagree.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -73,7 +74,9 @@ def build_schema() -> dict:
 
 def render() -> str:
     """The exact bytes of the artifact, so a test can compare without guessing."""
-    return json.dumps(build_schema(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    return (
+        json.dumps(build_schema(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    )
 
 
 def export(destination: Path) -> None:

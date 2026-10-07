@@ -4,6 +4,7 @@ The database fields come from `meshbee_core.config.CoreSettings`; everything
 below is API-only and is deliberately *not* shared with the MQTT handler, which
 has no use for a JWT signing key.
 """
+
 from functools import lru_cache
 
 from pydantic import Field, SecretStr

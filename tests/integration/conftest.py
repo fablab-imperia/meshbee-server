@@ -3,6 +3,7 @@
 Every test in this package is marked `integration` automatically, so
 `pytest -m "not integration"` runs the rest of the suite without a database.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -95,8 +96,10 @@ def make_arnia(db):
 @pytest.fixture
 def make_lettura(db):
     """Insert a reading for an arnia at a given time."""
-    def _make(arnia, timestamp=None, temperatura=None, umidita=None, peso=None,
-              batteria=None):
+
+    def _make(
+        arnia, timestamp=None, temperatura=None, umidita=None, peso=None, batteria=None
+    ):
         db.execute(
             """
             INSERT INTO letture
@@ -104,8 +107,15 @@ def make_lettura(db):
             VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s, %s)
             RETURNING *
             """,
-            (arnia["id_arnia"], arnia["id_nodo"], timestamp, temperatura, umidita, peso,
-             batteria),
+            (
+                arnia["id_arnia"],
+                arnia["id_nodo"],
+                timestamp,
+                temperatura,
+                umidita,
+                peso,
+                batteria,
+            ),
         )
         return dict(db.fetchone())
 
@@ -115,7 +125,10 @@ def make_lettura(db):
 @pytest.fixture
 def make_attivita(db):
     """Insert an activity log row for an arnia, optionally authored by a user."""
-    def _make(arnia, utente=None, tipo_attivita="ispezione", descrizione=None, timestamp=None):
+
+    def _make(
+        arnia, utente=None, tipo_attivita="ispezione", descrizione=None, timestamp=None
+    ):
         db.execute(
             """
             INSERT INTO log_attivita (id_utente, id_arnia, timestamp, tipo_attivita, descrizione)
@@ -146,8 +159,7 @@ def client(use_db):
     reach the database through main's own queries and through the auth helpers
     (`check_user_arnia_access`, `authenticate_user`) it calls.
     """
-    from api import auth
-    from api import main
+    from api import auth, main
 
     use_db(main)
     use_db(auth)
@@ -177,6 +189,7 @@ def as_user(client):
 @pytest.fixture
 def utente_con_arnia(make_utente, make_arnia, grant_access):
     """A user, an arnia, and an active association at the given permission level."""
+
     def _make(permessi="read", ruolo="user"):
         utente = make_utente(ruolo=ruolo)
         arnia = make_arnia()
@@ -189,6 +202,7 @@ def utente_con_arnia(make_utente, make_arnia, grant_access):
 @pytest.fixture
 def grant_access(db):
     """Associate a user with an arnia at the given permission level."""
+
     def _grant(id_utente, id_arnia, permessi="read", attivo=True):
         db.execute(
             """

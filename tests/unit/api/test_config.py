@@ -4,6 +4,7 @@ The database half lives in meshbee_core and is covered by
 tests/unit/core/test_config.py; what matters here is the API-only fields and
 that subclassing really does carry the shared ones through.
 """
+
 import pytest
 from pydantic import ValidationError
 
@@ -60,7 +61,10 @@ def test_cors_origins_is_read_as_a_json_list(monkeypatch, required_env):
     """CORS_ORIGINS is a list field: the environment must carry a JSON array."""
     monkeypatch.setenv("CORS_ORIGINS", '["https://a.example", "https://b.example"]')
 
-    assert Settings(_env_file=None).CORS_ORIGINS == ["https://a.example", "https://b.example"]
+    assert Settings(_env_file=None).CORS_ORIGINS == [
+        "https://a.example",
+        "https://b.example",
+    ]
 
 
 def test_environment_lookup_is_case_sensitive(monkeypatch, required_env):

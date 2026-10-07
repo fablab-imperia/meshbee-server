@@ -11,13 +11,14 @@ changes all of them; the database follows through a migration (see
 Migrations are the one exception: a revision freezes the literal values it was
 written with, because replaying history must not change when a constant does.
 """
+
 from typing import Literal, get_args
 
 # Measurements, as stored in `letture` and sent by the nodes.
-TEMPERATURA_MIN, TEMPERATURA_MAX = -50, 100   # °C
-UMIDITA_MIN, UMIDITA_MAX = 0, 100             # %
-PESO_MIN = 0                                  # kg, no upper bound
-BATTERIA_MIN, BATTERIA_MAX = 0, 5             # V
+TEMPERATURA_MIN, TEMPERATURA_MAX = -50, 100  # °C
+UMIDITA_MIN, UMIDITA_MAX = 0, 100  # %
+PESO_MIN = 0  # kg, no upper bound
+BATTERIA_MIN, BATTERIA_MAX = 0, 5  # V
 
 # Decimal-degree coordinates of an arnia.
 LATITUDINE_MIN, LATITUDINE_MAX = -90, 90

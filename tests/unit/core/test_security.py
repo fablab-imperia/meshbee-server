@@ -1,4 +1,5 @@
 """Tests for password hashing (meshbee_core/security.py)."""
+
 import pytest
 
 from meshbee_core.security import get_password_hash, verify_password

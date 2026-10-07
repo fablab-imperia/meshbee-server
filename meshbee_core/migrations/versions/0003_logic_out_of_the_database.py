@@ -14,22 +14,23 @@ Create Date: 2026-10-07
 
 The downgrade recreates both exactly as the baseline defined them.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0003"
-down_revision: Union[str, Sequence[str], None] = "0002"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0002"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 TRIGGER = r"""
 CREATE OR REPLACE FUNCTION aggiorna_ultimo_messaggio_nodo()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE nodi 
-    SET ultimo_messaggio = NEW.timestamp 
+    UPDATE nodi
+    SET ultimo_messaggio = NEW.timestamp
     WHERE id_nodo = NEW.id_nodo;
     RETURN NEW;
 END;
@@ -43,7 +44,7 @@ EXECUTE FUNCTION aggiorna_ultimo_messaggio_nodo();
 
 VIEW = r"""
 CREATE OR REPLACE VIEW v_arnie_stato AS
-SELECT 
+SELECT
     a.id_arnia,
     a.id_nodo,
     a.id_sensore_fisico,

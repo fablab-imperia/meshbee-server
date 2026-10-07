@@ -1,4 +1,5 @@
 """PUT /api/user/password — a user changing their own password."""
+
 import bcrypt
 import pytest
 
@@ -12,7 +13,9 @@ def utente(make_utente, password_hash):
 
 
 def stored_hash(db, utente):
-    db.execute("SELECT password_hash FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
+    db.execute(
+        "SELECT password_hash FROM utenti WHERE id_utente = %s", (utente["id_utente"],)
+    )
     return db.fetchone()["password_hash"]
 
 
@@ -67,14 +70,18 @@ def test_omitting_the_current_password_is_refused(as_user, utente, db):
     """current_password is optional in the model but required by this endpoint."""
     before = stored_hash(db, utente)
 
-    response = as_user(utente).put("/api/user/password", json={"new_password": NEW_PASSWORD})
+    response = as_user(utente).put(
+        "/api/user/password", json={"new_password": NEW_PASSWORD}
+    )
 
     assert response.status_code == 400
     assert stored_hash(db, utente) == before
 
 
 @pytest.mark.parametrize("new_password", ["", "1234567"])
-def test_a_too_short_new_password_is_refused(as_user, utente, known_password, new_password):
+def test_a_too_short_new_password_is_refused(
+    as_user, utente, known_password, new_password
+):
     """The 8-character minimum from PasswordChange is enforced at the edge."""
     response = as_user(utente).put(
         "/api/user/password",
@@ -84,7 +91,9 @@ def test_a_too_short_new_password_is_refused(as_user, utente, known_password, ne
     assert response.status_code == 422
 
 
-def test_a_password_bcrypt_would_truncate_is_refused(as_user, utente, known_password, db):
+def test_a_password_bcrypt_would_truncate_is_refused(
+    as_user, utente, known_password, db
+):
     """
     Over 72 bytes is refused instead of being silently cut down.
 

@@ -1,4 +1,5 @@
 """Shared fixtures for the API test-suite."""
+
 import os
 from contextlib import contextmanager
 
@@ -43,6 +44,7 @@ def anyio_backend():
     awaited directly without pulling in pytest-asyncio.
     """
     return "asyncio"
+
 
 # The only settings without a default: every instance needs them. CoreSettings
 # requires just the database password; the API adds the JWT signing key.
@@ -89,6 +91,7 @@ def build_settings():
     `_env_file=None` disables the dotenv source: the result must not depend on
     whether a `.env` file happens to sit in the current working directory.
     """
+
     def _build(**overrides):
         return Settings(_env_file=None, **{**REQUIRED_ENV, **overrides})
 
@@ -98,6 +101,7 @@ def build_settings():
 @pytest.fixture
 def build_core_settings():
     """Build a CoreSettings instance — the database half, without the API extras."""
+
     def _build(**overrides):
         return CoreSettings(_env_file=None, **{**CORE_REQUIRED_ENV, **overrides})
 
@@ -165,6 +169,7 @@ def fake_session():
     Those take the session as an argument rather than opening one, so unlike
     the entry points they need no patching — just something to pass in.
     """
+
     def _make(rows=None):
         return FakeSession(rows)
 
@@ -186,6 +191,7 @@ def fake_db(monkeypatch):
         session = fake_db(auth, rows=["admin"])
         assert session.queries == []
     """
+
     def _install(module, rows=None, error=None):
         session = FakeSession(rows)
 
@@ -273,7 +279,9 @@ def db(db_connection):
     Tests state their fixtures and expectations in SQL on purpose: it checks
     the code under test against the database, not against itself.
     """
-    cursor = db_connection.connection.dbapi_connection.cursor(cursor_factory=RealDictCursor)
+    cursor = db_connection.connection.dbapi_connection.cursor(
+        cursor_factory=RealDictCursor
+    )
     try:
         yield cursor
     finally:
@@ -289,7 +297,9 @@ def savepoint_session(connection) -> Session:
     own work — while the outer transaction still discards everything.
     """
     return Session(
-        bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False
+        bind=connection,
+        join_transaction_mode="create_savepoint",
+        expire_on_commit=False,
     )
 
 
@@ -313,6 +323,7 @@ def use_db(monkeypatch, db_connection, db):
     `with get_session()` block gets a fresh session, as in production, so no
     identity map carries stale rows from one block to the next.
     """
+
     def _install(module):
         @contextmanager
         def _test_get_session():

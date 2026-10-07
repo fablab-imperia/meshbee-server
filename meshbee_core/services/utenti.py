@@ -1,5 +1,6 @@
 """User accounts: creation, updates, deactivation and passwords."""
-from typing import Any, Dict, List, Tuple
+
+from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
@@ -7,11 +8,11 @@ from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
 
 
-def list_utenti(session) -> List[Dict[str, Any]]:
+def list_utenti(session) -> list[dict[str, Any]]:
     return [dict(row) for row in utenti.list_all(session)]
 
 
-def create_utente(session, user) -> Dict[str, Any]:
+def create_utente(session, user) -> dict[str, Any]:
     """
     Raises:
         Conflict: se l'email è già registrata.
@@ -19,17 +20,19 @@ def create_utente(session, user) -> Dict[str, Any]:
     if utenti.find_id_by_email(session, user.email):
         raise Conflict("Email già registrata")
 
-    return dict(utenti.insert(
-        session,
-        email=user.email,
-        password_hash=get_password_hash(user.password),
-        nome=user.nome,
-        cognome=user.cognome,
-        ruolo=user.ruolo,
-    ))
+    return dict(
+        utenti.insert(
+            session,
+            email=user.email,
+            password_hash=get_password_hash(user.password),
+            nome=user.nome,
+            cognome=user.cognome,
+            ruolo=user.ruolo,
+        )
+    )
 
 
-def ensure_utente(session, user) -> Tuple[Dict[str, Any], bool]:
+def ensure_utente(session, user) -> tuple[dict[str, Any], bool]:
     """
     Create the account only if the address is not taken. Returns (row, created).
 
@@ -44,7 +47,7 @@ def ensure_utente(session, user) -> Tuple[Dict[str, Any], bool]:
     return create_utente(session, user), True
 
 
-def update_utente(session, id_utente: int, user_update) -> Dict[str, Any]:
+def update_utente(session, id_utente: int, user_update) -> dict[str, Any]:
     """
     Apply the fields that were actually supplied.
 
@@ -103,11 +106,15 @@ def reset_password(session, id_utente: int, new_password: str) -> None:
     Raises:
         NotFound: se l'utente non esiste.
     """
-    if not utenti.set_password_hash(session, id_utente, get_password_hash(new_password)):
+    if not utenti.set_password_hash(
+        session, id_utente, get_password_hash(new_password)
+    ):
         raise NotFound("Utente non trovato")
 
 
-def change_own_password(session, id_utente: int, current_password, new_password: str) -> None:
+def change_own_password(
+    session, id_utente: int, current_password, new_password: str
+) -> None:
     """
     Replace a password, proving knowledge of the current one.
 

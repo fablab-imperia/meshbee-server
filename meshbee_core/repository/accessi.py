@@ -1,5 +1,6 @@
 """Queries on `utenti_arnie`, the user-to-arnia association."""
-from typing import Any, Dict, Optional
+
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -10,7 +11,7 @@ from meshbee_core.models import UtenteArnia
 PAIR = ["id_utente", "id_arnia"]
 
 
-def active(session: Session, id_utente: int, id_arnia: int) -> Optional[UtenteArnia]:
+def active(session: Session, id_utente: int, id_arnia: int) -> UtenteArnia | None:
     return session.exec(
         select(UtenteArnia).where(
             UtenteArnia.id_utente == id_utente,
@@ -20,7 +21,9 @@ def active(session: Session, id_utente: int, id_arnia: int) -> Optional[UtenteAr
     ).first()
 
 
-def get_permesso(session: Session, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
+def get_permesso(
+    session: Session, id_utente: int, id_arnia: int
+) -> dict[str, Any] | None:
     """The permission level of an *active* association, or None if there is none."""
     association = active(session, id_utente, id_arnia)
     return {"permessi": association.permessi} if association else None
@@ -43,7 +46,9 @@ def upsert(session: Session, id_utente: int, id_arnia: int, permessi: str) -> No
     )
 
 
-def insert_if_absent(session: Session, id_utente: int, id_arnia: int, permessi: str) -> None:
+def insert_if_absent(
+    session: Session, id_utente: int, id_arnia: int, permessi: str
+) -> None:
     """
     Grant access only where none was ever recorded, leaving existing rows alone.
 
@@ -58,7 +63,9 @@ def insert_if_absent(session: Session, id_utente: int, id_arnia: int, permessi: 
     )
 
 
-def deactivate(session: Session, id_utente: int, id_arnia: int) -> Optional[Dict[str, Any]]:
+def deactivate(
+    session: Session, id_utente: int, id_arnia: int
+) -> dict[str, Any] | None:
     association = active(session, id_utente, id_arnia)
     if association is None:
         return None

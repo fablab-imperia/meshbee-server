@@ -6,13 +6,14 @@ Run by the one-shot `migrate` compose service before anything else touches the
 database: `api`, `mqtt-handler` and `seed` all wait for it to exit 0. Running it
 again is a no-op when the schema is already at head.
 """
+
 import logging
 import sys
 
 from meshbee_core.config import CoreSettings
 from meshbee_core.migrations import UnstampedDatabase, upgrade
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 

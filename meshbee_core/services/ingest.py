@@ -6,8 +6,9 @@ may start transmitting before anyone registered it, so the ingest path creates
 what it needs. The API's manual-insert endpoint refuses an unknown arnia
 instead, and that difference is intentional.
 """
+
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from meshbee_core.errors import NotFound
 from meshbee_core.repository import arnie, nodi
@@ -34,7 +35,7 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
     if id_sensore:
         found = arnie.find_id_by_nodo_sensore(session, id_nodo, id_sensore)
         if found:
-            return found['id_arnia']
+            return found["id_arnia"]
 
         created = arnie.insert(
             session,
@@ -43,11 +44,11 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
             nome_arnia=f"Arnia {id_nodo}-{id_sensore}",
         )
         logger.info(f"Creata nuova arnia: {created['id_arnia']}")
-        return created['id_arnia']
+        return created["id_arnia"]
 
     found = arnie.find_first_id_by_nodo(session, id_nodo)
     if found:
-        return found['id_arnia']
+        return found["id_arnia"]
 
     # Raising rather than returning None matters: the caller's session commits on
     # a clean exit, so a quiet return would persist the node upsert above. The
@@ -55,7 +56,7 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
     raise NotFound(f"Impossibile determinare id_arnia per nodo {id_nodo}")
 
 
-def record_node_reading(session, payload: Dict[str, Any]) -> Dict[str, Any]:
+def record_node_reading(session, payload: dict[str, Any]) -> dict[str, Any]:
     """
     Store one reading from a node, provisioning the nodo and arnia as needed,
     and stamp the node's `ultimo_messaggio` with the time it was received.
@@ -68,20 +69,25 @@ def record_node_reading(session, payload: Dict[str, Any]) -> Dict[str, Any]:
         NotFound: se l'arnia non è determinabile.
         InvalidData: se le misure non rispettano i limiti dichiarati.
     """
-    id_nodo = payload['id_nodo']
-    id_arnia = register_node_and_resolve_arnia(session, id_nodo, payload.get('id_sensore'))
+    id_nodo = payload["id_nodo"]
+    id_arnia = register_node_and_resolve_arnia(
+        session, id_nodo, payload.get("id_sensore")
+    )
 
-    lettura = letture.record_reading(session, {
-        'id_arnia': id_arnia,
-        'id_nodo': id_nodo,
-        'timestamp': payload.get('timestamp'),
-        'temperatura': payload.get('temperatura'),
-        'umidita': payload.get('umidita'),
-        'peso': payload.get('peso'),
-        # The wire key is `bat`; everything past this point calls it batteria.
-        'batteria': payload.get('bat'),
-        'dati_raw': payload.get('dati_raw'),
-    })
+    lettura = letture.record_reading(
+        session,
+        {
+            "id_arnia": id_arnia,
+            "id_nodo": id_nodo,
+            "timestamp": payload.get("timestamp"),
+            "temperatura": payload.get("temperatura"),
+            "umidita": payload.get("umidita"),
+            "peso": payload.get("peso"),
+            # The wire key is `bat`; everything past this point calls it batteria.
+            "batteria": payload.get("bat"),
+            "dati_raw": payload.get("dati_raw"),
+        },
+    )
     # After the reading, inside the same transaction: a message that is
     # refused rolls this back with everything else.
     nodi.touch_ultimo_messaggio(session, id_nodo)

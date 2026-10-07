@@ -1,4 +1,5 @@
 """Tests for the shared database settings (meshbee_core/config.py)."""
+
 from urllib.parse import unquote, urlsplit
 
 import pytest
@@ -80,8 +81,12 @@ def test_database_url_escapes_special_characters(build_core_settings):
     )
 
 
-@pytest.mark.parametrize("credential", ["beehive user", "p@ss:w/rd#1", "pa+ss", "a b+c%d"])
-def test_credentials_survive_the_round_trip_through_the_dsn(build_core_settings, credential):
+@pytest.mark.parametrize(
+    "credential", ["beehive user", "p@ss:w/rd#1", "pa+ss", "a b+c%d"]
+)
+def test_credentials_survive_the_round_trip_through_the_dsn(
+    build_core_settings, credential
+):
     """
     What a DSN parser reads back must be the credential we were given.
 

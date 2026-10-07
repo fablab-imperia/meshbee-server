@@ -8,6 +8,7 @@ created. These tests derive their cases from the published contract and assert
 that the schemas and the real database reject the same value, so a bound changed
 without a revision fails here instead of in production.
 """
+
 import re
 from decimal import Decimal
 from typing import get_args
@@ -220,7 +221,9 @@ def test_ruolo_values_accepted_by_the_schema(db, make_utente):
         make_utente(ruolo="utente")
 
 
-def test_permessi_values_accepted_by_the_schema(db, make_utente, make_arnia, grant_access):
+def test_permessi_values_accepted_by_the_schema(
+    db, make_utente, make_arnia, grant_access
+):
     """
     `utenti_arnie.permessi` is CHECK (permessi IN ('read','write','admin')).
 

@@ -4,6 +4,7 @@ Covers the two lookups the ingest path needs — which have no HTTP endpoint —
 the UNSET sentinel on `update`, which is what stops a user with write permission
 retiring a hive.
 """
+
 from meshbee_core.repository import arnie
 
 
@@ -11,7 +12,9 @@ def test_an_arnia_is_found_by_node_and_sensor(session, db, make_arnia):
     """How a reading is matched to the hive it came from."""
     arnia = make_arnia(id_nodo="NODE-LOOKUP")
 
-    found = arnie.find_id_by_nodo_sensore(session, "NODE-LOOKUP", arnia["id_sensore_fisico"])
+    found = arnie.find_id_by_nodo_sensore(
+        session, "NODE-LOOKUP", arnia["id_sensore_fisico"]
+    )
 
     assert found["id_arnia"] == arnia["id_arnia"]
 
@@ -20,7 +23,9 @@ def test_an_unknown_sensor_is_not_found(session, db, make_arnia):
     """A sensor id we have never seen is what triggers provisioning upstream."""
     make_arnia(id_nodo="NODE-LOOKUP")
 
-    assert arnie.find_id_by_nodo_sensore(session, "NODE-LOOKUP", "SENSOR-ABSENT") is None
+    assert (
+        arnie.find_id_by_nodo_sensore(session, "NODE-LOOKUP", "SENSOR-ABSENT") is None
+    )
 
 
 def test_the_sensor_lookup_is_scoped_to_its_node(session, db, make_arnia):
@@ -51,7 +56,10 @@ def test_the_first_arnia_of_a_node_is_the_lowest_id(session, db, make_arnia):
     first = make_arnia(id_nodo="NODE-MULTI")
     make_arnia(id_nodo="NODE-MULTI")
 
-    assert arnie.find_first_id_by_nodo(session, "NODE-MULTI")["id_arnia"] == first["id_arnia"]
+    assert (
+        arnie.find_first_id_by_nodo(session, "NODE-MULTI")["id_arnia"]
+        == first["id_arnia"]
+    )
 
 
 def test_a_node_with_no_arnie_resolves_to_nothing(session, db):

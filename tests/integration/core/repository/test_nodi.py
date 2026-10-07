@@ -4,6 +4,7 @@ Only `register_if_absent` is covered here: the rest of this module is exercised
 through the admin endpoints in tests/integration/api/. This one has no endpoint —
 it exists for the ingest path — so without this it would be untested.
 """
+
 from meshbee_core.repository import letture, nodi
 
 
@@ -95,8 +96,14 @@ def test_storing_a_reading_does_not_stamp_the_node(session, db, make_arnia):
     arnia = make_arnia(id_nodo="NODE-TALKING")
 
     letture.insert(
-        session, id_arnia=arnia["id_arnia"], id_nodo="NODE-TALKING", timestamp=None,
-        temperatura=20, umidita=None, peso=None, dati_raw=None,
+        session,
+        id_arnia=arnia["id_arnia"],
+        id_nodo="NODE-TALKING",
+        timestamp=None,
+        temperatura=20,
+        umidita=None,
+        peso=None,
+        dati_raw=None,
     )
 
     assert nodi.get(session, "NODE-TALKING")["ultimo_messaggio"] is None

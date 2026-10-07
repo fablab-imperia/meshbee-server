@@ -81,7 +81,7 @@ dell'SQL in `api/`, `mqtt_handler/` o `scripts/`, è finito nel posto sbagliato.
 aprono mai una.
 
 ```python
-with get_session() as session:           # un blocco == una transazione
+with get_session() as session:  # un blocco == una transazione
     utenti_service.create_utente(session, user)
 ```
 

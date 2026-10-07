@@ -7,6 +7,7 @@ that tells the caller nothing.
 Note each test triggers at most one violation: the first one aborts the
 transaction the `db` fixture holds, so nothing after it can query.
 """
+
 import pytest
 
 
@@ -28,7 +29,10 @@ def test_creating_a_user_with_a_taken_email_is_a_conflict(admin_client, make_ute
     response = admin_client.post(
         "/api/admin/utenti",
         json={
-            "email": existing["email"], "nome": "N", "cognome": "C", "password": "secret123",
+            "email": existing["email"],
+            "nome": "N",
+            "cognome": "C",
+            "password": "secret123",
         },
     )
 
@@ -71,7 +75,9 @@ def test_reusing_a_sensor_on_the_same_nodo_is_a_conflict(admin_client, make_arni
     assert response.status_code == 409
 
 
-def test_the_same_sensor_id_is_allowed_on_a_different_nodo(admin_client, make_arnia, db):
+def test_the_same_sensor_id_is_allowed_on_a_different_nodo(
+    admin_client, make_arnia, db
+):
     """The constraint is on the pair, so the conflict really is scoped to one node."""
     arnia = make_arnia()
     db.execute("INSERT INTO nodi (id_nodo, nome_nodo) VALUES ('NODE-ALTRO', 'Altro')")
@@ -143,7 +149,11 @@ def test_a_valid_association_still_succeeds(admin_client, make_utente, make_arni
 
     response = admin_client.post(
         "/api/admin/utenti-arnie",
-        json={"id_utente": utente["id_utente"], "id_arnia": arnia["id_arnia"], "permessi": "write"},
+        json={
+            "id_utente": utente["id_utente"],
+            "id_arnia": arnia["id_arnia"],
+            "permessi": "write",
+        },
     )
 
     assert response.status_code == 200
@@ -155,7 +165,11 @@ def test_a_valid_reading_still_succeeds(admin_client, make_arnia):
 
     response = admin_client.post(
         "/api/admin/letture",
-        json={"id_arnia": arnia["id_arnia"], "id_nodo": arnia["id_nodo"], "temperatura": "34.5"},
+        json={
+            "id_arnia": arnia["id_arnia"],
+            "id_nodo": arnia["id_nodo"],
+            "temperatura": "34.5",
+        },
     )
 
     assert response.status_code == 200

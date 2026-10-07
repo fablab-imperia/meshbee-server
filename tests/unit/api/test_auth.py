@@ -1,14 +1,14 @@
 """Tests for authentication and JWT handling (api/auth.py)."""
+
 from datetime import datetime, timedelta
 
 import pytest
-from sqlalchemy.exc import OperationalError
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from jose import JWTError, jwt
+from sqlalchemy.exc import OperationalError
 
 from api import auth
-from meshbee_core.security import get_password_hash
 from api.auth import (
     authenticate_user,
     check_user_arnia_access,
@@ -19,6 +19,7 @@ from api.auth import (
     get_current_admin_user,
     get_current_user,
 )
+from meshbee_core.security import get_password_hash
 
 PASSWORD = "correct-horse-battery-staple"
 
@@ -70,10 +71,14 @@ def test_refresh_token_is_tagged_as_a_refresh_token():
 
 def test_access_token_honours_an_explicit_lifetime():
     """An explicit expires_delta wins over the configured default."""
-    payload = decode_token(create_access_token({"sub": "a@b.org"}, timedelta(minutes=15)))
+    payload = decode_token(
+        create_access_token({"sub": "a@b.org"}, timedelta(minutes=15))
+    )
 
     expected = datetime.utcnow() + timedelta(minutes=15)
-    assert abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+    assert (
+        abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+    )
 
 
 def test_access_token_defaults_to_the_configured_lifetime(monkeypatch):
@@ -83,7 +88,9 @@ def test_access_token_defaults_to_the_configured_lifetime(monkeypatch):
     payload = decode_token(create_access_token({"sub": "a@b.org"}))
 
     expected = datetime.utcnow() + timedelta(minutes=90)
-    assert abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+    assert (
+        abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+    )
 
 
 def test_refresh_token_uses_the_configured_lifetime(monkeypatch):
@@ -93,7 +100,9 @@ def test_refresh_token_uses_the_configured_lifetime(monkeypatch):
     payload = decode_token(create_refresh_token({"sub": "a@b.org"}))
 
     expected = datetime.utcnow() + timedelta(days=3)
-    assert abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+    assert (
+        abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+    )
 
 
 def test_decode_token_rejects_an_expired_token():
@@ -106,7 +115,9 @@ def test_decode_token_rejects_an_expired_token():
 
 def test_decode_token_rejects_a_token_signed_with_another_key():
     """A token forged with a different secret does not validate against ours."""
-    forged = jwt.encode({"sub": "a@b.org", "type": "access"}, "another-secret", algorithm="HS256")
+    forged = jwt.encode(
+        {"sub": "a@b.org", "type": "access"}, "another-secret", algorithm="HS256"
+    )
 
     with pytest.raises(JWTError):
         decode_token(forged)
@@ -157,9 +168,7 @@ async def test_get_current_admin_user_rejects_a_regular_user(active_user):
 # Only the "database is unreachable" branches stay here: they need an injected
 # failure, which is far easier to stage with a fake than with a live server.
 
-OUTAGE = OperationalError(
-    "SELECT 1", {}, Exception("could not connect to server")
-)
+OUTAGE = OperationalError("SELECT 1", {}, Exception("could not connect to server"))
 
 
 def test_authenticate_user_reports_a_database_outage_as_unavailable(fake_db):

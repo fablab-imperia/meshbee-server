@@ -1,5 +1,6 @@
 """Queries on `log_attivita`."""
-from typing import Any, Dict, List, Optional
+
+from typing import Any
 
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -11,8 +12,14 @@ from meshbee_core.repository import as_dict, as_dicts
 UPDATABLE = ("timestamp", "tipo_attivita", "descrizione", "dati")
 
 
-def list_by_arnia(session: Session, id_arnia: int, data_inizio, data_fine, limit: int,
-                  tipo_attivita: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_by_arnia(
+    session: Session,
+    id_arnia: int,
+    data_inizio,
+    data_fine,
+    limit: int,
+    tipo_attivita: str | None = None,
+) -> list[dict[str, Any]]:
     query = select(LogAttivita).where(
         LogAttivita.id_arnia == id_arnia,
         LogAttivita.timestamp >= data_inizio,
@@ -21,37 +28,54 @@ def list_by_arnia(session: Session, id_arnia: int, data_inizio, data_fine, limit
     if tipo_attivita:
         query = query.where(LogAttivita.tipo_attivita == tipo_attivita)
 
-    return as_dicts(session.exec(
-        query.order_by(LogAttivita.timestamp.desc()).limit(limit)
-    ).all())
+    return as_dicts(
+        session.exec(query.order_by(LogAttivita.timestamp.desc()).limit(limit)).all()
+    )
 
 
-def list_all(session: Session, limit: int) -> List[Dict[str, Any]]:
-    return as_dicts(session.exec(
-        select(LogAttivita).order_by(LogAttivita.timestamp.desc()).limit(limit)
-    ).all())
+def list_all(session: Session, limit: int) -> list[dict[str, Any]]:
+    return as_dicts(
+        session.exec(
+            select(LogAttivita).order_by(LogAttivita.timestamp.desc()).limit(limit)
+        ).all()
+    )
 
 
 def count_for_arnia(session: Session, id_arnia: int) -> int:
     return session.exec(
-        select(func.count()).select_from(LogAttivita).where(LogAttivita.id_arnia == id_arnia)
+        select(func.count())
+        .select_from(LogAttivita)
+        .where(LogAttivita.id_arnia == id_arnia)
     ).one()
 
 
-def insert(session: Session, *, id_utente: Optional[int], id_arnia: int, timestamp,
-           tipo_attivita: str, descrizione: Optional[str],
-           dati: Optional[dict]) -> Dict[str, Any]:
+def insert(
+    session: Session,
+    *,
+    id_utente: int | None,
+    id_arnia: int,
+    timestamp,
+    tipo_attivita: str,
+    descrizione: str | None,
+    dati: dict | None,
+) -> dict[str, Any]:
     """A null timestamp defaults to now, in the database."""
     voce = LogAttivita(
-        id_utente=id_utente, id_arnia=id_arnia, timestamp=timestamp,
-        tipo_attivita=tipo_attivita, descrizione=descrizione, dati=dati or None,
+        id_utente=id_utente,
+        id_arnia=id_arnia,
+        timestamp=timestamp,
+        tipo_attivita=tipo_attivita,
+        descrizione=descrizione,
+        dati=dati or None,
     )
     session.add(voce)
     session.flush()
     return as_dict(voce)
 
 
-def owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optional[LogAttivita]:
+def owned(
+    session: Session, id_log: int, id_arnia: int, id_utente: int
+) -> LogAttivita | None:
     return session.exec(
         select(LogAttivita).where(
             LogAttivita.id_log == id_log,
@@ -61,18 +85,22 @@ def owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optio
     ).first()
 
 
-def find_owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optional[Dict[str, Any]]:
+def find_owned(
+    session: Session, id_log: int, id_arnia: int, id_utente: int
+) -> dict[str, Any] | None:
     """Ownership probe: the activity must belong to both this arnia and this user."""
     voce = owned(session, id_log, id_arnia, id_utente)
     return {"id_log": voce.id_log} if voce else None
 
 
-def get_all_columns(session: Session, id_log: int) -> Optional[Dict[str, Any]]:
+def get_all_columns(session: Session, id_log: int) -> dict[str, Any] | None:
     """Every column, for the empty-patch path that returns the row unchanged."""
     return as_dict(session.get(LogAttivita, id_log))
 
 
-def update(session: Session, id_log: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def update(
+    session: Session, id_log: int, updates: dict[str, Any]
+) -> dict[str, Any] | None:
     unknown = set(updates) - set(UPDATABLE)
     if unknown:
         raise ValueError(f"Colonne non aggiornabili: {sorted(unknown)}")
@@ -86,7 +114,9 @@ def update(session: Session, id_log: int, updates: Dict[str, Any]) -> Optional[D
     return as_dict(voce)
 
 
-def delete_owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optional[Dict[str, Any]]:
+def delete_owned(
+    session: Session, id_log: int, id_arnia: int, id_utente: int
+) -> dict[str, Any] | None:
     voce = owned(session, id_log, id_arnia, id_utente)
     if voce is None:
         return None

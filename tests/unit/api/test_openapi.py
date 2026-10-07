@@ -4,6 +4,7 @@ Other repositories link to the committed file as the API contract, and the
 exporter runs by hand — so a route or schema change that skips
 `scripts.export_openapi` would leave the contract silently stale.
 """
+
 from pathlib import Path
 
 from scripts.export_openapi import DEFAULT_OUTPUT, render

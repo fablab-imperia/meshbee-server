@@ -1,4 +1,5 @@
 """Tests for GET /health (api/main.py)."""
+
 from sqlalchemy.exc import OperationalError
 
 from api import main

@@ -2,6 +2,7 @@
 Alembic environment: compare against `meshbee_core.models`, connect to the URL
 the caller supplied, or to the one `CoreSettings` builds from the environment.
 """
+
 from alembic import context
 from sqlalchemy import create_engine, pool
 
@@ -33,7 +34,9 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     search_path = config.attributes.get("search_path")
     connect_args = {"options": f"-csearch_path={search_path}"} if search_path else {}
-    engine = create_engine(database_url(), poolclass=pool.NullPool, connect_args=connect_args)
+    engine = create_engine(
+        database_url(), poolclass=pool.NullPool, connect_args=connect_args
+    )
 
     with engine.connect() as connection:
         context.configure(

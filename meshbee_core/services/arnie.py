@@ -1,36 +1,37 @@
 """Hives, and the state that carries their latest readings."""
-from typing import Any, Dict, List
+
+from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, NotFound
 from meshbee_core.repository import arnie
 
 
-def list_for_utente(session, current_user) -> List[Dict[str, Any]]:
+def list_for_utente(session, current_user) -> list[dict[str, Any]]:
     """
     Every active arnia for an admin, only the associated ones for a user.
 
     The admin branch is not a shortcut around the association table: an admin
     is expected to see hives nobody has been granted access to yet.
     """
-    if current_user['ruolo'] == 'admin':
+    if current_user["ruolo"] == "admin":
         rows = arnie.list_stato_attive(session)
     else:
-        rows = arnie.list_stato_for_utente(session, current_user['id_utente'])
+        rows = arnie.list_stato_for_utente(session, current_user["id_utente"])
     return [dict(row) for row in rows]
 
 
-def list_all(session) -> List[Dict[str, Any]]:
+def list_all(session) -> list[dict[str, Any]]:
     """Every arnia including the retired ones — the admin inventory."""
     return [dict(row) for row in arnie.list_stato(session)]
 
 
-def list_ids(session) -> List[int]:
+def list_ids(session) -> list[int]:
     """Every arnia id, oldest first — for callers that only need to iterate."""
     return [row["id_arnia"] for row in arnie.list_ids(session)]
 
 
-def get_arnia(session, id_arnia: int) -> Dict[str, Any]:
+def get_arnia(session, id_arnia: int) -> dict[str, Any]:
     """
     Raises:
         NotFound: se l'arnia non esiste.
@@ -41,7 +42,7 @@ def get_arnia(session, id_arnia: int) -> Dict[str, Any]:
     return dict(row)
 
 
-def create_arnia(session, arnia) -> Dict[str, Any]:
+def create_arnia(session, arnia) -> dict[str, Any]:
     """
     Raises:
         Conflict: se il sensore è già registrato per quel nodo.
@@ -50,23 +51,30 @@ def create_arnia(session, arnia) -> Dict[str, Any]:
     conflict = Conflict(
         f"Sensore '{arnia.id_sensore_fisico}' già registrato per il nodo '{arnia.id_nodo}'"
     )
-    with integrity_errors(unique=conflict, foreign_key=NotFound(f"Nodo '{arnia.id_nodo}' non trovato")):
-        return dict(arnie.insert(
-            session,
-            id_nodo=arnia.id_nodo,
-            id_sensore_fisico=arnia.id_sensore_fisico,
-            # Same default the ingest path uses, so a hive created either way
-            # is named identically.
-            nome_arnia=arnia.nome_arnia or f"Arnia {arnia.id_nodo}-{arnia.id_sensore_fisico}",
-            descrizione=arnia.descrizione,
-            posizione=arnia.posizione,
-            latitudine=arnia.latitudine,
-            longitudine=arnia.longitudine,
-            metadati=arnia.metadati,
-        ))
+    with integrity_errors(
+        unique=conflict, foreign_key=NotFound(f"Nodo '{arnia.id_nodo}' non trovato")
+    ):
+        return dict(
+            arnie.insert(
+                session,
+                id_nodo=arnia.id_nodo,
+                id_sensore_fisico=arnia.id_sensore_fisico,
+                # Same default the ingest path uses, so a hive created either way
+                # is named identically.
+                nome_arnia=arnia.nome_arnia
+                or f"Arnia {arnia.id_nodo}-{arnia.id_sensore_fisico}",
+                descrizione=arnia.descrizione,
+                posizione=arnia.posizione,
+                latitudine=arnia.latitudine,
+                longitudine=arnia.longitudine,
+                metadati=arnia.metadati,
+            )
+        )
 
 
-def update_arnia(session, id_arnia: int, arnia, *, allow_attiva: bool = False) -> Dict[str, Any]:
+def update_arnia(
+    session, id_arnia: int, arnia, *, allow_attiva: bool = False
+) -> dict[str, Any]:
     """
     Apply the supplied fields; unmentioned ones keep their stored value.
 
@@ -79,7 +87,8 @@ def update_arnia(session, id_arnia: int, arnia, *, allow_attiva: bool = False) -
     optional = {"attiva": arnia.attiva} if allow_attiva else {}
 
     row = arnie.update(
-        session, id_arnia,
+        session,
+        id_arnia,
         nome_arnia=arnia.nome_arnia,
         descrizione=arnia.descrizione,
         posizione=arnia.posizione,

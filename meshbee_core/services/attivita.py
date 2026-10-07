@@ -1,19 +1,23 @@
 """The beekeeper's activity log."""
-from typing import Any, Dict, List
+
+from typing import Any
 
 from meshbee_core.errors import NotFound
 from meshbee_core.repository import attivita
 from meshbee_core.services.letture import default_window
 
 
-def list_for_arnia(session, id_arnia: int, data_inizio, data_fine, limit: int,
-                   tipo_attivita=None) -> List[Dict[str, Any]]:
+def list_for_arnia(
+    session, id_arnia: int, data_inizio, data_fine, limit: int, tipo_attivita=None
+) -> list[dict[str, Any]]:
     data_inizio, data_fine = default_window(data_inizio, data_fine)
-    rows = attivita.list_by_arnia(session, id_arnia, data_inizio, data_fine, limit, tipo_attivita)
+    rows = attivita.list_by_arnia(
+        session, id_arnia, data_inizio, data_fine, limit, tipo_attivita
+    )
     return [dict(row) for row in rows]
 
 
-def list_all(session, limit: int) -> List[Dict[str, Any]]:
+def list_all(session, limit: int) -> list[dict[str, Any]]:
     return [dict(row) for row in attivita.list_all(session, limit)]
 
 
@@ -22,26 +26,29 @@ def count_for_arnia(session, id_arnia: int) -> int:
     return attivita.count_for_arnia(session, id_arnia)
 
 
-def create_attivita(session, id_utente: int, id_arnia: int, nuova) -> Dict[str, Any]:
+def create_attivita(session, id_utente: int, id_arnia: int, nuova) -> dict[str, Any]:
     """
     Record an activity against an arnia.
 
     The arnia comes from the path, not the body: a user with write access to one
     hive must not be able to file an entry against another by editing the JSON.
     """
-    return dict(attivita.insert(
-        session,
-        id_utente=id_utente,
-        id_arnia=id_arnia,
-        timestamp=nuova.timestamp,
-        tipo_attivita=nuova.tipo_attivita,
-        descrizione=nuova.descrizione,
-        dati=nuova.dati,
-    ))
+    return dict(
+        attivita.insert(
+            session,
+            id_utente=id_utente,
+            id_arnia=id_arnia,
+            timestamp=nuova.timestamp,
+            tipo_attivita=nuova.tipo_attivita,
+            descrizione=nuova.descrizione,
+            dati=nuova.dati,
+        )
+    )
 
 
-def update_attivita(session, id_log: int, id_arnia: int, id_utente: int,
-                    changes) -> Dict[str, Any]:
+def update_attivita(
+    session, id_log: int, id_arnia: int, id_utente: int, changes
+) -> dict[str, Any]:
     """
     Edit one's own activity entry.
 
