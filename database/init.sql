@@ -107,10 +107,12 @@ CREATE TABLE letture (
     temperatura DECIMAL(5,2),
     umidita DECIMAL(5,2),
     peso DECIMAL(10,3),
+    batteria DECIMAL(4,3), -- node battery voltage (V); payload key `bat`
     dati_raw JSONB, -- per altri sensori o dati aggiuntivi
     CONSTRAINT valid_temperatura CHECK (temperatura IS NULL OR (temperatura >= -50 AND temperatura <= 100)),
     CONSTRAINT valid_umidita CHECK (umidita IS NULL OR (umidita >= 0 AND umidita <= 100)),
-    CONSTRAINT valid_peso CHECK (peso IS NULL OR peso >= 0)
+    CONSTRAINT valid_peso CHECK (peso IS NULL OR peso >= 0),
+    CONSTRAINT valid_batteria CHECK (batteria IS NULL OR (batteria >= 0 AND batteria <= 5))
 );
 
 -- Indici per performance su query temporali
@@ -266,7 +268,9 @@ SELECT
     (SELECT temperatura FROM letture WHERE id_arnia = a.id_arnia ORDER BY timestamp DESC LIMIT 1) as ultima_temperatura,
     (SELECT umidita   FROM letture WHERE id_arnia = a.id_arnia ORDER BY timestamp DESC LIMIT 1) as ultima_umidita,
     (SELECT peso      FROM letture WHERE id_arnia = a.id_arnia ORDER BY timestamp DESC LIMIT 1) as ultimo_peso,
-    (SELECT timestamp FROM letture WHERE id_arnia = a.id_arnia ORDER BY timestamp DESC LIMIT 1) as ultimo_aggiornamento
+    (SELECT timestamp FROM letture WHERE id_arnia = a.id_arnia ORDER BY timestamp DESC LIMIT 1) as ultimo_aggiornamento,
+    -- Appended last so migrate_v5.sql can CREATE OR REPLACE without a DROP.
+    (SELECT batteria  FROM letture WHERE id_arnia = a.id_arnia ORDER BY timestamp DESC LIMIT 1) as ultima_batteria
 FROM arnie a
 LEFT JOIN nodi n ON a.id_nodo = n.id_nodo;
 

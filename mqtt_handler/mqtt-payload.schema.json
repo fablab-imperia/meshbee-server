@@ -4,9 +4,15 @@
   "additionalProperties": true,
   "description": "One reading published by a node to beehive/<id_nodo>/data. Generated from mqtt_handler/contract.py in meshbee-server; the code that consumes it is mqtt_handler/payload.py. Every field is optional and unknown fields are preserved, so adding one is a backwards-compatible change. No field carries a payload version yet; see the contract docs for the planned versioning scheme.",
   "properties": {
+    "bat": {
+      "description": "Node battery voltage in V. Out of range drops the whole message.",
+      "maximum": 5.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
     "dati_raw": {
       "additionalProperties": true,
-      "description": "Anything else the firmware wants to keep — battery voltage, RSSI, and so on. Stored verbatim as JSONB.",
+      "description": "Anything else the firmware wants to keep — RSSI and so on. Stored verbatim as JSONB.",
       "type": "object"
     },
     "id_nodo": {

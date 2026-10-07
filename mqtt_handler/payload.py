@@ -67,5 +67,6 @@ def parse_message(topic: str, raw: bytes) -> Dict[str, Any]:
         'temperatura': data.get('temperatura'),
         'umidita': data.get('umidita'),
         'peso': data.get('peso'),
+        'bat': data.get('bat'),
         'dati_raw': data.get('dati_raw'),
     }

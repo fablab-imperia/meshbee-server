@@ -110,6 +110,7 @@ def test_the_measurements_are_passed_through_untouched():
         "temperatura": 34.5,
         "umidita": 65.0,
         "peso": 42.35,
+        "bat": 4.01,
         "dati_raw": {"rssi": -70},
     }))
 
@@ -117,6 +118,7 @@ def test_the_measurements_are_passed_through_untouched():
     assert parsed["temperatura"] == 34.5
     assert parsed["umidita"] == 65.0
     assert parsed["peso"] == 42.35
+    assert parsed["bat"] == 4.01
     assert parsed["dati_raw"] == {"rssi": -70}
 
 
@@ -130,3 +132,21 @@ def test_an_out_of_range_measurement_still_parses():
     parsed = parse_message(TOPIC, encode({"temperatura": 500}))
 
     assert parsed["temperatura"] == 500
+
+
+def test_the_esp32_payload_parses_as_sent():
+    """
+    The real firmware sends every measurement as a string, plus keys we ignore.
+
+    Strings pass through as-is — LetturaCreate turns them into Decimals — and
+    `receiver` / `alarm` are dropped rather than stored.
+    """
+    parsed = parse_message(TOPIC, encode({
+        "id_nodo": "1234", "id_sensore": "2", "temperatura": "28.69",
+        "umidita": "0.00", "peso": "0.00", "receiver": "1111", "alarm": "0",
+        "bat": "4.01",
+    }))
+
+    assert parsed["bat"] == "4.01"
+    assert parsed["temperatura"] == "28.69"
+    assert "receiver" not in parsed and "alarm" not in parsed

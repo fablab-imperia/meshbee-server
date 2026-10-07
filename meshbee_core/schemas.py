@@ -218,6 +218,7 @@ class ArniaConStato(ArniaResponse):
     ultima_temperatura: Optional[Decimal] = None
     ultima_umidita: Optional[Decimal] = None
     ultimo_peso: Optional[Decimal] = None
+    ultima_batteria: Optional[Decimal] = None
     ultimo_aggiornamento: Optional[datetime] = None
     latitudine: Optional[Decimal] = None
     longitudine: Optional[Decimal] = None
@@ -232,6 +233,7 @@ class LetturaBase(BaseModel):
     temperatura: Optional[Decimal] = None
     umidita: Optional[Decimal] = None
     peso: Optional[Decimal] = None
+    batteria: Optional[Decimal] = None
     
     @field_validator('temperatura')
     @classmethod
@@ -252,6 +254,13 @@ class LetturaBase(BaseModel):
     def validate_peso(cls, v):
         if v is not None and v < 0:
             raise ValueError('Peso deve essere positivo')
+        return v
+
+    @field_validator('batteria')
+    @classmethod
+    def validate_batteria(cls, v):
+        if v is not None and (v < 0 or v > 5):
+            raise ValueError('Batteria deve essere tra 0 e 5 V')
         return v
 
 
@@ -294,6 +303,14 @@ class SeriePesoResponse(BaseModel):
     """Risposta serie storica peso"""
     timestamp: datetime
     peso: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SerieBatteriaResponse(BaseModel):
+    """Battery voltage time series."""
+    timestamp: datetime
+    batteria: Decimal
 
     model_config = ConfigDict(from_attributes=True)
 

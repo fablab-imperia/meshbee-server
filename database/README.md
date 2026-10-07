@@ -16,6 +16,7 @@ they are the vocabulary of the project, not an accident of translation.
 | `migrate_v2.sql` | Coordinates in, alarms out. |
 | `migrate_v3.sql` | Rebuild of `v_arnie_stato` with the full column list. |
 | `migrate_v4.sql` | Removal of the `sensori` table and the unused views. |
+| `migrate_v5.sql` | Node battery voltage: `letture.batteria`. |
 
 **`init.sql` runs only once, on an empty volume.** On every later start PostgreSQL sees
 an initialised data directory and ignores it entirely — this is the single most
@@ -92,9 +93,10 @@ bypasses this table entirely.
 | `temperatura` | DECIMAL(5,2) | CHECK −50..100 |
 | `umidita` | DECIMAL(5,2) | CHECK 0..100 |
 | `peso` | DECIMAL(10,3) | CHECK ≥ 0 |
+| `batteria` | DECIMAL(4,3) | CHECK 0..5. Node battery voltage in V — the payload key is `bat`. |
 | `dati_raw` | JSONB | Anything else the firmware wants to keep. |
 
-All three measurements are nullable: a node that only carries a scale is valid.
+All four measurements are nullable: a node that only carries a scale is valid.
 Indexes: `id_arnia`, `timestamp DESC`, the composite `(id_arnia, timestamp DESC)` that
 every chart query uses, and `id_nodo`.
 
@@ -120,8 +122,8 @@ right shape for the feature when it lands (revocation, `ip_address`, `user_agent
 ## View
 
 **`v_arnie_stato` is the only view**, and it earns its place: `arnie LEFT JOIN nodi`
-plus four correlated subqueries for the latest `temperatura`, `umidita`, `peso` and
-`timestamp`. That is what `GET /api/user/arnie` returns — a hive list where each row
+plus five correlated subqueries for the latest `temperatura`, `umidita`, `peso`,
+`timestamp` and `batteria` (last, so a migration can append it). That is what `GET /api/user/arnie` returns — a hive list where each row
 already carries its current state.
 
 There is no `v_letture_recenti` and there are no `v_serie_*` views; they existed until
@@ -172,7 +174,7 @@ docker-compose exec -T postgres psql -U beehive_user -d beehive_iot < database/m
 **Do both**: a migration for existing installations *and* the same change in
 `init.sql`, which stays the description of a fresh database. Wrap a migration in
 `BEGIN`/`COMMIT`, make it idempotent, and end it with a query that verifies the result
-— all three existing migrations do.
+— all four existing migrations do.
 
 `init.sql` does not drift, because the integration test suite drops the schema and
 reloads it from this file **on every run**. A statement that no longer parses fails
@@ -185,6 +187,7 @@ the whole suite.
 | `migrate_v2.sql` | Added `latitudine`/`longitudine` with their CHECKs; **removed the alarms feature** entirely (table `allarmi`, view `v_allarmi_attivi`, function `controlla_soglie_allarmi`, trigger `trigger_controlla_allarmi`); rebuilt `v_arnie_stato` with coordinates; created the `v_serie_*` views. |
 | `migrate_v3.sql` | Dropped and recreated `v_arnie_stato` with the full, correctly ordered column list — `CREATE OR REPLACE VIEW` cannot reorder or insert columns. |
 | `migrate_v4.sql` | Dropped the `sensori` table (guarded: it raises if the table holds rows) and the four unused views (`v_serie_temperatura`, `v_serie_umidita`, `v_serie_peso`, `v_letture_recenti`). |
+| `migrate_v5.sql` | Added `letture.batteria` (DECIMAL(4,3), CHECK 0..5) and appended `ultima_batteria` to `v_arnie_stato`. |
 
 Alarms were removed in v2 and are not coming back in this shape: thresholds belong
 where they can be configured per hive, not hard-coded in a trigger.

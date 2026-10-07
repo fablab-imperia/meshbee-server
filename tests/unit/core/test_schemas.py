@@ -122,6 +122,7 @@ def test_userupdate_does_not_validate_the_email():
         ("temperatura", "-50"), ("temperatura", "0"), ("temperatura", "100"),
         ("umidita", "0"), ("umidita", "100"),
         ("peso", "0"), ("peso", "42.5"),
+        ("batteria", "0"), ("batteria", "4.01"), ("batteria", "5"),
     ],
 )
 def test_readings_accept_values_inside_the_range(field, value):
@@ -137,6 +138,7 @@ def test_readings_accept_values_inside_the_range(field, value):
         ("temperatura", "-50.01"), ("temperatura", "100.01"),
         ("umidita", "-0.01"), ("umidita", "100.01"),
         ("peso", "-0.01"),
+        ("batteria", "-0.01"), ("batteria", "5.01"),
     ],
 )
 def test_readings_reject_values_outside_the_range(field, value):
@@ -149,7 +151,9 @@ def test_readings_are_all_optional():
     """A node reporting only some sensors is valid."""
     lettura = LetturaBase()
 
-    assert (lettura.temperatura, lettura.umidita, lettura.peso) == (None, None, None)
+    assert (lettura.temperatura, lettura.umidita, lettura.peso, lettura.batteria) == (
+        None, None, None, None
+    )
 
 
 # ============================================

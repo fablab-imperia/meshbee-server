@@ -71,6 +71,7 @@ class BeehiveMQTTHandler:
             "temperatura": 34.5,
             "umidita": 65.0,
             "peso": 42.350,
+            "bat": 4.01,  # opzionale, tensione batteria (V)
             "dati_raw": {...}  # opzionale, altri dati
         }
         """
@@ -99,7 +100,8 @@ class BeehiveMQTTHandler:
             f"(nodo: {lettura['id_nodo']}, "
             f"T: {lettura['temperatura']}°C, "
             f"H: {lettura['umidita']}%, "
-            f"W: {lettura['peso']}kg)"
+            f"W: {lettura['peso']}kg, "
+            f"B: {lettura['batteria']}V)"
         )
 
     def run(self):

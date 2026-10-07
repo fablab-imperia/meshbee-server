@@ -56,6 +56,7 @@ ARNIA_SCOPED = [
     ("get", "/api/user/arnie/{}/letture/temperatura", None),
     ("get", "/api/user/arnie/{}/letture/umidita", None),
     ("get", "/api/user/arnie/{}/letture/peso", None),
+    ("get", "/api/user/arnie/{}/letture/batteria", None),
     ("get", "/api/user/arnie/{}/attivita", None),
     ("post", "/api/user/arnie/{}/attivita", {"id_arnia": 1, "tipo_attivita": "ispezione"}),
     ("patch", "/api/user/arnie/{}/attivita/1", {}),

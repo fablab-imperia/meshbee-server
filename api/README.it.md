@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 36 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 37 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -24,7 +24,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-36 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+37 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -52,14 +52,15 @@ Tutto quello sotto `/api/user/arnie/{id_arnia}` è protetto su quell'arnia.
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + `read` | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | utente + `read` | Solo `{timestamp, umidita}`. |
 | GET | `/api/user/arnie/{id_arnia}/letture/peso` | utente + `read` | Solo `{timestamp, peso}`. |
+| GET | `/api/user/arnie/{id_arnia}/letture/batteria` | utente + `read` | Solo `{timestamp, batteria}` — tensione della batteria del nodo. |
 | GET | `/api/user/arnie/{id_arnia}/attivita` | utente + `read` | Log attività. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
 | POST | `/api/user/arnie/{id_arnia}/attivita` | utente + `write` | Registra un'attività. |
 | PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + `write` | Modifica un'attività — **solo le proprie**. |
 | DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + `write` | Elimina un'attività — **solo le proprie**. |
 | PUT | `/api/user/password` | utente | Cambia la propria password. Richiede `current_password`. |
 
-I tre endpoint di serie esistono perché a un grafico servono due colonne su una riga di
-otto; scartano le righe in cui il campo è NULL. L'elenco dei campi accettati è una
+I quattro endpoint di serie esistono perché a un grafico servono due colonne su una riga di
+nove; scartano le righe in cui il campo è NULL. L'elenco dei campi accettati è una
 whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stringhe.
 
 ### Admin

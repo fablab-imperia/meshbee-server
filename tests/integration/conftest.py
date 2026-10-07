@@ -95,14 +95,17 @@ def make_arnia(db):
 @pytest.fixture
 def make_lettura(db):
     """Insert a reading for an arnia at a given time."""
-    def _make(arnia, timestamp=None, temperatura=None, umidita=None, peso=None):
+    def _make(arnia, timestamp=None, temperatura=None, umidita=None, peso=None,
+              batteria=None):
         db.execute(
             """
-            INSERT INTO letture (id_arnia, id_nodo, timestamp, temperatura, umidita, peso)
-            VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s)
+            INSERT INTO letture
+                (id_arnia, id_nodo, timestamp, temperatura, umidita, peso, batteria)
+            VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s, %s)
             RETURNING *
             """,
-            (arnia["id_arnia"], arnia["id_nodo"], timestamp, temperatura, umidita, peso),
+            (arnia["id_arnia"], arnia["id_nodo"], timestamp, temperatura, umidita, peso,
+             batteria),
         )
         return dict(db.fetchone())
 

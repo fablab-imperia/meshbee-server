@@ -103,6 +103,17 @@
             ],
             "title": "Posizione"
           },
+          "ultima_batteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultima Batteria"
+          },
           "ultima_temperatura": {
             "anyOf": [
               {
@@ -671,6 +682,20 @@
       "LetturaCreate": {
         "description": "Creazione lettura",
         "properties": {
+          "batteria": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batteria"
+          },
           "dati_raw": {
             "anyOf": [
               {
@@ -755,6 +780,17 @@
       "LetturaResponse": {
         "description": "Risposta con dati lettura",
         "properties": {
+          "batteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batteria"
+          },
           "dati_raw": {
             "anyOf": [
               {
@@ -1015,6 +1051,26 @@
           "new_password"
         ],
         "title": "PasswordChange",
+        "type": "object"
+      },
+      "SerieBatteriaResponse": {
+        "description": "Battery voltage time series.",
+        "properties": {
+          "batteria": {
+            "title": "Batteria",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "batteria"
+        ],
+        "title": "SerieBatteriaResponse",
         "type": "object"
       },
       "SeriePesoResponse": {
@@ -2954,6 +3010,110 @@
           }
         ],
         "summary": "Get User Letture",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/letture/batteria": {
+      "get": {
+        "description": "Battery voltage time series for one hive's node.\nReturns only timestamp and batteria, shaped for charts.",
+        "operationId": "get_serie_batteria_api_user_arnie__id_arnia__letture_batteria_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data inizio (default: 1 anno fa)",
+            "in": "query",
+            "name": "data_inizio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data inizio (default: 1 anno fa)",
+              "title": "Data Inizio"
+            }
+          },
+          {
+            "description": "Data fine (default: ora)",
+            "in": "query",
+            "name": "data_fine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Data fine (default: ora)",
+              "title": "Data Fine"
+            }
+          },
+          {
+            "description": "Numero massimo di letture",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "description": "Numero massimo di letture",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SerieBatteriaResponse"
+                  },
+                  "title": "Response Get Serie Batteria Api User Arnie  Id Arnia  Letture Batteria Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Serie Batteria",
         "tags": [
           "Utente"
         ]

@@ -45,11 +45,12 @@ SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 ID_MAX_LENGTH = 50
 
 # The third copy of the ranges on meshbee_core.schemas.LetturaBase and of the
-# valid_temperatura / valid_umidita / valid_peso CHECK constraints. Nothing links
+# valid_temperatura / valid_umidita / valid_peso / valid_batteria CHECK constraints. Nothing links
 # the three — tests/integration/core/test_schemas.py derives its cases from here.
 TEMPERATURA_MIN, TEMPERATURA_MAX = -50, 100
 UMIDITA_MIN, UMIDITA_MAX = 0, 100
 PESO_MIN = 0
+BATTERIA_MIN, BATTERIA_MAX = 0, 5
 
 
 class MqttPayload(BaseModel):
@@ -108,6 +109,16 @@ class MqttPayload(BaseModel):
         ge=PESO_MIN,
         description="Hive weight in kg. Out of range drops the whole message.",
     )
+    # The firmware's key is `bat`; it is stored as `letture.batteria`. The
+    # rename happens in meshbee_core.services.ingest, not on the wire.
+    bat: float = Field(
+        default=None,
+        ge=BATTERIA_MIN,
+        le=BATTERIA_MAX,
+        description=(
+            "Node battery voltage in V. Out of range drops the whole message."
+        ),
+    )
     dati_raw: Dict[str, Any] = Field(
         default=None,
         # A `Dict[str, Any]` renders as a bare `{"type": "object"}` — pydantic
@@ -116,7 +127,7 @@ class MqttPayload(BaseModel):
         # point rather than an accident.
         json_schema_extra={"additionalProperties": True},
         description=(
-            "Anything else the firmware wants to keep — battery voltage, RSSI, "
-            "and so on. Stored verbatim as JSONB."
+            "Anything else the firmware wants to keep — RSSI and so on. "
+            "Stored verbatim as JSONB."
         ),
     )

@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 36 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 37 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -25,7 +25,7 @@ here.
 
 ## Endpoints
 
-36 operations. `Auth` says what a request must carry:
+37 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -53,14 +53,15 @@ Everything under `/api/user/arnie/{id_arnia}` is gated on that arnia.
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + `read` | `{timestamp, temperatura}` only — sized for charts. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | user + `read` | `{timestamp, umidita}` only. |
 | GET | `/api/user/arnie/{id_arnia}/letture/peso` | user + `read` | `{timestamp, peso}` only. |
+| GET | `/api/user/arnie/{id_arnia}/letture/batteria` | user + `read` | `{timestamp, batteria}` only — node battery voltage. |
 | GET | `/api/user/arnie/{id_arnia}/attivita` | user + `read` | Activity log. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
 | POST | `/api/user/arnie/{id_arnia}/attivita` | user + `write` | Record an activity. |
 | PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + `write` | Edit an activity — **only your own**. |
 | DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + `write` | Delete an activity — **only your own**. |
 | PUT | `/api/user/password` | user | Change your own password. Requires `current_password`. |
 
-The three series endpoints exist because a chart needs two columns out of a row of
-eight; they drop rows where the field is NULL. The list of fields they accept is a
+The four series endpoints exist because a chart needs two columns out of a row of
+nine; they drop rows where the field is NULL. The list of fields they accept is a
 whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 
 ### Admin
