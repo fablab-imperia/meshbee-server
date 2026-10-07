@@ -24,7 +24,7 @@ class Settings(CoreSettings):
 
     # API
     API_TITLE: str = "Meshbee API"
-    API_VERSION: str = "1.1.1"
+    API_VERSION: str = "1.2.0"
     API_DESCRIPTION: str = "Meshbee API - Open beehive telemetry server API"
 
     # CORS — from the environment, pass a JSON list: CORS_ORIGINS=["https://example.org"]
