@@ -4,18 +4,19 @@ Autenticazione e gestione JWT
 The HTTP half of authentication: minting and reading tokens, and the FastAPI
 dependencies that turn one into a user. Who a password belongs to and what a
 user may do with an arnia live in `meshbee_core.services.auth`; this module
-opens the cursor and translates failures into status codes.
+opens the session and translates failures into status codes.
 """
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from jose import JWTError, jwt
-import psycopg2
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from api.config import settings
-from meshbee_core.db import get_db_cursor
+from meshbee_core.db import get_session
 from meshbee_core.schemas import Permesso, TokenData
 from meshbee_core.services import auth as auth_service
 
@@ -116,13 +117,13 @@ def authenticate_user(email: str, password: str) -> Optional[Dict]:
         Dati utente se autenticazione riuscita, None altrimenti
     """
     try:
-        with get_db_cursor() as cursor:
-            return auth_service.authenticate(cursor, email, password)
-    except psycopg2.Error as e:
+        with get_session() as session:
+            return auth_service.authenticate(session, email, password)
+    except SQLAlchemyError as e:
         raise database_unavailable_error(e)
 
 
-async def get_current_user(
+def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Dict:
     """
@@ -166,8 +167,8 @@ async def get_current_user(
     
     # Recupera utente dal database
     try:
-        with get_db_cursor() as cursor:
-            user = auth_service.get_utente_by_email(cursor, token_data.email)
+        with get_session() as session:
+            user = auth_service.get_utente_by_email(session, token_data.email)
 
             if user is None:
                 raise credentials_exception
@@ -175,7 +176,7 @@ async def get_current_user(
             return user
     except HTTPException:
         raise
-    except psycopg2.Error as e:
+    except SQLAlchemyError as e:
         raise database_unavailable_error(e)
 
 
@@ -239,9 +240,9 @@ def check_user_arnia_access(
         ValueError: Se required_permission non è un permesso conosciuto
     """
     try:
-        with get_db_cursor() as cursor:
+        with get_session() as session:
             return auth_service.has_arnia_access(
-                cursor, id_utente, id_arnia, required_permission
+                session, id_utente, id_arnia, required_permission
             )
-    except psycopg2.Error as e:
+    except SQLAlchemyError as e:
         raise database_unavailable_error(e)

@@ -63,7 +63,7 @@ per source module — `meshbee_core/config.py` → `tests/unit/core/test_config.
 password handling, permission arithmetic, payload parsing.
 
 **Integration** is for everything whose substance *is* SQL — column names, joins,
-parameter order, CHECK constraints. A fake cursor only ever proves that we passed a
+parameter order, CHECK constraints. A fake session only ever proves that we built a
 string to `execute()`; it cannot tell you the string was wrong. So: **if the thing you
 are testing is a query, it belongs in `integration/`.**
 
@@ -110,17 +110,25 @@ be testing compose's environment, not the code**.
 
 ### Database
 
-- `fake_db(module, rows=[...], error=...)` — unit tier. Patches `get_db_cursor` **on the
+- `fake_db(module, rows=[...], error=...)` — unit tier. Patches `get_session` **on the
   importing module** (`api.auth`, `api.main`, `mqtt_handler.handler`), because each one
   holds its own reference and patching `meshbee_core.db` does nothing. `.queries`
-  records `(sql, params)`; `error=` simulates an outage.
-- `db` / `use_db(module)` — integration tier, same seam. `db` wraps each test in a
-  transaction that is rolled back afterwards.
-- `fake_cursor(rows=[...])` — a bare cursor to *pass in*. Repository and service
-  functions take a cursor rather than opening one, so they need no patching at all.
+  records every statement passed to `exec`/`get`, `.added` every object passed to
+  `add` (the INSERTs); `error=` simulates an outage.
+- `fake_session(rows=[...])` — a bare `FakeSession` to *pass in*. Repository and
+  service functions take a session rather than opening one, so they need no patching.
+- `db_connection` — integration tier: one connection per test, inside a transaction
+  that is rolled back afterwards. Two fixtures run on it, so each sees the other's
+  writes:
+  - `db` — a raw `RealDictCursor`. Tests state their setup and expectations in SQL, so
+    the code under test is checked against the database, not against itself.
+  - `session` — a session on a SAVEPOINT, to pass to repository and service functions.
+- `use_db(module)` — integration tier, same seam as `fake_db`: every
+  `with get_session()` block in the module gets a fresh session on its own SAVEPOINT,
+  committing or rolling back exactly as in production.
 
-The single seam is the point: patching `get_db_cursor` once covers a whole request,
-because the cursor flows on into the service and repository calls unchanged.
+The single seam is the point: patching `get_session` once covers a whole request,
+because the session flows on into the service and repository calls unchanged.
 
 ### HTTP
 

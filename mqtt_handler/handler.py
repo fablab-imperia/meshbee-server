@@ -3,7 +3,7 @@
 MQTT Handler per Sistema IoT Arnie
 Riceve messaggi MQTT dai nodi e li salva nel database PostgreSQL
 
-Thin entry point: the callback parses the payload, opens a cursor and calls one
+Thin entry point: the callback parses the payload, opens a session and calls one
 service in `meshbee_core`. There is no SQL here — the same service backs the
 API's manual-insert endpoint, so the two paths cannot drift.
 """
@@ -14,7 +14,7 @@ import time
 
 import paho.mqtt.client as mqtt
 
-from meshbee_core.db import close_db_pool, get_db_cursor, init_db_pool
+from meshbee_core.db import close_db_pool, get_session, init_db_pool
 from meshbee_core.errors import CoreError
 from meshbee_core.services import ingest
 from mqtt_handler.config import get_settings
@@ -84,11 +84,11 @@ class BeehiveMQTTHandler:
             return
 
         try:
-            with get_db_cursor() as cursor:
-                lettura = ingest.record_node_reading(cursor, payload)
+            with get_session() as session:
+                lettura = ingest.record_node_reading(session, payload)
         except CoreError as exc:
             # An unresolvable arnia or an out-of-range measurement. Expected
-            # enough to report without a traceback; the cursor has rolled back.
+            # enough to report without a traceback; the session has rolled back.
             logger.error(f"Lettura scartata: {exc}")
             return
         except Exception as exc:

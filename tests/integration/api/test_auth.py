@@ -83,10 +83,9 @@ def test_authenticate_user_rejects_a_wrong_password(db, utente):
 # ============================================
 
 
-@pytest.mark.anyio
-async def test_get_current_user_resolves_a_valid_access_token(db, utente):
+def test_get_current_user_resolves_a_valid_access_token(db, utente):
     """The lookup query returns every column the endpoint layer expects."""
-    result = await get_current_user(bearer(create_access_token({"sub": utente["email"]})))
+    result = get_current_user(bearer(create_access_token({"sub": utente["email"]})))
 
     assert result["id_utente"] == utente["id_utente"]
     # Selected by name in auth.py: a renamed column would break these.
@@ -98,17 +97,15 @@ async def test_get_current_user_resolves_a_valid_access_token(db, utente):
     assert "password_hash" not in result
 
 
-@pytest.mark.anyio
-async def test_get_current_user_rejects_a_refresh_token(db, utente):
+def test_get_current_user_rejects_a_refresh_token(db, utente):
     """A refresh token must not be usable as an access token."""
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(bearer(create_refresh_token({"sub": utente["email"]})))
+        get_current_user(bearer(create_refresh_token({"sub": utente["email"]})))
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-@pytest.mark.anyio
-async def test_get_current_user_rejects_a_user_deactivated_since_issuing(
+def test_get_current_user_rejects_a_user_deactivated_since_issuing(
     db, use_db, make_utente, password_hash
 ):
     """A still-valid token stops working once the account is deactivated."""
@@ -116,19 +113,18 @@ async def test_get_current_user_rejects_a_user_deactivated_since_issuing(
     inactive = make_utente(password_hash=password_hash, attivo=False)
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(bearer(create_access_token({"sub": inactive["email"]})))
+        get_current_user(bearer(create_access_token({"sub": inactive["email"]})))
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-@pytest.mark.anyio
-async def test_get_current_user_rejects_a_deleted_user(db, utente):
+def test_get_current_user_rejects_a_deleted_user(db, utente):
     """A token for an account that no longer exists is refused."""
     token = create_access_token({"sub": utente["email"]})
     db.execute("DELETE FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_user(bearer(token))
+        get_current_user(bearer(token))
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 

@@ -24,7 +24,7 @@ scripts/ ───────┘
 | Percorso | Cos'è |
 |---|---|
 | `config.py` | `CoreSettings` — i campi del database, e nient'altro. |
-| `db.py` | Il pool di connessioni psycopg2 e `get_db_cursor()`. |
+| `db.py` | L'engine SQLAlchemy, `get_session()` e `integrity_errors()`. |
 | `limits.py` | Ogni limite e insieme di valori, dichiarato una volta sola. Letto dai tre qui sotto e da `mqtt_handler/contract.py`. |
 | `models.py` | Lo schema del database, come classi tabella SQLModel. La fonte da cui migra Alembic. |
 | `migrations/` | Alembic: `env.py`, `upgrade()` e le revisioni. Vedi [`database/`](../database/README.it.md#cambiare-lo-schema). |
@@ -62,9 +62,10 @@ scripts/ ───────┘
 La stratificazione è il motivo per cui questo package esiste, e vale la pena dirla
 chiaramente:
 
-- **`repository/` = tabelle e query.** Nessuna decisione, nessuna validazione, nessun
-  errore oltre a quelli del driver. Ogni funzione prende un `cursor` come primo
-  argomento.
+- **`repository/` = tabelle e query**, scritte sui modelli di `models.py`. Nessuna
+  decisione, nessuna validazione, nessun errore oltre a quelli del database. Ogni
+  funzione prende una `session` come primo argomento, fa flush di ciò che scrive e
+  restituisce dizionari semplici — mai un'istanza di modello legata alla sessione.
 - **`services/` = decisioni di Meshbee.** Chiamano il repository e sollevano
   `errors.NotFound` / `Conflict` / `InvalidData`. **Mai `HTTPException`** — un service
   non sa di essere chiamato via HTTP, e lo stesso codice lo chiama l'handler MQTT.
@@ -75,20 +76,31 @@ Quindi: la logica nuova va in un service; l'SQL nuovo in un repository; una rott
 un topic nuovo sono una chiamata sottile a un service che esiste già. **Se compare
 dell'SQL in `api/`, `mqtt_handler/` o `scripts/`, è finito nel posto sbagliato.**
 
-## Ciclo di vita del cursore
+## Ciclo di vita della sessione
 
-**La transazione è del chiamante.** Service e repository ricevono un cursore e non ne
-aprono mai uno.
+**La transazione è del chiamante.** Service e repository ricevono una sessione e non ne
+aprono mai una.
 
 ```python
-with get_db_cursor() as cursor:          # un blocco == una transazione
-    utenti_service.create_utente(cursor, user)
+with get_session() as session:           # un blocco == una transazione
+    utenti_service.create_utente(session, user)
 ```
 
-`get_db_cursor()` prende in prestito una connessione dal pool, restituisce un
-`RealDictCursor` (le righe arrivano come dizionari) e in uscita fa **commit se
-l'uscita è pulita, rollback e rilancio in caso di eccezione**, restituendo sempre la
-connessione al pool.
+`get_session()` apre una sessione SQLModel sull'engine condiviso e in uscita fa
+**commit se l'uscita è pulita, rollback e rilancio in caso di eccezione**, restituendo
+sempre la connessione al pool.
+
+Un service che ha bisogno che la violazione di un vincolo *significhi* qualcosa
+racchiude la scrittura in `integrity_errors()`, indicando l'errore di dominio per ogni
+tipo:
+
+```python
+with integrity_errors(unique=Conflict("Email già registrata")):
+    utenti.update(session, id_utente, updates)
+```
+
+Le violazioni non mappate — un CHECK, per esempio — si propagano invariate. I service
+non importano mai il driver.
 
 Due conseguenze da tenere a mente:
 
@@ -101,7 +113,8 @@ Due conseguenze da tenere a mente:
 
 Il pool viene aperto da ogni processo all'avvio con la propria dimensione:
 `init_db_pool(settings, maxconn=...)` — 20 per l'API, 10 per l'handler, 2 per il seed.
-La libreria non sceglie mai la propria configurazione: le impostazioni le riceve sempre
+Il pool è il `QueuePool` di SQLAlchemy, che è thread-safe: le rotte dell'API sono `def`
+semplici e girano nel threadpool di FastAPI. La libreria non sceglie mai la propria configurazione: le impostazioni le riceve sempre
 dall'esterno.
 
 ## Configurazione
@@ -185,8 +198,8 @@ docker-compose exec api pytest tests/unit/core tests/integration/core
 
 I test rispecchiano la struttura del sorgente: `meshbee_core/config.py` →
 `tests/unit/core/test_config.py`. **Tutto ciò la cui sostanza è SQL va in
-`tests/integration/`** — un cursore finto dimostra soltanto che abbiamo passato una
-stringa a `execute()`. Vedi [`tests/`](../tests/README.it.md).
+`tests/integration/`** — una sessione finta dimostra soltanto che abbiamo costruito
+un'istruzione, non che l'istruzione sia giusta. Vedi [`tests/`](../tests/README.it.md).
 
 ## Trappole
 

@@ -8,7 +8,7 @@ import pytest
 from meshbee_core.repository import utenti
 
 
-def test_the_public_projection_never_carries_the_password_hash(db, make_utente):
+def test_the_public_projection_never_carries_the_password_hash(session, db, make_utente):
     """
     Responses are built straight from these rows.
 
@@ -17,32 +17,32 @@ def test_the_public_projection_never_carries_the_password_hash(db, make_utente):
     """
     utente = make_utente()
 
-    row = utenti.get_by_email(db, utente["email"])
+    row = utenti.get_by_email(session, utente["email"])
 
     assert "password_hash" not in row
-    assert "password_hash" not in utenti.list_all(db)[0]
-    assert "password_hash" not in utenti.update(db, utente["id_utente"], {"nome": "X"})
+    assert "password_hash" not in utenti.list_all(session)[0]
+    assert "password_hash" not in utenti.update(session, utente["id_utente"], {"nome": "X"})
 
 
-def test_the_login_projection_does_carry_it(db, make_utente):
+def test_the_login_projection_does_carry_it(session, db, make_utente):
     """Authentication is the one caller that needs the hash."""
     utente = make_utente(password_hash="hashed-value")
 
-    assert utenti.get_credentials_by_email(db, utente["email"])["password_hash"] == "hashed-value"
+    assert utenti.get_credentials_by_email(session, utente["email"])["password_hash"] == "hashed-value"
 
 
-def test_only_the_named_columns_change(db, make_utente):
+def test_only_the_named_columns_change(session, db, make_utente):
     """A partial update leaves everything it was not given alone."""
     utente = make_utente(nome="Giulia", cognome="Rossi")
 
-    updated = utenti.update(db, utente["id_utente"], {"nome": "Marta"})
+    updated = utenti.update(session, utente["id_utente"], {"nome": "Marta"})
 
     assert updated["nome"] == "Marta"
     assert updated["cognome"] == "Rossi"
     assert updated["email"] == utente["email"]
 
 
-def test_an_unknown_column_is_refused(db, make_utente):
+def test_an_unknown_column_is_refused(session, db, make_utente):
     """
     The whitelist is what keeps the assembled SET clause safe.
 
@@ -52,24 +52,24 @@ def test_an_unknown_column_is_refused(db, make_utente):
     utente = make_utente()
 
     with pytest.raises(ValueError, match="non aggiornabili"):
-        utenti.update(db, utente["id_utente"], {"password_hash": "injected"})
+        utenti.update(session, utente["id_utente"], {"password_hash": "injected"})
 
 
-def test_password_hash_cannot_be_set_through_the_generic_update(db, make_utente):
+def test_password_hash_cannot_be_set_through_the_generic_update(session, db, make_utente):
     """Passwords go through set_password_hash, which hashes on the way in."""
     utente = make_utente(password_hash="original")
 
     with pytest.raises(ValueError):
-        utenti.update(db, utente["id_utente"], {"password_hash": "plaintext"})
+        utenti.update(session, utente["id_utente"], {"password_hash": "plaintext"})
 
-    assert utenti.get_credentials_by_email(db, utente["email"])["password_hash"] == "original"
+    assert utenti.get_credentials_by_email(session, utente["email"])["password_hash"] == "original"
 
 
-def test_deactivating_stamps_the_date_when_asked(db, make_utente):
+def test_deactivating_stamps_the_date_when_asked(session, db, make_utente):
     """The service asks for the stamp; the repository does not decide."""
     utente = make_utente()
 
-    utenti.update(db, utente["id_utente"], {"attivo": False}, stamp_disattivazione=True)
+    utenti.update(session, utente["id_utente"], {"attivo": False}, stamp_disattivazione=True)
 
     db.execute(
         "SELECT data_disattivazione FROM utenti WHERE id_utente = %s", (utente["id_utente"],)
@@ -77,11 +77,11 @@ def test_deactivating_stamps_the_date_when_asked(db, make_utente):
     assert db.fetchone()["data_disattivazione"] is not None
 
 
-def test_an_ordinary_update_does_not_stamp_the_date(db, make_utente):
+def test_an_ordinary_update_does_not_stamp_the_date(session, db, make_utente):
     """Renaming someone must not look like a deactivation."""
     utente = make_utente()
 
-    utenti.update(db, utente["id_utente"], {"nome": "Marta"})
+    utenti.update(session, utente["id_utente"], {"nome": "Marta"})
 
     db.execute(
         "SELECT data_disattivazione FROM utenti WHERE id_utente = %s", (utente["id_utente"],)
@@ -89,17 +89,17 @@ def test_an_ordinary_update_does_not_stamp_the_date(db, make_utente):
     assert db.fetchone()["data_disattivazione"] is None
 
 
-def test_updating_a_missing_user_returns_nothing(db):
+def test_updating_a_missing_user_returns_nothing(session, db):
     """The caller turns this into a 404."""
-    assert utenti.update(db, 999999, {"nome": "X"}) is None
+    assert utenti.update(session, 999999, {"nome": "X"}) is None
 
 
-def test_the_last_access_stamp_is_refreshed(db, make_utente):
+def test_the_last_access_stamp_is_refreshed(session, db, make_utente):
     """Recorded on a successful login, and nowhere else."""
     utente = make_utente()
     assert utente["ultimo_accesso"] is None
 
-    utenti.touch_ultimo_accesso(db, utente["id_utente"])
+    utenti.touch_ultimo_accesso(session, utente["id_utente"])
 
     db.execute("SELECT ultimo_accesso FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
     assert db.fetchone()["ultimo_accesso"] is not None

@@ -11,7 +11,7 @@ nodi ESP32 ──MQTT──▶ Mosquitto ──▶ mqtt-handler ──▶ Postgr
                       :1883        (questo package)                 (api)
 ```
 
-Come l'API è **sottile**: `payload.py` decodifica, `handler.py` apre un cursore e chiama
+Come l'API è **sottile**: `payload.py` decodifica, `handler.py` apre una sessione e chiama
 un service. La scrittura vera è `meshbee_core.services.ingest`, ed è per questo che una
 lettura arrivata via MQTT e una inviata a `/api/admin/letture` producono la stessa riga.
 
@@ -135,7 +135,7 @@ ingest crea quello che gli serve invece di rifiutare la lettura
 3. Senza `id_sensore`: viene usata la **prima** arnia del nodo.
 4. Se il nodo non ha nessuna arnia e non ha mandato un `id_sensore`, la lettura viene
    scartata con `NotFound` — sollevando un'eccezione invece di uscire in silenzio,
-   perché il cursore del chiamante fa commit su un'uscita pulita e un return silenzioso
+   perché la sessione del chiamante fa commit su un'uscita pulita e un return silenzioso
    lascerebbe dietro la registrazione del nodo appena fatta.
 
 **`POST /api/admin/letture` volutamente non fa niente di tutto questo** — risponde 404

@@ -1,111 +1,95 @@
 """Queries on `log_attivita`."""
-import json
 from typing import Any, Dict, List, Optional
 
-COLUMNS = """id_log, id_utente, id_arnia, timestamp,
-                       tipo_attivita, descrizione, dati"""
+from sqlalchemy import func
+from sqlmodel import Session, select
 
-# Columns `update` will accept; the SET clause is assembled by name.
+from meshbee_core.models import LogAttivita
+from meshbee_core.repository import as_dict, as_dicts
+
+# Columns `update` will accept.
 UPDATABLE = ("timestamp", "tipo_attivita", "descrizione", "dati")
 
 
-def list_by_arnia(cursor, id_arnia: int, data_inizio, data_fine, limit: int,
+def list_by_arnia(session: Session, id_arnia: int, data_inizio, data_fine, limit: int,
                   tipo_attivita: Optional[str] = None) -> List[Dict[str, Any]]:
-    query = f"""
-                SELECT {COLUMNS}
-                FROM log_attivita
-                WHERE id_arnia = %s
-                  AND timestamp >= %s
-                  AND timestamp <= %s
-            """
-    params = [id_arnia, data_inizio, data_fine]
-
+    query = select(LogAttivita).where(
+        LogAttivita.id_arnia == id_arnia,
+        LogAttivita.timestamp >= data_inizio,
+        LogAttivita.timestamp <= data_fine,
+    )
     if tipo_attivita:
-        query += " AND tipo_attivita = %s"
-        params.append(tipo_attivita)
+        query = query.where(LogAttivita.tipo_attivita == tipo_attivita)
 
-    query += " ORDER BY timestamp DESC LIMIT %s"
-    params.append(limit)
-
-    cursor.execute(query, params)
-    return cursor.fetchall()
+    return as_dicts(session.exec(
+        query.order_by(LogAttivita.timestamp.desc()).limit(limit)
+    ).all())
 
 
-def list_all(cursor, limit: int) -> List[Dict[str, Any]]:
-    cursor.execute(
-        f"""
-        SELECT {COLUMNS}
-        FROM log_attivita
-        ORDER BY timestamp DESC
-        LIMIT %s
-        """,
-        (limit,)
-    )
-    return cursor.fetchall()
+def list_all(session: Session, limit: int) -> List[Dict[str, Any]]:
+    return as_dicts(session.exec(
+        select(LogAttivita).order_by(LogAttivita.timestamp.desc()).limit(limit)
+    ).all())
 
 
-def count_for_arnia(cursor, id_arnia: int) -> int:
-    cursor.execute(
-        "SELECT COUNT(*) AS n FROM log_attivita WHERE id_arnia = %s", (id_arnia,)
-    )
-    return cursor.fetchone()["n"]
+def count_for_arnia(session: Session, id_arnia: int) -> int:
+    return session.exec(
+        select(func.count()).select_from(LogAttivita).where(LogAttivita.id_arnia == id_arnia)
+    ).one()
 
 
-def insert(cursor, *, id_utente: Optional[int], id_arnia: int, timestamp,
+def insert(session: Session, *, id_utente: Optional[int], id_arnia: int, timestamp,
            tipo_attivita: str, descrizione: Optional[str],
            dati: Optional[dict]) -> Dict[str, Any]:
-    cursor.execute(
-        f"""
-        INSERT INTO log_attivita
-        (id_utente, id_arnia, timestamp, tipo_attivita, descrizione, dati)
-        VALUES (%s, %s, COALESCE(%s, CURRENT_TIMESTAMP), %s, %s, %s)
-        RETURNING {COLUMNS}
-        """,
-        (
-            id_utente, id_arnia, timestamp, tipo_attivita, descrizione,
-            json.dumps(dati) if dati else None
+    """A null timestamp defaults to now, in the database."""
+    voce = LogAttivita(
+        id_utente=id_utente, id_arnia=id_arnia, timestamp=timestamp,
+        tipo_attivita=tipo_attivita, descrizione=descrizione, dati=dati or None,
+    )
+    session.add(voce)
+    session.flush()
+    return as_dict(voce)
+
+
+def owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optional[LogAttivita]:
+    return session.exec(
+        select(LogAttivita).where(
+            LogAttivita.id_log == id_log,
+            LogAttivita.id_arnia == id_arnia,
+            LogAttivita.id_utente == id_utente,
         )
-    )
-    return cursor.fetchone()
+    ).first()
 
 
-def find_owned(cursor, id_log: int, id_arnia: int, id_utente: int) -> Optional[Dict[str, Any]]:
+def find_owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optional[Dict[str, Any]]:
     """Ownership probe: the activity must belong to both this arnia and this user."""
-    cursor.execute(
-        "SELECT id_log FROM log_attivita WHERE id_log = %s AND id_arnia = %s AND id_utente = %s",
-        (id_log, id_arnia, id_utente)
-    )
-    return cursor.fetchone()
+    voce = owned(session, id_log, id_arnia, id_utente)
+    return {"id_log": voce.id_log} if voce else None
 
 
-def get_all_columns(cursor, id_log: int) -> Optional[Dict[str, Any]]:
+def get_all_columns(session: Session, id_log: int) -> Optional[Dict[str, Any]]:
     """Every column, for the empty-patch path that returns the row unchanged."""
-    cursor.execute("SELECT * FROM log_attivita WHERE id_log = %s", (id_log,))
-    return cursor.fetchone()
+    return as_dict(session.get(LogAttivita, id_log))
 
 
-def update(cursor, id_log: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def update(session: Session, id_log: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     unknown = set(updates) - set(UPDATABLE)
     if unknown:
         raise ValueError(f"Colonne non aggiornabili: {sorted(unknown)}")
 
-    assignments = []
-    params = []
-    for field, value in updates.items():
-        assignments.append(f"{field} = %s")
-        params.append(json.dumps(value) if field == "dati" and value is not None else value)
-    params.append(id_log)
-
-    cursor.execute(
-        f"UPDATE log_attivita SET {', '.join(assignments)} WHERE id_log = %s RETURNING *",
-        tuple(params)
-    )
-    return cursor.fetchone()
+    voce = session.get(LogAttivita, id_log)
+    if voce is None:
+        return None
+    for column, value in updates.items():
+        setattr(voce, column, value)
+    session.flush()
+    return as_dict(voce)
 
 
-def delete_owned(cursor, id_log: int, id_arnia: int, id_utente: int) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        "DELETE FROM log_attivita WHERE id_log = %s AND id_arnia = %s AND id_utente = %s RETURNING id_log",
-        (id_log, id_arnia, id_utente)
-    )
-    return cursor.fetchone()
+def delete_owned(session: Session, id_log: int, id_arnia: int, id_utente: int) -> Optional[Dict[str, Any]]:
+    voce = owned(session, id_log, id_arnia, id_utente)
+    if voce is None:
+        return None
+    session.delete(voce)
+    session.flush()
+    return {"id_log": id_log}

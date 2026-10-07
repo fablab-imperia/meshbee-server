@@ -1,88 +1,69 @@
 """Queries on `utenti`."""
 from typing import Any, Dict, List, Optional
 
-# The public projection: `password_hash` is deliberately absent, so a response
-# built straight from these rows cannot leak it.
-COLUMNS = """id_utente, email, nome, cognome, ruolo,
-                       data_creazione, data_attivazione, data_disattivazione,
-                       ultimo_accesso, attivo"""
+from sqlalchemy import func, update as sql_update
+from sqlmodel import Session, select
+
+from meshbee_core.models import Utente
+from meshbee_core.repository import as_dict
+
+# The public projection leaves out `password_hash`, so a response built straight
+# from these rows cannot leak it.
+PRIVATE = ("password_hash",)
+
+CREDENTIALS = ("id_utente", "email", "password_hash", "nome", "cognome", "ruolo", "attivo")
 
 # Columns `update` will accept. Anything else is a programming error, not user
-# input — the SET clause is assembled by name, so this is what keeps it safe.
+# input.
 UPDATABLE = ("email", "nome", "cognome", "ruolo", "attivo")
 
 
-def get_credentials_by_email(cursor, email: str) -> Optional[Dict[str, Any]]:
-    """The login projection: includes password_hash, unlike `COLUMNS`."""
-    cursor.execute(
-        """
-        SELECT id_utente, email, password_hash, nome, cognome, ruolo, attivo
-        FROM utenti
-        WHERE email = %s
-        """,
-        (email,)
-    )
-    return cursor.fetchone()
+def by_email(session: Session, email: str) -> Optional[Utente]:
+    return session.exec(select(Utente).where(Utente.email == email)).first()
 
 
-def get_by_email(cursor, email: str) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        f"""
-        SELECT {COLUMNS}
-        FROM utenti
-        WHERE email = %s
-        """,
-        (email,)
-    )
-    return cursor.fetchone()
+def get_credentials_by_email(session: Session, email: str) -> Optional[Dict[str, Any]]:
+    """The login projection: includes password_hash, unlike every other read."""
+    return as_dict(by_email(session, email), only=CREDENTIALS)
 
 
-def touch_ultimo_accesso(cursor, id_utente: int) -> None:
-    cursor.execute(
-        """
-        UPDATE utenti
-        SET ultimo_accesso = CURRENT_TIMESTAMP
-        WHERE id_utente = %s
-        """,
-        (id_utente,)
+def get_by_email(session: Session, email: str) -> Optional[Dict[str, Any]]:
+    return as_dict(by_email(session, email), exclude=PRIVATE)
+
+
+def touch_ultimo_accesso(session: Session, id_utente: int) -> None:
+    session.exec(
+        sql_update(Utente).where(Utente.id_utente == id_utente).values(ultimo_accesso=func.now())
     )
 
 
-def get_ruolo(cursor, id_utente: int) -> Optional[Dict[str, Any]]:
-    cursor.execute("SELECT ruolo FROM utenti WHERE id_utente = %s", (id_utente,))
-    return cursor.fetchone()
+def get_ruolo(session: Session, id_utente: int) -> Optional[Dict[str, Any]]:
+    ruolo = session.exec(select(Utente.ruolo).where(Utente.id_utente == id_utente)).first()
+    return {"ruolo": ruolo} if ruolo is not None else None
 
 
-def list_all(cursor) -> List[Dict[str, Any]]:
-    cursor.execute(
-        f"""
-        SELECT {COLUMNS}
-        FROM utenti
-        ORDER BY id_utente
-        """
-    )
-    return cursor.fetchall()
+def list_all(session: Session) -> List[Dict[str, Any]]:
+    rows = session.exec(select(Utente).order_by(Utente.id_utente)).all()
+    return [as_dict(row, exclude=PRIVATE) for row in rows]
 
 
-def find_id_by_email(cursor, email: str) -> Optional[Dict[str, Any]]:
-    cursor.execute("SELECT id_utente FROM utenti WHERE email = %s", (email,))
-    return cursor.fetchone()
+def find_id_by_email(session: Session, email: str) -> Optional[Dict[str, Any]]:
+    id_utente = session.exec(select(Utente.id_utente).where(Utente.email == email)).first()
+    return {"id_utente": id_utente} if id_utente is not None else None
 
 
-def insert(cursor, *, email: str, password_hash: str, nome: str, cognome: str,
+def insert(session: Session, *, email: str, password_hash: str, nome: str, cognome: str,
            ruolo: str) -> Dict[str, Any]:
-    cursor.execute(
-        f"""
-        INSERT INTO utenti (email, password_hash, nome, cognome, ruolo, data_attivazione, attivo)
-        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, true)
-        RETURNING {COLUMNS}
-        """,
-        (email, password_hash, nome, cognome, ruolo)
+    utente = Utente(
+        email=email, password_hash=password_hash, nome=nome, cognome=cognome,
+        ruolo=ruolo, attivo=True, data_attivazione=func.now(),
     )
-    return cursor.fetchone()
+    session.add(utente)
+    session.flush()
+    return as_dict(utente, exclude=PRIVATE)
 
 
-def update(cursor, id_utente: int, updates: Dict[str, Any], *,
+def update(session: Session, id_utente: int, updates: Dict[str, Any], *,
            stamp_disattivazione: bool = False) -> Optional[Dict[str, Any]]:
     """
     Apply the named columns and return the updated row, or None if absent.
@@ -94,48 +75,39 @@ def update(cursor, id_utente: int, updates: Dict[str, Any], *,
     if unknown:
         raise ValueError(f"Colonne non aggiornabili: {sorted(unknown)}")
 
-    assignments = [f"{column} = %s" for column in updates]
-    params = list(updates.values())
+    utente = session.get(Utente, id_utente)
+    if utente is None:
+        return None
+
+    for column, value in updates.items():
+        setattr(utente, column, value)
     if stamp_disattivazione:
-        assignments.append("data_disattivazione = CURRENT_TIMESTAMP")
-    params.append(id_utente)
-
-    cursor.execute(
-        f"""
-        UPDATE utenti
-        SET {', '.join(assignments)}
-        WHERE id_utente = %s
-        RETURNING {COLUMNS}
-        """,
-        params
-    )
-    return cursor.fetchone()
+        utente.data_disattivazione = func.now()
+    session.flush()
+    return as_dict(utente, exclude=PRIVATE)
 
 
-def deactivate(cursor, id_utente: int) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        """
-        UPDATE utenti
-        SET attivo = false, data_disattivazione = CURRENT_TIMESTAMP
-        WHERE id_utente = %s
-        RETURNING id_utente
-        """,
-        (id_utente,)
-    )
-    return cursor.fetchone()
+def deactivate(session: Session, id_utente: int) -> Optional[Dict[str, Any]]:
+    utente = session.get(Utente, id_utente)
+    if utente is None:
+        return None
+    utente.attivo = False
+    utente.data_disattivazione = func.now()
+    session.flush()
+    return {"id_utente": utente.id_utente}
 
 
-def get_password_hash(cursor, id_utente: int) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        "SELECT password_hash FROM utenti WHERE id_utente = %s",
-        (id_utente,)
-    )
-    return cursor.fetchone()
+def get_password_hash(session: Session, id_utente: int) -> Optional[Dict[str, Any]]:
+    password_hash = session.exec(
+        select(Utente.password_hash).where(Utente.id_utente == id_utente)
+    ).first()
+    return {"password_hash": password_hash} if password_hash is not None else None
 
 
-def set_password_hash(cursor, id_utente: int, password_hash: str) -> Optional[Dict[str, Any]]:
-    cursor.execute(
-        "UPDATE utenti SET password_hash = %s WHERE id_utente = %s RETURNING id_utente",
-        (password_hash, id_utente)
-    )
-    return cursor.fetchone()
+def set_password_hash(session: Session, id_utente: int, password_hash: str) -> Optional[Dict[str, Any]]:
+    utente = session.get(Utente, id_utente)
+    if utente is None:
+        return None
+    utente.password_hash = password_hash
+    session.flush()
+    return {"id_utente": utente.id_utente}

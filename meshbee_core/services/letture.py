@@ -2,8 +2,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Union
 
-import psycopg2
-
+from meshbee_core.db import integrity_errors
 from meshbee_core.errors import InvalidData, NotFound
 from meshbee_core.repository import letture
 from meshbee_core.schemas import LetturaCreate
@@ -21,7 +20,7 @@ def default_window(data_inizio, data_fine):
     return data_inizio, data_fine
 
 
-def record_reading(cursor, data: Union[LetturaCreate, Dict[str, Any]]) -> Dict[str, Any]:
+def record_reading(session, data: Union[LetturaCreate, Dict[str, Any]]) -> Dict[str, Any]:
     """
     Validate and persist a single reading.
 
@@ -45,9 +44,9 @@ def record_reading(cursor, data: Union[LetturaCreate, Dict[str, Any]]) -> Dict[s
             # the reading was simply lost. Refusing here says what was wrong.
             raise InvalidData(f"Lettura non valida: {exc}") from exc
 
-    try:
+    with integrity_errors(foreign_key=NotFound(f"Arnia {lettura.id_arnia} non trovata")):
         return letture.insert(
-            cursor,
+            session,
             id_arnia=lettura.id_arnia,
             id_nodo=lettura.id_nodo,
             timestamp=lettura.timestamp,
@@ -57,22 +56,20 @@ def record_reading(cursor, data: Union[LetturaCreate, Dict[str, Any]]) -> Dict[s
             batteria=lettura.batteria,
             dati_raw=lettura.dati_raw,
         )
-    except psycopg2.errors.ForeignKeyViolation as exc:
-        raise NotFound(f"Arnia {lettura.id_arnia} non trovata") from exc
 
 
-def list_for_arnia(cursor, id_arnia: int, data_inizio, data_fine,
+def list_for_arnia(session, id_arnia: int, data_inizio, data_fine,
                    limit: int) -> List[Dict[str, Any]]:
     data_inizio, data_fine = default_window(data_inizio, data_fine)
-    return [dict(row) for row in letture.list_by_arnia(cursor, id_arnia, data_inizio, data_fine, limit)]
+    return [dict(row) for row in letture.list_by_arnia(session, id_arnia, data_inizio, data_fine, limit)]
 
 
-def list_all(cursor, limit: int) -> List[Dict[str, Any]]:
-    return [dict(row) for row in letture.list_all(cursor, limit)]
+def list_all(session, limit: int) -> List[Dict[str, Any]]:
+    return [dict(row) for row in letture.list_all(session, limit)]
 
 
-def get_series(cursor, id_arnia: int, field: str, data_inizio, data_fine,
+def get_series(session, id_arnia: int, field: str, data_inizio, data_fine,
                limit: int) -> List[Dict[str, Any]]:
     """One measurement over time, for a chart."""
     data_inizio, data_fine = default_window(data_inizio, data_fine)
-    return [dict(row) for row in letture.series(cursor, id_arnia, field, data_inizio, data_fine, limit)]
+    return [dict(row) for row in letture.series(session, id_arnia, field, data_inizio, data_fine, limit)]

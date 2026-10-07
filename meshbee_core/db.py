@@ -1,35 +1,48 @@
 """
-Gestione connessione database
+Database engine and sessions.
 
 Shared by both entry points. `init_db_pool` takes its settings as an argument
 rather than importing a singleton, so the library never decides where its
 configuration comes from — the process that owns the pool does.
+
+The contract the rest of the library relies on is unchanged from the psycopg2
+days: **the caller owns the session**. Services and repositories take one and
+never open one, and one `with get_session()` block is one transaction —
+committed on a clean exit, rolled back on an exception.
 """
-from psycopg2.extras import RealDictCursor
-from psycopg2.pool import SimpleConnectionPool
 from contextlib import contextmanager
 import logging
+from typing import Iterator, Optional
+
+from sqlalchemy import create_engine, func
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
 
 from meshbee_core.config import CoreSettings
 
 logger = logging.getLogger(__name__)
 
-# Pool di connessioni
-db_pool: SimpleConnectionPool = None
+# SQLSTATE codes: standard SQL, not driver constants, so nothing here imports
+# psycopg2.
+UNIQUE_VIOLATION = "23505"
+FOREIGN_KEY_VIOLATION = "23503"
+
+engine: Optional[Engine] = None
 
 
-def init_db_pool(settings: CoreSettings, *, maxconn: int = 20):
-    """Inizializza il pool di connessioni al database"""
-    global db_pool
+def init_db_pool(settings: CoreSettings, *, maxconn: int = 20) -> None:
+    """Create the engine and its connection pool."""
+    global engine
     try:
-        db_pool = SimpleConnectionPool(
-            minconn=1,
-            maxconn=maxconn,
-            host=settings.DB_HOST,
-            port=settings.DB_PORT,
-            database=settings.DB_NAME,
-            user=settings.DB_USER,
-            password=settings.DB_PASSWORD.get_secret_value()
+        # QueuePool is thread-safe, which lets FastAPI run the synchronous
+        # routes in its threadpool. pre_ping replaces a connection the server
+        # dropped (a Postgres restart) instead of failing the next request.
+        engine = create_engine(
+            settings.database_url,
+            pool_size=maxconn,
+            max_overflow=0,
+            pool_pre_ping=True,
         )
         logger.info("Pool di connessioni database inizializzato")
     except Exception as e:
@@ -37,53 +50,56 @@ def init_db_pool(settings: CoreSettings, *, maxconn: int = 20):
         raise
 
 
-def close_db_pool():
-    """Chiude il pool di connessioni"""
-    global db_pool
-    if db_pool:
-        db_pool.closeall()
+def close_db_pool() -> None:
+    """Close every pooled connection."""
+    global engine
+    if engine:
+        engine.dispose()
+        engine = None
         logger.info("Pool di connessioni database chiuso")
 
 
 @contextmanager
-def get_db_connection():
+def get_session() -> Iterator[Session]:
     """
-    Context manager per ottenere una connessione dal pool
-    
-    Yields:
-        connessione database con cursor RealDictCursor
+    One transaction: commit on a clean exit, roll back on an exception.
+
+    `expire_on_commit=False` because repositories hand back plain dicts, and
+    nothing should reach for the database again once the block has ended.
     """
-    conn = None
+    session = Session(engine, expire_on_commit=False)
     try:
-        conn = db_pool.getconn()
-        yield conn
-        conn.commit()
+        yield session
+        session.commit()
     except Exception as e:
-        if conn:
-            conn.rollback()
+        session.rollback()
         logger.error(f"Errore database: {e}")
         raise
     finally:
-        if conn:
-            db_pool.putconn(conn)
+        session.close()
 
 
 @contextmanager
-def get_db_cursor():
+def integrity_errors(*, unique: Exception = None, foreign_key: Exception = None):
     """
-    Context manager per ottenere un cursor dal pool
-    
-    Yields:
-        cursor RealDictCursor
+    Turn a constraint violation into the domain error the caller names.
+
+    A service knows what a duplicate email or a missing arnia *means*; the
+    database only knows which constraint failed. Anything not mapped — a CHECK
+    violation, say — propagates unchanged.
     """
-    with get_db_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            yield cursor
-        finally:
-            cursor.close()
+    try:
+        yield
+    except IntegrityError as exc:
+        mapped = {
+            UNIQUE_VIOLATION: unique,
+            FOREIGN_KEY_VIOLATION: foreign_key,
+        }.get(getattr(exc.orig, "pgcode", None))
+        if mapped is None:
+            raise
+        raise mapped from exc
 
 
-def ping(cursor) -> None:
+def ping(session: Session) -> None:
     """Cheapest possible round-trip, for health checks."""
-    cursor.execute("SELECT 1")
+    session.exec(select(func.now())).one()

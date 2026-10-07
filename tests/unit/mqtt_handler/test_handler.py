@@ -22,17 +22,17 @@ def message(payload, topic=TOPIC):
 
 
 @pytest.fixture
-def cursor_calls(monkeypatch):
+def session_calls(monkeypatch):
     """Record whether the callback reached the database, without providing one."""
     opened = []
 
     @contextmanager
-    def _cursor():
+    def _session():
         opened.append(True)
         raise AssertionError("il messaggio non doveva raggiungere il database")
         yield  # pragma: no cover
 
-    monkeypatch.setattr(mqtt_handler, "get_db_cursor", _cursor)
+    monkeypatch.setattr(mqtt_handler, "get_session", _session)
     return opened
 
 
@@ -41,18 +41,18 @@ def deliver(msg):
     mqtt_handler.BeehiveMQTTHandler.on_message(None, None, None, msg)
 
 
-def test_malformed_json_never_reaches_the_database(cursor_calls):
+def test_malformed_json_never_reaches_the_database(session_calls):
     """Parsing failures are answered before a connection is taken from the pool."""
     deliver(message(b"{not json"))
 
-    assert cursor_calls == []
+    assert session_calls == []
 
 
-def test_a_message_without_a_node_never_reaches_the_database(cursor_calls):
+def test_a_message_without_a_node_never_reaches_the_database(session_calls):
     """Nothing can be attributed, so nothing is written."""
     deliver(message({"temperatura": 20}, topic="beehive"))
 
-    assert cursor_calls == []
+    assert session_calls == []
 
 
 def test_a_database_failure_does_not_propagate(monkeypatch):
@@ -64,11 +64,11 @@ def test_a_database_failure_does_not_propagate(monkeypatch):
     anything.
     """
     @contextmanager
-    def _broken_cursor():
+    def _broken_session():
         raise RuntimeError("database non raggiungibile")
         yield  # pragma: no cover
 
-    monkeypatch.setattr(mqtt_handler, "get_db_cursor", _broken_cursor)
+    monkeypatch.setattr(mqtt_handler, "get_session", _broken_session)
 
     deliver(message({"id_sensore": "SENSOR01", "temperatura": 20}))
 
@@ -78,13 +78,13 @@ def test_a_rejected_reading_does_not_propagate(monkeypatch, caplog):
     from meshbee_core.errors import InvalidData
 
     @contextmanager
-    def _cursor():
+    def _session():
         yield object()
 
-    def _reject(cursor, payload):
+    def _reject(session, payload):
         raise InvalidData("Temperatura deve essere tra -50 e 100°C")
 
-    monkeypatch.setattr(mqtt_handler, "get_db_cursor", _cursor)
+    monkeypatch.setattr(mqtt_handler, "get_session", _session)
     monkeypatch.setattr(mqtt_handler.ingest, "record_node_reading", _reject)
 
     deliver(message({"id_sensore": "SENSOR01", "temperatura": 500}))
@@ -97,17 +97,17 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
     import logging
 
     @contextmanager
-    def _cursor():
+    def _session():
         yield object()
 
-    def _store(cursor, payload):
+    def _store(session, payload):
         return {
             "id_arnia": 7, "id_nodo": "NODE001",
             "temperatura": 34.5, "umidita": 65.0, "peso": 42.35,
             "batteria": 4.01,
         }
 
-    monkeypatch.setattr(mqtt_handler, "get_db_cursor", _cursor)
+    monkeypatch.setattr(mqtt_handler, "get_session", _session)
     monkeypatch.setattr(mqtt_handler.ingest, "record_node_reading", _store)
 
     with caplog.at_level(logging.INFO):

@@ -11,7 +11,7 @@ ESP32 nodes ──MQTT──▶ Mosquitto ──▶ mqtt-handler ──▶ Postg
                        :1883         (this package)                 (api)
 ```
 
-Like the API it is **thin**: `payload.py` decodes, `handler.py` opens a cursor and
+Like the API it is **thin**: `payload.py` decodes, `handler.py` opens a session and
 calls one service. The writing itself is `meshbee_core.services.ingest`, which is why
 a reading arriving over MQTT and one posted to `/api/admin/letture` produce the same
 row.
@@ -132,7 +132,7 @@ what it needs instead of refusing the reading (`meshbee_core/services/ingest.py`
    (`Arnia <id_nodo>-<id_sensore>`).
 3. Without an `id_sensore`: the node's **first** hive is used.
 4. If the node has no hive at all and sent no `id_sensore`, the reading is dropped with
-   `NotFound` — raising rather than returning quietly, because the caller's cursor
+   `NotFound` — raising rather than returning quietly, because the caller's session
    commits on a clean exit and a silent return would leave the node registration
    behind.
 
