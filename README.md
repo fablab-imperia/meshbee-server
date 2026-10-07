@@ -71,12 +71,12 @@ mobile app ──HTTPS──▶ caddy/ ─────▶ api/ ─────�
 | `caddy/` | Reverse proxy terminating HTTPS on `:8443` in front of the API. Optional. | [Local HTTPS](#local-https) |
 | `api/` | The FastAPI REST API. The only piece the app talks to. | [api/](api/README.md) |
 | `meshbee_core/` | The shared library both entry points import: schemas, services, and all the SQL. | [meshbee_core/](meshbee_core/README.md) |
-| `database/` | The PostgreSQL schema the library writes to. | [database/](database/README.md) |
+| `database/` | Docs for the PostgreSQL schema, which `meshbee_core/models.py` defines and Alembic applies. | [database/](database/README.md) |
 | mobile app | Dashboards, charts and alerts. Consumes the REST API. | [meshbee-app](https://github.com/fablab-imperia/meshbee-app) |
 
 Two directories are not on that path: [`tests/`](tests/README.md), one pytest suite
-covering all of it, and `scripts/`, one-shot jobs — `seed.py` creates the initial
-accounts, `export_openapi.py` and `export_mqtt_schema.py` regenerate the two contract
+covering all of it, and `scripts/`, one-shot jobs — `migrate.py` brings the schema to
+the latest revision, `seed.py` creates the initial accounts, `export_openapi.py` and `export_mqtt_schema.py` regenerate the two contract
 artifacts.
 
 > The architecture of the **whole** Meshbee project, this repository included, is
@@ -174,8 +174,9 @@ docker-compose ps
 curl -s localhost:8000/health | python3 -m json.tool
 ```
 
-> `meshbee-seed` creates the initial accounts and exits. Seeing it as **`Exited (0)` is
-> normal** — it is a one-shot job, not a crashed service.
+> `meshbee-migrate` applies the schema migrations and `meshbee-seed` creates the initial
+> accounts; both then exit. Seeing them as **`Exited (0)` is normal** — they are
+> one-shot jobs, not crashed services.
 
 On a fresh database you get: the two accounts above, one sample node with two hives, and
 a handful of readings. **Change those passwords before exposing anything.**
@@ -188,7 +189,7 @@ directly when you run a process outside Docker.
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `POSTGRES_PASSWORD` | postgres, api, mqtt-handler, seed | Also arrives as `DB_PASSWORD`. **Only applied on a fresh volume.** |
+| `POSTGRES_PASSWORD` | postgres, migrate, api, mqtt-handler, seed | Also arrives as `DB_PASSWORD`. **Only applied on a fresh volume.** |
 | `JWT_SECRET_KEY` | api | Token signing. Changing it invalidates every issued token. |
 | `MQTT_USER` | mosquitto, mqtt-handler | Default `beehive`. |
 | `MQTT_PASSWORD` | mosquitto, mqtt-handler | Must match `mosquitto/config/passwd`. |
@@ -284,13 +285,18 @@ file — it is gitignored, so a fresh clone never has one. Run `make mqtt-passwd
 `docker-compose logs mosquitto`. Same if you changed `MQTT_PASSWORD` and did not
 regenerate.
 
-**A schema or password change had no effect.** `init.sql` and `POSTGRES_PASSWORD` are
-applied **only when the data directory is empty**, and `postgres_data` survives
-`docker-compose down`, rebuilds and restarts. Either `docker-compose down -v` (which
-**destroys every reading**) or write a `database/migrate_*.sql`. See
+**`api` and `mqtt-handler` never start; `meshbee-migrate` exited 1.** Read
+`docker-compose logs migrate`. "no alembic_version" means a database created before
+Alembic: stamp it once, as described in
+[`database/README.md`](database/README.md#existing-installations).
+
+**A password change had no effect.** `POSTGRES_PASSWORD` is applied **only when the data
+directory is empty**, and `postgres_data` survives `docker-compose down`, rebuilds and
+restarts. Either `docker-compose down -v` (which **destroys every reading**) or change
+it inside PostgreSQL. Schema changes are different: they go through a migration — see
 [`database/README.md`](database/README.md#changing-the-schema).
 
-**`meshbee-seed` shows `Exited (0)`.** Normal — it is a one-shot job.
+**`meshbee-migrate` or `meshbee-seed` shows `Exited (0)`.** Normal — they are one-shot jobs.
 
 **`seed` exits 1 with "Configurazione non valida".** `ADMIN_PASSWORD` or
 `USER_PASSWORD` is missing or shorter than 8 characters. Fix `.env`, then

@@ -61,18 +61,19 @@ dei parametri, vincoli CHECK. Un cursore finto dimostra soltanto che abbiamo pas
 stringa a `execute()`; non può dirti che la stringa era sbagliata. Quindi: **se quello
 che stai testando è una query, va in `integration/`.**
 
-La fixture di sessione `test_schema` elimina lo schema e ricarica `database/init.sql`
-una volta per esecuzione, così il file dello schema viene esercitato a ogni run e non
-può marcire in silenzio.
+La fixture di sessione `test_schema` elimina lo schema e lo ricostruisce con
+`upgrade head` di Alembic una volta per esecuzione — il percorso di un'installazione
+nuova — così ogni revisione viene esercitata a ogni run e non può marcire in silenzio.
+`integration/test_migrations.py` verifica poi che ciò che costruiscono le revisioni sia
+ciò che descrive `meshbee_core/models.py`, corpi dei CHECK compresi.
 
 ## I due moduli che pesano di più
 
-**`integration/core/test_schemas.py` — la deriva modello↔schema.** Ogni limite in
-`meshbee_core/schemas.py` è duplicato come vincolo CHECK in `database/init.sql`, e le tre
-misure una terza volta in `mqtt_handler/contract.py` — la copia che leggono gli estranei
-— e *niente le collega*. Questo modulo ricava i suoi casi dal contratto MQTT pubblicato e
-verifica gli altri lati. Aggiungi un caso ogni volta che un validatore rispecchia un
-vincolo.
+**`integration/core/test_schemas.py` — l'accordo modello↔schema.** I limiti vengono da
+un solo posto, `meshbee_core/limits.py`, ma un database ha soltanto i CHECK che gli hanno
+dato le sue migrazioni. Questo modulo ricava i suoi casi dal contratto MQTT pubblicato e
+verifica che gli schemi pydantic e il database reale rifiutino gli stessi valori.
+Aggiungi un caso ogni volta che aggiungi un limite.
 
 **`integration/test_ingest_parity.py` — il motivo per cui esiste il livello
 condiviso.** Dimostra che il percorso API e quello MQTT scrivono righe **uguali**, ogni

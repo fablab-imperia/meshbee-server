@@ -29,6 +29,8 @@ COPY mqtt_handler ./mqtt_handler
 COPY scripts ./scripts
 COPY tests ./tests
 COPY pytest.ini ./
+# The `migrate` service shares this image; the ini is for the alembic CLI.
+COPY alembic.ini ./
 
 # Espone la porta 8000
 EXPOSE 8000

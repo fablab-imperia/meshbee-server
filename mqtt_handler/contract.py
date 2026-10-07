@@ -11,9 +11,9 @@ at, none of which can read the table in `README.md`.
 
 Because no code imports it, only tests keep it honest —
 `tests/unit/mqtt_handler/test_contract.py` pins it to what `parse_message`
-returns and to the committed JSON, and `tests/integration/core/test_schemas.py`
-pins its ranges to `LetturaBase` and to the CHECK constraints in
-`database/init.sql`.
+returns and to the committed JSON. Its ranges and id length are not its own:
+they come from `meshbee_core.limits`, the same constants the API schemas and
+the database CHECK constraints are built from.
 
 Every field carries `default=None` while no annotation is `Optional`. That is
 deliberate: on the wire a field is *absent* — a node with only a scale sends only
@@ -26,6 +26,11 @@ from datetime import datetime
 from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from meshbee_core.limits import (
+    BATTERIA_MAX, BATTERIA_MIN, ID_MAX_LENGTH, PESO_MIN, TEMPERATURA_MAX,
+    TEMPERATURA_MIN, UMIDITA_MAX, UMIDITA_MIN,
+)
 
 # Where the artifact is served and what its own `$id` claims: this file, on this
 # branch. A `$ref` in someone's toolchain resolves against this URL, so moving or
@@ -41,16 +46,6 @@ SCHEMA_ID = (
 )
 SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
-# nodi.id_nodo and arnie.id_sensore_fisico are VARCHAR(50) in database/init.sql.
-ID_MAX_LENGTH = 50
-
-# The third copy of the ranges on meshbee_core.schemas.LetturaBase and of the
-# valid_temperatura / valid_umidita / valid_peso / valid_batteria CHECK constraints. Nothing links
-# the three — tests/integration/core/test_schemas.py derives its cases from here.
-TEMPERATURA_MIN, TEMPERATURA_MAX = -50, 100
-UMIDITA_MIN, UMIDITA_MAX = 0, 100
-PESO_MIN = 0
-BATTERIA_MIN, BATTERIA_MAX = 0, 5
 
 
 class MqttPayload(BaseModel):

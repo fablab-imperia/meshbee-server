@@ -108,8 +108,10 @@ Which means only the tests keep the two honest.
 `tests/unit/mqtt_handler/test_contract.py` asserts that the model's fields are exactly
 the keys `parse_message` returns, that the committed JSON is what the model generates,
 and that the example above validates — in both languages.
-`tests/integration/core/test_schemas.py` pins the published ranges to `LetturaBase` and
-to the CHECK constraints.
+Its ranges are not its own: they are imported from `meshbee_core/limits.py`, the
+constants `LetturaBase` and the CHECK constraints are built from, and
+`tests/integration/core/test_schemas.py` checks the published values against a real
+database.
 
 **Regenerate it after any change to the payload shape** — nothing does it automatically:
 

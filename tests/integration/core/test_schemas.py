@@ -1,11 +1,12 @@
 """Agreement between the pydantic models and the database schema.
 
-The measurement rules are written three times — as validators in
-meshbee_core/schemas.py, as CHECK constraints in database/init.sql and as JSON
-Schema keywords in mqtt_handler/contract.py, the copy strangers read — with
-nothing linking them. These tests derive their cases from the published contract
-and assert the other two halves reject the same value, so widening one without
-the others fails here instead of in production.
+The measurement rules are declared once, in meshbee_core/limits.py, and surface
+three ways — as validators in meshbee_core/schemas.py, as CHECK constraints from
+meshbee_core/models.py and as JSON Schema keywords in mqtt_handler/contract.py,
+the copy strangers read. A database, though, only has the CHECKs its migrations
+created. These tests derive their cases from the published contract and assert
+that the schemas and the real database reject the same value, so a bound changed
+without a revision fails here instead of in production.
 """
 import re
 from decimal import Decimal
@@ -18,10 +19,9 @@ from pydantic import ValidationError
 from meshbee_core.schemas import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
 from mqtt_handler.contract import MqttPayload
 
-# The MQTT contract publishes the same three ranges as JSON Schema keywords, for
-# the consumers that never see schemas.py or init.sql. Deriving the cases from it
-# — rather than writing the numbers a third time here — is what makes widening
-# any one of the three fail.
+# The MQTT contract publishes the ranges as JSON Schema keywords, for the
+# consumers that never see this repository. Deriving the cases from it — rather
+# than writing the numbers again here — tests what is actually published.
 CONTRACT = MqttPayload.model_json_schema()
 MEASUREMENTS = ("temperatura", "umidita", "peso", "bat")
 # The contract names fields as the firmware sends them; LetturaBase uses the
@@ -130,7 +130,7 @@ ID_COLUMNS = [
 )
 def test_the_contract_id_length_matches_the_column(db, field, table, column):
     """
-    maxLength in the published contract is VARCHAR(50) in init.sql.
+    maxLength in the published contract is VARCHAR(50) in the database.
 
     Nothing in schemas.py bounds these, so the column is the only other copy —
     and an over-long id fails as a driver-level error, i.e. a 500, not a 422. A
@@ -185,7 +185,7 @@ def check_constraint_values(db, table, column):
 )
 def test_model_literals_match_the_schema_check(db, literal, table, column):
     """
-    The Literal in schemas.py and the CHECK in init.sql list exactly the same values.
+    The Literal in limits.py and the CHECK in the database list exactly the same values.
 
     Adding a value to one without the other either lets a request through that
     the database will reject with a 500, or blocks a value the schema allows.

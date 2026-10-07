@@ -2,8 +2,14 @@
 
 *[Versione italiana](README.it.md)*
 
-The schema, and the migrations that got it here. PostgreSQL 15, running as the
+What is in the database, and how it changes. PostgreSQL 15, running as the
 `postgres` service; the data lives in the named volume `postgres_data`.
+
+This directory holds documentation only. The schema is defined in Python, in
+[`meshbee_core/models.py`](../meshbee_core/models.py), with its bounds and value sets in
+[`meshbee_core/limits.py`](../meshbee_core/limits.py); the migrations that bring a
+database up to it are Alembic revisions in
+[`meshbee_core/migrations/versions/`](../meshbee_core/migrations/versions/).
 
 Domain names are Italian throughout — `utenti`, `nodi`, `arnie`, `letture` — because
 they are the vocabulary of the project, not an accident of translation.
@@ -12,16 +18,15 @@ they are the vocabulary of the project, not an accident of translation.
 
 | Path | What it is |
 |---|---|
-| `init.sql` | The **current** schema. Mounted at `/docker-entrypoint-initdb.d/init.sql`. |
-| `migrate_v2.sql` | Coordinates in, alarms out. |
-| `migrate_v3.sql` | Rebuild of `v_arnie_stato` with the full column list. |
-| `migrate_v4.sql` | Removal of the `sensori` table and the unused views. |
-| `migrate_v5.sql` | Node battery voltage: `letture.batteria`. |
+| `meshbee_core/models.py` | The **current** schema, as SQLModel table classes. The single source. |
+| `meshbee_core/limits.py` | Ranges and value sets the CHECK constraints are built from. |
+| `meshbee_core/migrations/` | Alembic: `env.py`, and one file per revision under `versions/`. |
+| `scripts/migrate.py` | What the `migrate` compose service runs: `upgrade head`, then exit. |
+| `alembic.ini` (repo root) | For the `alembic` CLI only, when authoring a revision. |
 
-**`init.sql` runs only once, on an empty volume.** On every later start PostgreSQL sees
-an initialised data directory and ignores it entirely — this is the single most
-surprising thing about the setup, and it is covered under
-[Changing the schema](#changing-the-schema).
+**The schema is applied by the `migrate` service, on every start.** It runs before
+`api`, `mqtt-handler` and `seed`, which all wait for it to exit 0, and does nothing when
+the database is already at head. See [Changing the schema](#changing-the-schema).
 
 ## Tables
 
@@ -53,7 +58,7 @@ a reliable source of a failing INSERT.
 
 There is **no `sensori` table**. A sensor's identity lives on `arnie.id_sensore_fisico`,
 and readings have fixed columns rather than generic `(sensore, valore)` rows. A
-`sensori` table existed until `migrate_v4.sql`: it was the alternative model, never
+`sensori` table existed until the old hand-written `migrate_v4.sql`: it was the alternative model, never
 joined to `arnie` and never read.
 
 ### `arnie` — hives
@@ -127,7 +132,7 @@ plus five correlated subqueries for the latest `temperatura`, `umidita`, `peso`,
 already carries its current state.
 
 There is no `v_letture_recenti` and there are no `v_serie_*` views; they existed until
-`migrate_v4.sql` and were never queried. The reason is structural: **a view takes no
+the old `migrate_v4.sql` and were never queried. The reason is structural: **a view takes no
 parameters**. Reading history means hive + time window + LIMIT, which is
 `repository/letture.py::list_by_arnia` and `::series`. A view with a fixed 7-day window
 cannot express it, so it would have encapsulated everything except the part that
@@ -136,7 +141,8 @@ matters.
 ## Trigger
 
 One trigger, `trigger_aggiorna_nodo`: `AFTER INSERT ON letture FOR EACH ROW`, setting
-`nodi.ultimo_messaggio = NEW.timestamp`.
+`nodi.ultimo_messaggio = NEW.timestamp`. Like the view, it is not described by the
+models: the baseline revision creates both as raw SQL.
 
 **`nodi.ultimo_messaggio` is owned by the database.** Writing it from Python
 accomplishes nothing — the trigger fires afterwards and overwrites you. Recording that
@@ -154,33 +160,61 @@ Two known defects, both tracked in
 
 ## Changing the schema
 
-`init.sql` runs **only when the data directory is empty**. So does `POSTGRES_PASSWORD`
-— PostgreSQL sets it at init and ignores the variable afterwards. And `postgres_data`
-survives `docker-compose down`, rebuilds and restarts.
-
-Editing `init.sql` on a running installation therefore changes nothing. Two ways
-forward:
+Change the models, then generate a revision from the difference:
 
 ```bash
-# Development: throw the data away and start clean.
+# 1. Edit meshbee_core/models.py (or a constant in limits.py).
+# 2. Generate the revision, against a database that is at head:
+docker-compose exec api alembic revision --autogenerate -m "add x to letture"
+# 3. Read the new file in meshbee_core/migrations/versions/ and complete it (below).
+# 4. Apply it — or just restart the stack, which runs `migrate` first:
+docker-compose run --rm migrate
+```
+
+**Autogenerate does not see CHECK constraints.** It diffs tables, columns, types,
+nullability, indexes and foreign keys; a changed range in `limits.py` produces an
+empty revision. Write the constraint change by hand
+(`op.drop_constraint` + `op.create_check_constraint`), with the **literal** values:
+a revision is history and must not import `limits.py`, or replaying it after the
+next change would build the wrong schema. `tests/integration/test_migrations.py`
+builds the schema both ways — `create_all()` from the models and `upgrade head` from
+the revisions — and fails, printing both definitions, if anything differs.
+
+Views, triggers and functions are not compared either; write them with `op.execute`.
+
+### Existing installations
+
+An install created before Alembic has the tables but no `alembic_version`, and
+`migrate` refuses to touch it. If it had every hand-written migration up to
+`migrate_v5.sql` applied, it is exactly at the baseline revision — mark it once:
+
+```bash
+docker-compose exec postgres pg_dump -U beehive_user beehive_iot > backup.sql   # first
+docker-compose run --rm migrate alembic stamp 0001
+docker-compose up -d
+```
+
+An install older than v5 must apply the missing `database/migrate_v*.sql` files first;
+they are in git history before the switch to Alembic.
+
+### Fresh volumes
+
+`POSTGRES_PASSWORD` still applies **only when the data directory is empty** —
+PostgreSQL sets it at init and ignores the variable afterwards — and `postgres_data`
+survives `docker-compose down`, rebuilds and restarts. To start over in development:
+
+```bash
 docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 ```
 
-```bash
-# Anything with data worth keeping: write a migration and apply it.
-docker-compose exec -T postgres psql -U beehive_user -d beehive_iot < database/migrate_v5.sql
-```
-
-**Do both**: a migration for existing installations *and* the same change in
-`init.sql`, which stays the description of a fresh database. Wrap a migration in
-`BEGIN`/`COMMIT`, make it idempotent, and end it with a query that verifies the result
-— all four existing migrations do.
-
-`init.sql` does not drift, because the integration test suite drops the schema and
-reloads it from this file **on every run**. A statement that no longer parses fails
-the whole suite.
-
 ## Migrations
+
+| Revision | What it did |
+|---|---|
+| `0001` | Baseline: the schema as the hand-written migrations left it. |
+
+Before Alembic the schema moved through hand-written scripts, applied with `psql`;
+they are in git history:
 
 | File | What it did |
 |---|---|
@@ -194,12 +228,14 @@ where they can be configured per hive, not hard-coded in a trigger.
 
 ## Sample data
 
-`init.sql` seeds one node (`NODE001`, "Apiario Collina"), two hives (`SENSOR01` /
-`SENSOR02`) with coordinates and metadata, and four readings — enough for the app to
-have something to draw on a fresh install.
+Revisions carry no data. On an install with no hives at all, `scripts/seed.py` creates
+one node (`NODE001`, "Apiario Collina"), two hives (`SENSOR01` / `SENSOR02`) with
+coordinates and metadata, and four readings — enough for the app to have something to
+draw. Once any hive exists it leaves them alone, so deleting the demo data does not
+bring it back.
 
-Accounts, associations and the sample activity come from `scripts/seed.py` instead,
-because they need a real bcrypt hash. See the main [README](../README.md#setup).
+The seed also creates the accounts, the associations and a sample activity. See the
+main [README](../README.md#setup).
 
 ## Development
 
@@ -218,18 +254,25 @@ SELECT * FROM v_arnie_stato;
 SELECT id_arnia, count(*), max(timestamp) FROM letture GROUP BY id_arnia;
 ```
 
+```bash
+docker-compose exec api alembic current      # which revision the database is at
+docker-compose exec api alembic history      # the chain
+docker-compose exec api alembic check        # would autogenerate find anything?
+```
+
 Tests that touch SQL live in `tests/integration/` — the repository tests verify column
-names, joins and parameter order against a real database, and
-`tests/integration/core/test_schemas.py` asserts that the ranges here and the
-validators in `meshbee_core/schemas.py` still agree. See [`tests/`](../tests/README.md).
+names, joins and parameter order against a real database, `test_migrations.py` that the
+revisions match the models, and `tests/integration/core/test_schemas.py` that the
+database and `meshbee_core/schemas.py` reject the same values. The test database is
+built with `upgrade head` on every run. See [`tests/`](../tests/README.md).
 
 ## Gotchas
 
-- **`init.sql` and `POSTGRES_PASSWORD` only apply to a fresh volume.** See
-  [Changing the schema](#changing-the-schema).
-- **Every CHECK here is duplicated as a pydantic validator** in
-  `meshbee_core/schemas.py`, with nothing linking them. Change one, change the other,
-  and add a case to `tests/integration/core/test_schemas.py`.
+- **Autogenerate misses CHECK changes.** A new range in `limits.py` needs a hand-written
+  constraint change in the revision; `test_migrations.py` fails until it has one.
+- **A pre-Alembic install must be stamped once.** `migrate` refuses it until then, and
+  so `api` and `mqtt-handler` do not start. See [Existing installations](#existing-installations).
+- **`POSTGRES_PASSWORD` only applies to a fresh volume.** See [Fresh volumes](#fresh-volumes).
 - **`ruolo` is `'user'`, `permessi` is `('read','write','admin')`.** Test fakes accept
   anything; the real database does not.
 - **Nothing is hard-deleted.** Users, hives and nodes have an `attivo`/`attiva` flag,
@@ -242,5 +285,5 @@ validators in `meshbee_core/schemas.py` still agree. See [`tests/`](../tests/REA
 - [`meshbee_core/`](../meshbee_core/README.md) — `repository/`, the only code that writes SQL.
 - [`api/`](../api/README.md) — the endpoints these tables answer.
 - [`mqtt_handler/`](../mqtt_handler/README.md) — what fills `letture`.
-- [`tests/`](../tests/README.md) — how `init.sql` is kept honest.
+- [`tests/`](../tests/README.md) — how the migrations are kept honest.
 - Main [README](../README.md) — the stack as a whole.

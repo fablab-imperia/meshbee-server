@@ -59,17 +59,19 @@ parameter order, CHECK constraints. A fake cursor only ever proves that we passe
 string to `execute()`; it cannot tell you the string was wrong. So: **if the thing you
 are testing is a query, it belongs in `integration/`.**
 
-The `test_schema` session fixture drops the schema and reloads `database/init.sql` once
-per run, so the schema file is exercised on every run and cannot quietly rot.
+The `test_schema` session fixture drops the schema and rebuilds it with Alembic's
+`upgrade head` once per run — the path a fresh install takes — so every revision is
+exercised on every run and cannot quietly rot. `integration/test_migrations.py` then
+checks that what the revisions build is what `meshbee_core/models.py` describes, CHECK
+bodies included.
 
 ## The two modules that carry the most weight
 
-**`integration/core/test_schemas.py` — model↔schema drift.** Every range in
-`meshbee_core/schemas.py` is duplicated as a CHECK constraint in `database/init.sql`,
-and the three measurements a third time in `mqtt_handler/contract.py` — the copy
-strangers read — with *nothing linking them*. This module derives its cases from the
-published MQTT contract and asserts the other sides. Add a case whenever a validator
-mirrors a constraint.
+**`integration/core/test_schemas.py` — model↔schema agreement.** The ranges come from
+one place, `meshbee_core/limits.py`, but a database only has the CHECKs its migrations
+gave it. This module derives its cases from the published MQTT contract and asserts
+that the pydantic schemas and the real database refuse the same values. Add a case
+whenever you add a bound.
 
 **`integration/test_ingest_parity.py` — the reason the shared layer exists.** It proves
 the API path and the MQTT path write **equal rows**, every column but `id_lettura`.

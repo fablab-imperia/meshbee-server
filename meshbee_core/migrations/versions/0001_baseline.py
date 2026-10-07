@@ -1,3 +1,31 @@
+"""Baseline: the schema as database/init.sql and migrate_v5.sql left it.
+
+Revision ID: 0001
+Revises:
+Create Date: 2026-10-07
+
+Frozen history, not a source: the SQL below is what a fresh volume got from
+`init.sql` before Alembic, minus its sample rows (now created by
+`scripts/seed.py`). Live installs already have exactly this, so they are
+stamped at this revision instead of running it — see database/README.md.
+
+The trigger and the view are logic in the database, which the models do not
+describe; a later revision moves both into meshbee_core and drops them.
+
+`exec_driver_sql` rather than `op.execute`: the latter parses `:word` as a
+bind parameter, and the comments in this script are full of colons.
+"""
+from typing import Sequence, Union
+
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "0001"
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+SCHEMA = r"""
 -- ============================================
 -- Schema Database per Sistema IoT Arnie
 -- ============================================
@@ -184,73 +212,6 @@ AFTER INSERT ON letture
 FOR EACH ROW
 EXECUTE FUNCTION aggiorna_ultimo_messaggio_nodo();
 
--- ============================================
--- DATI DI ESEMPIO (per testing)
--- ============================================
-
--- Gli utenti di default vengono creati da seed.py (script separato)
--- che usa passlib/bcrypt per generare hash validi al primo avvio.
-
--- Nodo esempio
-INSERT INTO nodi (id_nodo, nome_nodo, descrizione, posizione, ultimo_messaggio, attivo)
-VALUES (
-    'NODE001',
-    'Apiario Collina',
-    'Nodo principale apiario collina sud',
-    'Lat: 45.4642, Lon: 9.1900',
-    CURRENT_TIMESTAMP,
-    true
-);
-
--- Arnie esempio
-INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia, descrizione, posizione, latitudine, longitudine, attiva, metadati)
-VALUES 
-(
-    'NODE001',
-    'SENSOR01',
-    'Arnia Alpha',
-    'Arnia con regina ligustica',
-    'Fila 1, Posizione 1',
-    45.464200,
-    9.190000,
-    true,
-    '{"razza": "Ligustica", "anno_regina": 2024, "colore_arnia": "giallo"}'::JSONB
-),
-(
-    'NODE001',
-    'SENSOR02',
-    'Arnia Beta',
-    'Arnia con regina carnica',
-    'Fila 1, Posizione 2',
-    45.464250,
-    9.190050,
-    true,
-    '{"razza": "Carnica", "anno_regina": 2023, "colore_arnia": "verde"}'::JSONB
-);
-
--- Associazione utente-arnie: creata da seed.py dopo la creazione degli utenti
-
--- Letture esempio
-INSERT INTO letture (id_arnia, id_nodo, timestamp, temperatura, umidita, peso)
-VALUES 
-(1, 'NODE001', CURRENT_TIMESTAMP - INTERVAL '1 hour', 34.5, 65.0, 42.350),
-(1, 'NODE001', CURRENT_TIMESTAMP - INTERVAL '2 hours', 33.8, 66.5, 42.320),
-(2, 'NODE001', CURRENT_TIMESTAMP - INTERVAL '1 hour', 35.2, 63.0, 38.720),
-(2, 'NODE001', CURRENT_TIMESTAMP - INTERVAL '2 hours', 34.9, 64.0, 38.710);
-
--- Log attività esempio: creato da seed.py
-
--- ============================================
--- VISTE UTILI
--- ============================================
-
--- Nota: non esiste una vista `v_letture_recenti`. Le letture si leggono con
--- `meshbee_core/repository/letture.py::list_by_arnia`, che prende arnia,
--- intervallo e LIMIT come parametri: una vista con finestra fissa a 7 giorni
--- non li accetta. È esistita fino a migrate_v4.sql, senza mai essere
--- interrogata.
-
--- Vista per arnie con ultime letture e coordinate
 CREATE OR REPLACE VIEW v_arnie_stato AS
 SELECT 
     a.id_arnia,
@@ -274,17 +235,27 @@ SELECT
 FROM arnie a
 LEFT JOIN nodi n ON a.id_nodo = n.id_nodo;
 
--- Nota: non esistono viste `v_serie_*`. Le serie storiche per i grafici sono
--- una query parametrica in `meshbee_core/repository/letture.py::series`: una
--- vista non accetta parametri (arnia, intervallo, LIMIT), quindi non
--- incapsulerebbe la parte che conta. Sono esistite fino a migrate_v4.sql.
-
--- ============================================
--- COMMENTI FINALI
--- ============================================
 COMMENT ON TABLE utenti IS 'Utenti del sistema con autenticazione';
 COMMENT ON TABLE nodi IS 'Dispositivi IoT che trasmettono dati';
 COMMENT ON TABLE arnie IS 'Arnie monitorate con sensori';
 COMMENT ON TABLE letture IS 'Dati telemetrici dalle arnie';
 COMMENT ON TABLE log_attivita IS 'Registro attività degli apicoltori';
 COMMENT ON TABLE log_attivita IS 'Registro interventi e attività degli apicoltori';
+"""
+
+TABLES = (
+    "token_sessione", "log_attivita", "letture", "utenti_arnie", "arnie", "nodi", "utenti",
+)
+
+
+def upgrade() -> None:
+    op.get_bind().exec_driver_sql(SCHEMA)
+
+
+def downgrade() -> None:
+    bind = op.get_bind()
+    bind.exec_driver_sql("DROP VIEW IF EXISTS v_arnie_stato")
+    bind.exec_driver_sql("DROP TRIGGER IF EXISTS trigger_aggiorna_nodo ON letture")
+    bind.exec_driver_sql("DROP FUNCTION IF EXISTS aggiorna_ultimo_messaggio_nodo()")
+    for table in TABLES:
+        bind.exec_driver_sql(f"DROP TABLE IF EXISTS {table} CASCADE")

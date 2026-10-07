@@ -152,6 +152,35 @@ def test_rerunning_does_not_reset_a_changed_password(db, run_seed):
 # ============================================
 
 
+def test_an_empty_install_gets_the_sample_apiary(db, run_seed):
+    """What init.sql used to insert: one node, two arnie, two readings each."""
+    seed_script.add_sample_apiary()
+
+    db.execute("SELECT id_nodo FROM nodi")
+    assert [row["id_nodo"] for row in db.fetchall()] == ["NODE001"]
+    db.execute("SELECT nome_arnia FROM arnie ORDER BY id_arnia")
+    assert [row["nome_arnia"] for row in db.fetchall()] == ["Arnia Alpha", "Arnia Beta"]
+    db.execute("SELECT count(*) AS n FROM letture")
+    assert db.fetchone()["n"] == 4
+
+
+def test_the_sample_apiary_is_not_added_twice(db, run_seed):
+    seed_script.add_sample_apiary()
+    seed_script.add_sample_apiary()
+
+    db.execute("SELECT count(*) AS n FROM arnie")
+    assert db.fetchone()["n"] == 2
+
+
+def test_an_install_with_its_own_hives_gets_no_sample_apiary(db, run_seed, make_arnia):
+    make_arnia()
+
+    seed_script.add_sample_apiary()
+
+    db.execute("SELECT count(*) AS n FROM nodi WHERE id_nodo = 'NODE001'")
+    assert db.fetchone()["n"] == 0
+
+
 def test_the_test_account_is_associated_with_every_arnia(db, run_seed, make_arnia):
     """Whatever hives already exist, the demo account can see them."""
     make_arnia()

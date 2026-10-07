@@ -109,8 +109,10 @@ Il che vuol dire che a tenere onesti i due sono solo i test.
 `tests/unit/mqtt_handler/test_contract.py` verifica che i campi del modello siano
 esattamente le chiavi che `parse_message` restituisce, che il JSON committato sia quello
 che il modello genera e che l'esempio qui sopra sia valido — in entrambe le lingue.
-`tests/integration/core/test_schemas.py` lega i limiti pubblicati a `LetturaBase` e ai
-vincoli CHECK.
+I suoi limiti non sono suoi: vengono importati da `meshbee_core/limits.py`, le costanti
+da cui sono costruiti `LetturaBase` e i vincoli CHECK, e
+`tests/integration/core/test_schemas.py` verifica i valori pubblicati contro un database
+reale.
 
 **Rigeneralo dopo ogni modifica alla forma del payload** — non lo fa niente in automatico:
 

@@ -71,12 +71,12 @@ app mobile ──HTTPS──▶ caddy/ ─────▶ api/ ─────�
 | `caddy/` | Reverse proxy che termina l'HTTPS su `:8443` davanti all'API. Opzionale. | [HTTPS locale](#https-locale) |
 | `api/` | L'API REST FastAPI. L'unico pezzo con cui parla l'app. | [api/](api/README.it.md) |
 | `meshbee_core/` | La libreria condivisa che entrambi gli entry point importano: schemi, service e tutto l'SQL. | [meshbee_core/](meshbee_core/README.it.md) |
-| `database/` | Lo schema PostgreSQL su cui scrive la libreria. | [database/](database/README.it.md) |
+| `database/` | Documentazione dello schema PostgreSQL, che `meshbee_core/models.py` definisce e Alembic applica. | [database/](database/README.it.md) |
 | app mobile | Dashboard, grafici e avvisi. Consuma l'API REST. | [meshbee-app](https://github.com/fablab-imperia/meshbee-app) |
 
 Due directory non stanno su quel percorso: [`tests/`](tests/README.it.md), l'unica suite
-pytest che copre tutto, e `scripts/`, i job one-shot — `seed.py` crea gli account
-iniziali, `export_openapi.py` ed `export_mqtt_schema.py` rigenerano i due artefatti del
+pytest che copre tutto, e `scripts/`, i job one-shot — `migrate.py` porta lo schema
+all'ultima revisione, `seed.py` crea gli account iniziali, `export_openapi.py` ed `export_mqtt_schema.py` rigenerano i due artefatti del
 contratto.
 
 > L'architettura dell'**intero** progetto Meshbee, questo repository compreso, è
@@ -175,8 +175,9 @@ docker-compose ps
 curl -s localhost:8000/health | python3 -m json.tool
 ```
 
-> `meshbee-seed` crea gli account iniziali e termina. Vederlo come **`Exited (0)` è
-> normale**: è un job one-shot, non un servizio andato in crash.
+> `meshbee-migrate` applica le migrazioni dello schema e `meshbee-seed` crea gli account
+> iniziali; poi entrambi terminano. Vederli come **`Exited (0)` è normale**: sono job
+> one-shot, non servizi andati in crash.
 
 Su un database nuovo trovi i due account qui sopra, un nodo di esempio con due arnie e
 qualche lettura. **Cambia quelle password prima di esporre qualsiasi cosa.**
@@ -189,7 +190,7 @@ processo fuori da Docker.
 
 | Variabile | Usata da | Note |
 |---|---|---|
-| `POSTGRES_PASSWORD` | postgres, api, mqtt-handler, seed | Arriva anche come `DB_PASSWORD`. **Applicata solo su un volume nuovo.** |
+| `POSTGRES_PASSWORD` | postgres, migrate, api, mqtt-handler, seed | Arriva anche come `DB_PASSWORD`. **Applicata solo su un volume nuovo.** |
 | `JWT_SECRET_KEY` | api | Firma dei token. Cambiarla invalida tutti i token emessi. |
 | `MQTT_USER` | mosquitto, mqtt-handler | Default `beehive`. |
 | `MQTT_PASSWORD` | mosquitto, mqtt-handler | Deve corrispondere a `mosquitto/config/passwd`. |
@@ -288,14 +289,19 @@ gitignorato, quindi un clone nuovo non ce l'ha mai. Esegui `make mqtt-passwd`, p
 `docker-compose logs mosquitto`. Stessa cosa se hai cambiato `MQTT_PASSWORD` senza
 rigenerarlo.
 
-**Una modifica allo schema o alla password non ha avuto effetto.** `init.sql` e
-`POSTGRES_PASSWORD` vengono applicati **solo quando la directory dati è vuota**, e
-`postgres_data` sopravvive a `docker-compose down`, alle ricostruzioni e ai riavvii. O
-`docker-compose down -v` (che **distrugge tutte le letture**) oppure scrivi un
-`database/migrate_*.sql`. Vedi
+**`api` e `mqtt-handler` non partono mai; `meshbee-migrate` è uscito con 1.** Leggi
+`docker-compose logs migrate`. "no alembic_version" indica un database creato prima di
+Alembic: marcalo una volta, come descritto in
+[`database/README.it.md`](database/README.it.md#installazioni-esistenti).
+
+**Una modifica alla password non ha avuto effetto.** `POSTGRES_PASSWORD` viene applicata
+**solo quando la directory dati è vuota**, e `postgres_data` sopravvive a
+`docker-compose down`, alle ricostruzioni e ai riavvii. O `docker-compose down -v` (che
+**distrugge tutte le letture**) oppure cambiala dentro PostgreSQL. Le modifiche allo
+schema sono un'altra cosa: passano da una migrazione — vedi
 [`database/README.it.md`](database/README.it.md#cambiare-lo-schema).
 
-**`meshbee-seed` risulta `Exited (0)`.** È normale: è un job one-shot.
+**`meshbee-migrate` o `meshbee-seed` risulta `Exited (0)`.** È normale: sono job one-shot.
 
 **`seed` esce con 1 e "Configurazione non valida".** `ADMIN_PASSWORD` o
 `USER_PASSWORD` manca o è più corta di 8 caratteri. Correggi il `.env`, poi

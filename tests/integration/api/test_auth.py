@@ -1,7 +1,7 @@
 """Authentication against a real database (api/auth.py).
 
 These exercise the SQL itself — column names, joins, parameter order and the
-CHECK constraints in database/init.sql — which the fake cursor in
+CHECK constraints from meshbee_core/models.py — which the fake cursor in
 tests/unit/test_auth.py cannot verify.
 """
 import pytest

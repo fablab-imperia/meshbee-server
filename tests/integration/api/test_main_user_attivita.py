@@ -107,7 +107,7 @@ def test_an_unsupported_activity_type_is_rejected(as_user, scrittore):
     An unknown tipo_attivita is a validation error, not a server fault.
 
     The TipoAttivita literal rejects it at the edge, so the CHECK constraint in
-    init.sql is never reached and the client is told which field was wrong.
+    the database is never reached and the client is told which field was wrong.
     """
     utente, arnia = scrittore
 

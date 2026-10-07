@@ -2,8 +2,8 @@
 """
 Seed iniziale del database.
 
-Crea gli account di default, li associa alle arnie già presenti e inserisce un
-log attività di esempio. Gira a ogni `docker-compose up` (il servizio `seed`
+Crea gli account di default, un apiario di esempio se non esiste ancora
+nessuna arnia, li associa alle arnie e inserisce un log attività di esempio. Gira a ogni `docker-compose up` (il servizio `seed`
 esce con 0 e non riparte), quindi ogni passo è **idempotente**: se qualcosa
 esiste già viene lasciato com'è, password comprese.
 
@@ -17,10 +17,12 @@ from pydantic import Field, SecretStr, ValidationError
 
 from meshbee_core.config import CoreSettings
 from meshbee_core.db import close_db_pool, get_db_cursor, init_db_pool
-from meshbee_core.schemas import AttivitaCreate, UserCreate
+from meshbee_core.schemas import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
 from meshbee_core.services import accessi as accessi_service
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import attivita as attivita_service
+from meshbee_core.services import letture as letture_service
+from meshbee_core.services import nodi as nodi_service
 from meshbee_core.services import utenti as utenti_service
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -34,6 +36,42 @@ TEST_EMAIL = "utente@test.local"
 
 # Days back the sample activity is dated, so the app has something in its history.
 SAMPLE_ACTIVITY_AGE_DAYS = 7
+
+# The demo apiary a fresh install starts with. It used to be inserted by
+# database/init.sql; schema migrations carry no data, so the seed owns it now.
+SAMPLE_NODO = NodoCreate(
+    id_nodo="NODE001",
+    nome_nodo="Apiario Collina",
+    descrizione="Nodo principale apiario collina sud",
+    posizione="Lat: 45.4642, Lon: 9.1900",
+)
+SAMPLE_ARNIE = [
+    ArniaCreate(
+        id_nodo="NODE001",
+        id_sensore_fisico="SENSOR01",
+        nome_arnia="Arnia Alpha",
+        descrizione="Arnia con regina ligustica",
+        posizione="Fila 1, Posizione 1",
+        latitudine="45.464200",
+        longitudine="9.190000",
+        metadati={"razza": "Ligustica", "anno_regina": 2024, "colore_arnia": "giallo"},
+    ),
+    ArniaCreate(
+        id_nodo="NODE001",
+        id_sensore_fisico="SENSOR02",
+        nome_arnia="Arnia Beta",
+        descrizione="Arnia con regina carnica",
+        posizione="Fila 1, Posizione 2",
+        latitudine="45.464250",
+        longitudine="9.190050",
+        metadati={"razza": "Carnica", "anno_regina": 2023, "colore_arnia": "verde"},
+    ),
+]
+# (hours ago, temperatura, umidita, peso) per sample arnia, in SAMPLE_ARNIE order.
+SAMPLE_LETTURE = [
+    [(1, "34.5", "65.0", "42.350"), (2, "33.8", "66.5", "42.320")],
+    [(1, "35.2", "63.0", "38.720"), (2, "34.9", "64.0", "38.710")],
+]
 
 
 class SeedSettings(CoreSettings):
@@ -102,6 +140,38 @@ def create_users(users) -> dict:
     return user_ids
 
 
+def add_sample_apiary() -> None:
+    """
+    Give an install with no hives at all one node, two arnie and a few readings.
+
+    Keyed on "no arnie", not on the sample node: once anyone has registered a
+    hive — sample or real — the seed stays out of the way, and deleting the
+    demo data does not bring it back on the next start.
+    """
+    logger.info("\n=== Apiario di esempio ===")
+
+    with get_db_cursor() as cursor:
+        if arnie_service.list_ids(cursor):
+            logger.info("  Arnie già presenti, skip")
+            return
+
+        nodi_service.create_nodo(cursor, SAMPLE_NODO)
+        now = datetime.now()
+        for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE):
+            created = arnie_service.create_arnia(cursor, arnia)
+            for hours_ago, temperatura, umidita, peso in readings:
+                letture_service.record_reading(cursor, {
+                    "id_arnia": created["id_arnia"],
+                    "id_nodo": arnia.id_nodo,
+                    "timestamp": now - timedelta(hours=hours_ago),
+                    "temperatura": temperatura,
+                    "umidita": umidita,
+                    "peso": peso,
+                })
+
+    logger.info(f"  ✓ Nodo {SAMPLE_NODO.id_nodo} con {len(SAMPLE_ARNIE)} arnie creato")
+
+
 def associate_test_user(id_utente: int) -> list:
     """Give the test account access to every arnia already registered."""
     logger.info("\n=== Associazione utente-arnie ===")
@@ -160,9 +230,10 @@ def seed() -> None:
     try:
         user_ids = create_users(users)
 
-        # Steps 2 and 3 are conveniences, not prerequisites: a failure there is
-        # reported but must not leave the stack without its accounts.
+        # The remaining steps are conveniences, not prerequisites: a failure
+        # there is reported but must not leave the stack without its accounts.
         try:
+            add_sample_apiary()
             arnie = associate_test_user(user_ids[TEST_EMAIL])
             if arnie:
                 add_sample_activity(user_ids[TEST_EMAIL], arnie[0])

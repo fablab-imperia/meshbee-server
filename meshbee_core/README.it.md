@@ -25,7 +25,10 @@ scripts/ ───────┘
 |---|---|
 | `config.py` | `CoreSettings` — i campi del database, e nient'altro. |
 | `db.py` | Il pool di connessioni psycopg2 e `get_db_cursor()`. |
-| `schemas.py` | Tutti i modelli pydantic, e i limiti di validazione. |
+| `limits.py` | Ogni limite e insieme di valori, dichiarato una volta sola. Letto dai tre qui sotto e da `mqtt_handler/contract.py`. |
+| `models.py` | Lo schema del database, come classi tabella SQLModel. La fonte da cui migra Alembic. |
+| `migrations/` | Alembic: `env.py`, `upgrade()` e le revisioni. Vedi [`database/`](../database/README.it.md#cambiare-lo-schema). |
+| `schemas.py` | Tutti i modelli pydantic dell'API, che validano con i limiti di `limits.py`. |
 | `security.py` | Hashing e verifica delle password. Senza framework. |
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData` — il vocabolario che sollevano i service. |
 | `repository/` | SQL. Un modulo per tabella. |
@@ -144,12 +147,13 @@ I limiti stanno in `schemas.py`:
 | `permessi` | `read`, `write`, `admin` | CHECK su `utenti_arnie.permessi` |
 | `tipo_attivita` | 8 valori | CHECK su `log_attivita.tipo_attivita` |
 
-**Ogni limite è duplicato come vincolo CHECK in `database/init.sql` — e le tre misure una
-terza volta, come parole chiave JSON Schema in `mqtt_handler/contract.py` — e niente
-collega le tre cose.** `tests/integration/core/test_schemas.py` è quello che li tiene
-onesti: ricava i suoi casi dal contratto MQTT pubblicato e verifica gli altri lati contro
-un database reale. Aggiungi un caso lì ogni volta che aggiungi o cambi un validatore che
-rispecchia un vincolo.
+**Ogni limite e insieme di valori è dichiarato una volta sola, in `limits.py`.** I
+validatori qui, i vincoli CHECK in `models.py` e le parole chiave JSON Schema in
+`mqtt_handler/contract.py` leggono tutti le stesse costanti, quindi cambiare un numero
+cambia tutti e tre — e il database segue con una migrazione (l'autogenerate non vede i
+CHECK; vedi [`database/`](../database/README.it.md#cambiare-lo-schema)).
+`tests/integration/core/test_schemas.py` verifica ancora contro un database reale che un
+valore rifiutato qui sia rifiutato anche lì.
 
 Altre due note sulla validazione:
 

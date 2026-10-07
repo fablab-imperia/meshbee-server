@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # No init script: the schema comes from the `migrate` service below.
     ports:
       - "5432:5432"
     networks:
@@ -23,8 +23,8 @@ services:
 
   # Database usato solo dai test di integrazione.
   # Dati in tmpfs (nessun volume da pulire) e profilo "test": non parte con un
-  # normale `docker-compose up`. Lo schema viene ricaricato da init.sql a ogni
-  # esecuzione della suite, quindi il DB è sempre pulito.
+  # normale `docker-compose up`. Lo schema viene ricostruito dalle migrazioni
+  # (alembic upgrade head) a ogni esecuzione della suite, quindi il DB è sempre pulito.
   #   docker-compose --profile test up -d postgres-test
   postgres-test:
     image: postgres:15-alpine
@@ -65,6 +65,32 @@ services:
       timeout: 10s
       retries: 3
 
+  # Migrate: brings the schema to the latest Alembic revision, then exits.
+  # Every service that touches the database waits for it to exit 0, so none of
+  # them ever sees a half-built schema. Re-running it at head is a no-op.
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: meshbee-migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: beehive_iot
+      DB_USER: beehive_user
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - beehive-network
+    volumes:
+      - ./scripts:/app/scripts
+      - ./meshbee_core:/app/meshbee_core
+      - ./alembic.ini:/app/alembic.ini:ro
+    command: python -m scripts.migrate
+
   # Seed: crea utenti con hash bcrypt reali (gira una sola volta)
   seed:
     build:
@@ -73,8 +99,8 @@ services:
     container_name: meshbee-seed
     restart: "no"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -100,8 +126,8 @@ services:
     container_name: meshbee-mqtt-handler
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       mosquitto:
         condition: service_started
     environment:
@@ -129,8 +155,8 @@ services:
     container_name: meshbee-api
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -154,8 +180,8 @@ services:
       - ./scripts:/app/scripts
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini:ro
-      # Schema letto dai test di integrazione per ricreare il DB di test
-      - ./database:/database:ro
+      # For the alembic CLI: `docker-compose exec api alembic revision --autogenerate ...`
+      - ./alembic.ini:/app/alembic.ini:ro
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Caddy HTTPS Proxy

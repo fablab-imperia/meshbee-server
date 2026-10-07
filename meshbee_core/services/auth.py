@@ -72,6 +72,6 @@ def has_arnia_access(cursor, id_utente: int, id_arnia: int,
     if not result:
         return False
 
-    # `permessi` is constrained by a CHECK in init.sql to exactly these keys,
+    # `permessi` is constrained by a CHECK (built from limits.PERMESSI) to exactly these keys,
     # so index directly instead of masking an unexpected value.
     return PERMISSION_LEVELS[result['permessi']] >= PERMISSION_LEVELS[required_permission]

@@ -1,7 +1,7 @@
 """Tests for the pydantic schemas (meshbee_core/schemas.py).
 
 Scope: the validation *we* declare — the custom email/lettura validators, the
-Field bounds, and the defaults that have to agree with database/init.sql.
+Field bounds, and the defaults that have to agree with meshbee_core/models.py.
 Pydantic's own machinery (required fields, datetime parsing) is not retested.
 """
 from datetime import datetime
@@ -169,7 +169,7 @@ def test_readings_are_all_optional():
     ],
 )
 def test_coordinates_accept_values_inside_the_range(field, value):
-    """Bounds are inclusive, matching the CHECK constraints in init.sql."""
+    """Bounds are inclusive, matching the CHECK constraints in the database."""
     assert getattr(arnia(**{field: Decimal(value)}), field) == Decimal(value)
 
 

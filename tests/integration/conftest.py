@@ -43,7 +43,7 @@ def make_utente(db):
     Insert a row in `utenti` and return it.
 
     Defaults produce a valid active user; `ruolo` accepts only 'user' or 'admin'
-    (CHECK constraint in init.sql).
+    (CHECK constraint built from meshbee_core.limits).
     """
     counter = iter(range(1, 1000))
 

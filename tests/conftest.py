@@ -1,11 +1,11 @@
 """Shared fixtures for the API test-suite."""
 import os
 from contextlib import contextmanager
-from pathlib import Path
 
 import psycopg2
 import pytest
 from psycopg2.extras import RealDictCursor
+from sqlalchemy.engine import URL
 
 from api.config import Settings, get_settings
 from meshbee_core.config import CoreSettings, get_core_settings
@@ -20,7 +20,15 @@ TEST_DB_PARAMS = {
     "user": os.getenv("TEST_DB_USER", "beehive_user"),
     "password": os.getenv("TEST_DB_PASSWORD", "test"),
 }
-SCHEMA_FILE = Path(os.getenv("TEST_DB_SCHEMA", "/database/init.sql"))
+# The same connection as a SQLAlchemy URL, for Alembic.
+TEST_DB_URL = URL.create(
+    "postgresql",
+    username=TEST_DB_PARAMS["user"],
+    password=TEST_DB_PARAMS["password"],
+    host=TEST_DB_PARAMS["host"],
+    port=TEST_DB_PARAMS["port"],
+    database=TEST_DB_PARAMS["dbname"],
+).render_as_string(hide_password=False)
 
 
 @pytest.fixture
@@ -171,18 +179,19 @@ def fake_db(monkeypatch):
 @pytest.fixture(scope="session")
 def test_schema():
     """
-    Rebuild the test database from `database/init.sql`, once per pytest run.
+    Rebuild the test database from the migration chain, once per pytest run.
 
-    Dropping and reloading the schema here rather than relying on the container
-    being fresh means the flush happens on every run, identically on a
-    long-running local stack and on a throwaway CI container.
+    Dropping the schema and running every revision from scratch, rather than
+    relying on the container being fresh, means the flush happens on every run,
+    identically on a long-running local stack and on a throwaway CI container.
 
-    Loading the *whole* file also keeps init.sql honest: if a migration adds
-    something that never made it back into init.sql, or the file stops being
-    valid SQL, the suite fails here instead of silently testing a stale schema.
-    The example rows it inserts are then truncated, so every test starts from an
-    empty, predictable slate.
+    Building it with `upgrade head` — the path a fresh install takes — also
+    keeps the migrations honest: a revision that fails, or that never made it
+    into the chain, fails the suite here. That the result matches
+    `meshbee_core.models` is `tests/integration/test_migrations.py`'s job.
     """
+    from meshbee_core.migrations import upgrade
+
     try:
         connection = psycopg2.connect(**TEST_DB_PARAMS)
     except psycopg2.OperationalError as exc:
@@ -196,16 +205,9 @@ def test_schema():
     connection.autocommit = True
     with connection, connection.cursor() as cursor:
         cursor.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-        cursor.execute(SCHEMA_FILE.read_text())
-        cursor.execute(
-            """
-            SELECT string_agg(format('%I', tablename), ', ')
-            FROM pg_tables WHERE schemaname = 'public'
-            """
-        )
-        tables = cursor.fetchone()[0]
-        cursor.execute(f"TRUNCATE {tables} RESTART IDENTITY CASCADE")
     connection.close()
+
+    upgrade(TEST_DB_URL)
 
 
 @pytest.fixture

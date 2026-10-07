@@ -16,10 +16,24 @@ requires-python = ">=3.11"
 # library must not drag either entry point's framework into the other's image.
 dependencies = [
     "psycopg2-binary==2.9.9",
+    # 0.0.30 is the newest SQLModel that accepts pydantic 2.5; later releases
+    # need pydantic >= 2.11. Pinned exactly: SQLModel is still 0.0.x.
+    "sqlmodel==0.0.30",
+    "SQLAlchemy==2.0.54",
+    "alembic==1.20.0",
     "pydantic==2.5.3",
     "pydantic-settings==2.1.0",
     "bcrypt==4.0.1",
 ]
 
 [tool.setuptools]
-packages = ["meshbee_core", "meshbee_core.repository", "meshbee_core.services"]
+packages = [
+    "meshbee_core",
+    "meshbee_core.repository",
+    "meshbee_core.services",
+    "meshbee_core.migrations",
+    "meshbee_core.migrations.versions",
+]
+
+[tool.setuptools.package-data]
+"meshbee_core.migrations" = ["script.py.mako"]

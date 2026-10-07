@@ -2,26 +2,22 @@
 Modelli Pydantic per validazione e serializzazione
 """
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 
-# Value sets mirroring the CHECK constraints in database/init.sql. Declaring them
-# here turns a violation into a 422 at the edge instead of a 500 from the driver,
-# and documents the options in the OpenAPI schema.
-# Keep in sync with database/init.sql — tests/integration/test_models.py asserts it.
-Ruolo = Literal["user", "admin"]
-Permesso = Literal["read", "write", "admin"]
-TipoAttivita = Literal[
-    "ispezione",
-    "trattamento",
-    "raccolta_miele",
-    "nutrizione",
-    "sostituzione_regina",
-    "controllo_salute",
-    "manutenzione",
-    "altro",
-]
+from meshbee_core.limits import (
+    BATTERIA_MAX, BATTERIA_MIN, LATITUDINE_MAX, LATITUDINE_MIN, LONGITUDINE_MAX,
+    LONGITUDINE_MIN, PESO_MIN, TEMPERATURA_MAX, TEMPERATURA_MIN, UMIDITA_MAX,
+    UMIDITA_MIN,
+    # Re-exported: the value sets are part of this module's public surface.
+    Permesso, Ruolo, TipoAttivita,
+)
+
+# The bounds and value sets live in meshbee_core.limits, which the table models
+# also build their CHECK constraints from. Declaring them on the schemas turns a
+# violation into a 422 at the edge instead of a 500 from the driver, and
+# documents the options in the OpenAPI schema.
 
 
 # ============================================
@@ -180,8 +176,8 @@ class ArniaBase(BaseModel):
     nome_arnia: Optional[str] = None
     descrizione: Optional[str] = None
     posizione: Optional[str] = None
-    latitudine: Optional[Decimal] = Field(None, ge=-90, le=90, description="Latitudine in formato DD, es: 45.464200")
-    longitudine: Optional[Decimal] = Field(None, ge=-180, le=180, description="Longitudine in formato DD, es: 9.190000")
+    latitudine: Optional[Decimal] = Field(None, ge=LATITUDINE_MIN, le=LATITUDINE_MAX, description="Latitudine in formato DD, es: 45.464200")
+    longitudine: Optional[Decimal] = Field(None, ge=LONGITUDINE_MIN, le=LONGITUDINE_MAX, description="Longitudine in formato DD, es: 9.190000")
 
 
 class ArniaCreate(ArniaBase):
@@ -194,8 +190,8 @@ class ArniaUpdate(BaseModel):
     nome_arnia: Optional[str] = None
     descrizione: Optional[str] = None
     posizione: Optional[str] = None
-    latitudine: Optional[Decimal] = Field(None, ge=-90, le=90, description="Latitudine in formato DD")
-    longitudine: Optional[Decimal] = Field(None, ge=-180, le=180, description="Longitudine in formato DD")
+    latitudine: Optional[Decimal] = Field(None, ge=LATITUDINE_MIN, le=LATITUDINE_MAX, description="Latitudine in formato DD")
+    longitudine: Optional[Decimal] = Field(None, ge=LONGITUDINE_MIN, le=LONGITUDINE_MAX, description="Longitudine in formato DD")
     attiva: Optional[bool] = None
     metadati: Optional[Dict[str, Any]] = None
 
@@ -238,29 +234,29 @@ class LetturaBase(BaseModel):
     @field_validator('temperatura')
     @classmethod
     def validate_temperatura(cls, v):
-        if v is not None and (v < -50 or v > 100):
-            raise ValueError('Temperatura deve essere tra -50 e 100°C')
+        if v is not None and (v < TEMPERATURA_MIN or v > TEMPERATURA_MAX):
+            raise ValueError(f'Temperatura deve essere tra {TEMPERATURA_MIN} e {TEMPERATURA_MAX}°C')
         return v
     
     @field_validator('umidita')
     @classmethod
     def validate_umidita(cls, v):
-        if v is not None and (v < 0 or v > 100):
-            raise ValueError('Umidità deve essere tra 0 e 100%')
+        if v is not None and (v < UMIDITA_MIN or v > UMIDITA_MAX):
+            raise ValueError(f'Umidità deve essere tra {UMIDITA_MIN} e {UMIDITA_MAX}%')
         return v
     
     @field_validator('peso')
     @classmethod
     def validate_peso(cls, v):
-        if v is not None and v < 0:
+        if v is not None and v < PESO_MIN:
             raise ValueError('Peso deve essere positivo')
         return v
 
     @field_validator('batteria')
     @classmethod
     def validate_batteria(cls, v):
-        if v is not None and (v < 0 or v > 5):
-            raise ValueError('Batteria deve essere tra 0 e 5 V')
+        if v is not None and (v < BATTERIA_MIN or v > BATTERIA_MAX):
+            raise ValueError(f'Batteria deve essere tra {BATTERIA_MIN} e {BATTERIA_MAX} V')
         return v
 
 
