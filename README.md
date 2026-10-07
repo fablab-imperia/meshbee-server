@@ -317,8 +317,9 @@ profile and is not started by a plain `up`:
 `docker-compose --profile test up -d postgres-test`.
 
 **`/health` says `unhealthy`.** The API is up but the database is not reachable. The
-body carries the error; `/health` deliberately answers 200 either way, so a monitor must
-read the body.
+reason is in `docker-compose logs api`, not in the body: the endpoint is public and the
+error names the database host and user. `/health` deliberately answers 200 either way,
+so a monitor must read the body.
 
 ## License
 

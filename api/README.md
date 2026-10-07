@@ -104,7 +104,7 @@ that must stay identical is pinned by `tests/integration/test_ingest_parity.py`.
 | GET | `/health` | none | Pings the database. |
 
 `/health` **always answers 200** — the body carries the verdict
-(`"status": "healthy"` / `"unhealthy"`). A monitor must read the body, not the status
+(`"status": "healthy"` / `"unhealthy"`), never the reason: that goes to the API log. A monitor must read the body, not the status
 code.
 
 ## Authentication and authorization

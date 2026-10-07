@@ -104,7 +104,7 @@ quello che invece deve restare identico è fissato da
 | GET | `/health` | nessuna | Verifica il database. |
 
 `/health` **risponde sempre 200** — il verdetto sta nel corpo (`"status": "healthy"` /
-`"unhealthy"`). Un sistema di monitoraggio deve leggere il corpo, non lo status code.
+`"unhealthy"`), mai il motivo: quello finisce nel log dell'API. Un sistema di monitoraggio deve leggere il corpo, non lo status code.
 
 ## Autenticazione e autorizzazione
 

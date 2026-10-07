@@ -765,11 +765,12 @@ def health_check():
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
+        # The reason goes to the log only. This endpoint is public, and a
+        # connection error names the database host, port and user.
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
             "database": "disconnected",
-            "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
 
