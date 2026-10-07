@@ -326,6 +326,20 @@ the one to deploy. Compatibility between the repositories of the project is trac
 the umbrella repo:
 [compatibility matrix](https://fablab-imperia.github.io/meshbee/contract/compatibility/).
 
+Releases are cut by [release-please](https://github.com/googleapis/release-please)
+(`.github/workflows/release-please.yml`). Every push to `main` opens or updates a
+**release PR** that picks the next version from the commit types — `fix:` → patch,
+`feat:` → minor, `!` or `BREAKING CHANGE:` → major — and writes it to
+`API_VERSION` in `api/config.py`, `info.version` in `api/openapi.json`, the version
+in `pyproject.toml` and a new entry in `CHANGELOG.md`. Merging that PR creates the tag
+(`1.3.0`, no `v`) and the GitHub release. So:
+
+- **Don't bump versions or tag by hand.** Merge the release PR when you want to ship.
+- **Squash-merge PRs**, so the PR title becomes the one commit release-please reads.
+  A plain merge commit is ignored, and a title that isn't a Conventional Commit is
+  left out of the changelog.
+- **To pick a version yourself**, put `Release-As: 2.0.0` in the body of a commit.
+
 Contributions are welcome — see the organisation's
 [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md).
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
