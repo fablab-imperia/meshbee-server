@@ -38,11 +38,14 @@ def init_db_pool(settings: CoreSettings, *, maxconn: int = 20) -> None:
         # QueuePool is thread-safe, which lets FastAPI run the synchronous
         # routes in its threadpool. pre_ping replaces a connection the server
         # dropped (a Postgres restart) instead of failing the next request.
+        # hide_parameters keeps bound values out of exception text: every
+        # caller logs `{e}`, and an INSERT INTO utenti carries a password hash.
         engine = create_engine(
             settings.database_url,
             pool_size=maxconn,
             max_overflow=0,
             pool_pre_ping=True,
+            hide_parameters=True,
         )
         logger.info("Pool di connessioni database inizializzato")
     except Exception as e:
