@@ -1,0 +1,23 @@
+# Opens and maintains a release PR from the Conventional Commits on main; merging
+# that PR tags the release and publishes it on GitHub. See "Versioning and
+# contributing" in README.md.
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to a commit: this job holds contents/pull-requests write, so a moved
+      # tag must not change what runs. Bump the SHA and the comment together.
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

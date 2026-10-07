@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 # Distribution name uses a hyphen, import name an underscore: `meshbee_core`.
 # Hyphens are not legal in Python identifiers, so the pair is the standard one.
 name = "meshbee-core"
-version = "0.1.0"
+# Bumped by release-please together with API_VERSION; don't edit by hand.
+version = "1.2.0"
 description = "Shared persistence and business logic for the Meshbee backend"
 requires-python = ">=3.11"
 

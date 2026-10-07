@@ -332,6 +332,21 @@ quello da deployare. La compatibilità fra i repository del progetto è tracciat
 ombrello:
 [matrice di compatibilità](https://fablab-imperia.github.io/meshbee/contract/compatibility/).
 
+Le release le crea [release-please](https://github.com/googleapis/release-please)
+(`.github/workflows/release-please.yml`). A ogni push su `main` apre o aggiorna una
+**PR di release** che sceglie la versione successiva dai tipi di commit — `fix:` →
+patch, `feat:` → minor, `!` o `BREAKING CHANGE:` → major — e la scrive in
+`API_VERSION` in `api/config.py`, in `info.version` in `api/openapi.json`, nella
+versione di `pyproject.toml` e in una nuova voce di `CHANGELOG.md`. Il merge di quella
+PR crea il tag (`1.3.0`, senza `v`) e la release su GitHub. Quindi:
+
+- **Non aggiornare la versione né creare tag a mano.** Fai il merge della PR di release
+  quando vuoi pubblicare.
+- **Fai lo squash-merge delle PR**, così il titolo della PR diventa l'unico commit che
+  release-please legge. Un merge commit normale viene ignorato, e un titolo che non è
+  un Conventional Commit resta fuori dal changelog.
+- **Per scegliere tu la versione**, metti `Release-As: 2.0.0` nel corpo di un commit.
+
 I contributi sono benvenuti — vedi il
 [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md)
 dell'organizzazione. I commit seguono i
