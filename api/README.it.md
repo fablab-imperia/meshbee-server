@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 48 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 49 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -24,7 +24,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-48 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+49 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -82,6 +82,7 @@ whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stri
 | PUT | `/api/admin/utenti/{id_utente}/password` | admin | Reimposta la password di qualcuno — senza `current_password`. |
 | POST | `/api/admin/utenti-arnie` | admin | Dà a un utente accesso a un'arnia a un certo livello. |
 | DELETE | `/api/admin/utenti-arnie` | admin | Lo revoca. **`id_utente` e `id_arnia` sono query parameter**, non un body. |
+| PUT | `/api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario` | admin | Sposta l'arnia di un utente in un altro apiario **di quell'utente**. |
 | GET | `/api/admin/nodi` | admin | Tutti i nodi. |
 | POST | `/api/admin/nodi` | admin | Registra un nodo. |
 | GET | `/api/admin/nodi/{id_nodo}` | admin | Un singolo nodo. |

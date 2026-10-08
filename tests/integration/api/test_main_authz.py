@@ -44,6 +44,7 @@ ADMIN_ONLY = [
         {"id_utente": 1, "id_arnia": 1, "permessi": "read"},
     ),
     ("delete", "/api/admin/utenti-arnie?id_utente=1&id_arnia=1", None),
+    ("put", "/api/admin/utenti/1/arnie/1/apiario", {"id_apiario": 1}),
     ("get", "/api/admin/letture", None),
     ("post", "/api/admin/letture", {"id_arnia": 1, "id_nodo": "NODE-X"}),
     ("get", "/api/admin/attivita", None),

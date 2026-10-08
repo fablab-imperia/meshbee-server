@@ -136,3 +136,58 @@ def test_the_admin_hive_list_filters_by_apiario(
 
 def test_the_admin_hive_list_rejects_an_unknown_apiario(admin):
     assert admin.get("/api/admin/arnie?id_apiario=999999").status_code == 404
+
+
+# ============================================
+# PUT /api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario
+# ============================================
+
+
+def admin_move(client, utente, arnia, id_apiario):
+    return client.put(
+        f"/api/admin/utenti/{utente['id_utente']}/arnie/{arnia['id_arnia']}/apiario",
+        json={"id_apiario": id_apiario},
+    )
+
+
+def test_an_admin_moves_a_users_hive(
+    admin, as_user, make_utente, make_apiario, make_arnia, grant_access
+):
+    """Read-only on the hive is no obstacle: the admin acts on the user's behalf."""
+    utente = make_utente()
+    orto = make_apiario(utente)
+    arnia = make_arnia()
+    grant_access(utente["id_utente"], arnia["id_arnia"], "read")
+
+    response = admin_move(admin, utente, arnia, orto["id_apiario"])
+
+    assert response.status_code == 200
+    row = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}").json()
+    assert row["id_apiario"] == orto["id_apiario"]
+
+
+def test_an_admin_cannot_move_a_hive_into_another_users_apiario(
+    admin, make_utente, make_apiario, make_arnia, grant_access
+):
+    """The apiary must be the hive's user's own, whoever asks."""
+    utente = make_utente()
+    arnia = make_arnia()
+    grant_access(utente["id_utente"], arnia["id_arnia"])
+
+    response = admin_move(
+        admin, utente, arnia, make_apiario(make_utente())["id_apiario"]
+    )
+
+    assert response.status_code == 400
+
+
+def test_an_admin_cannot_move_a_hive_the_user_has_no_access_to(
+    admin, make_utente, make_apiario, make_arnia
+):
+    utente = make_utente()
+
+    response = admin_move(
+        admin, utente, make_arnia(), make_apiario(utente)["id_apiario"]
+    )
+
+    assert response.status_code == 404

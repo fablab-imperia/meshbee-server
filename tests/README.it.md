@@ -90,7 +90,7 @@ SAVEPOINT, perché in produzione ogni messaggio ha la sua transazione e il test 
 lasciare che un messaggio veda il lavoro non committato di un altro.
 
 **`integration/api/test_main_authz.py` — il cancello.** Un'unica tabella passa in
-rassegna **tutti i 48 endpoint** per accesso anonimo, autenticato-ma-non-admin e
+rassegna **tutti i 49 endpoint** per accesso anonimo, autenticato-ma-non-admin e
 autenticato-senza-associazione (o, per un apiario, non proprietario). **Aggiungi ogni
 endpoint nuovo a quella tabella.** È quello che becca una rotta che si è dimenticata il suo `Depends`.
 

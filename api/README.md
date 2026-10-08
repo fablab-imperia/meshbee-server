@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 48 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 49 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -25,7 +25,7 @@ here.
 
 ## Endpoints
 
-48 operations. `Auth` says what a request must carry:
+49 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -83,6 +83,7 @@ whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 | PUT | `/api/admin/utenti/{id_utente}/password` | admin | Reset someone's password — no `current_password` needed. |
 | POST | `/api/admin/utenti-arnie` | admin | Grant a user access to a hive at a permission level. |
 | DELETE | `/api/admin/utenti-arnie` | admin | Revoke it. **`id_utente` and `id_arnia` are query parameters**, not a body. |
+| PUT | `/api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario` | admin | Move a user's hive into another of **that user's** apiaries. |
 | GET | `/api/admin/nodi` | admin | All nodes. |
 | POST | `/api/admin/nodi` | admin | Register a node. |
 | GET | `/api/admin/nodi/{id_nodo}` | admin | One node. |

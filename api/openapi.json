@@ -3018,6 +3018,73 @@
         ]
       }
     },
+    "/api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario": {
+      "put": {
+        "description": "Move a user's hive into another of that user's apiaries (admin only).\nSame rules as the user route: only that user's view changes.",
+        "operationId": "move_arnia_admin_api_admin_utenti__id_utente__arnie__id_arnia__apiario_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_utente",
+            "required": true,
+            "schema": {
+              "title": "Id Utente",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArniaApiarioUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Move Arnia Admin",
+        "tags": [
+          "Admin - Utenti"
+        ]
+      }
+    },
     "/api/admin/utenti/{id_utente}/password": {
       "put": {
         "description": "Reset password di un utente (solo admin).",

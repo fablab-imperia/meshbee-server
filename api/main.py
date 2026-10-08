@@ -943,6 +943,25 @@ def remove_user_arnia(
         }
 
 
+@app.put(
+    "/api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario",
+    response_model=MessageResponse,
+    tags=["Admin - Utenti"],
+)
+def move_arnia_admin(
+    id_utente: int,
+    id_arnia: int,
+    body: ArniaApiarioUpdate,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Move a user's hive into another of that user's apiaries (admin only).
+    Same rules as the user route: only that user's view changes.
+    """
+    with db_operation("spostamento arnia") as session:
+        return accessi_service.move(session, id_utente, id_arnia, body.id_apiario)
+
+
 @app.delete(
     "/api/admin/utenti/{id_utente}",
     response_model=MessageResponse,

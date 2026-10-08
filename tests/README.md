@@ -87,7 +87,7 @@ Its `deliver` fixture wraps each message in a SAVEPOINT, because in production e
 message gets its own transaction and the test must not let one message see another's
 uncommitted work.
 
-**`integration/api/test_main_authz.py` — the gate.** One table sweeps **all 48
+**`integration/api/test_main_authz.py` — the gate.** One table sweeps **all 49
 endpoints** for anonymous, authenticated-but-not-admin, and authenticated-without-the-
 association (or, for an apiary, not its owner). **Add every new endpoint to that
 table.** It is what catches a route that forgot its `Depends`.
