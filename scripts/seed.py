@@ -18,15 +18,8 @@ from pydantic import Field, SecretStr, ValidationError
 
 from meshbee_core.config import CoreSettings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool
-from meshbee_core.models import (
-    ApiarioCreate,
-    ArniaCreate,
-    AttivitaCreate,
-    NodoCreate,
-    UserCreate,
-)
+from meshbee_core.models import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
 from meshbee_core.services import accessi as accessi_service
-from meshbee_core.services import apiari as apiari_service
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import attivita as attivita_service
 from meshbee_core.services import letture as letture_service
@@ -47,13 +40,6 @@ SAMPLE_ACTIVITY_AGE_DAYS = 7
 
 # The demo apiary a fresh install starts with. It used to be inserted by
 # database/init.sql; schema migrations carry no data, so the seed owns it now.
-SAMPLE_APIARIO = ApiarioCreate(
-    nome_apiario="Apiario Collina",
-    descrizione="Apiario di esempio sulla collina sud",
-    posizione="Collina sud",
-    latitudine="45.464200",
-    longitudine="9.190000",
-)
 SAMPLE_NODO = NodoCreate(
     id_nodo="NODE001",
     nome_nodo="Apiario Collina",
@@ -159,8 +145,7 @@ def create_users(users) -> dict:
 
 def add_sample_apiary() -> None:
     """
-    Give an install with no hives at all one apiary, one node, two arnie in that
-    apiary and a few readings.
+    Give an install with no hives at all one node, two arnie and a few readings.
 
     Keyed on "no arnie", not on the sample node: once anyone has registered a
     hive — sample or real — the seed stays out of the way, and deleting the
@@ -173,13 +158,10 @@ def add_sample_apiary() -> None:
             logger.info("  Arnie già presenti, skip")
             return
 
-        apiario = apiari_service.create_apiario(session, SAMPLE_APIARIO)
         nodi_service.create_nodo(session, SAMPLE_NODO)
         now = datetime.now()
         for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE, strict=True):
-            created = arnie_service.create_arnia(
-                session, arnia.model_copy(update={"id_apiario": apiario["id_apiario"]})
-            )
+            created = arnie_service.create_arnia(session, arnia)
             for hours_ago, temperatura, umidita, peso in readings:
                 letture_service.record_reading(
                     session,

@@ -290,3 +290,50 @@ def test_0002_refuses_rows_it_cannot_fill_and_changes_nothing(at_0001):
 
     assert row(at_0001, "SELECT version_num FROM alembic_version") == ("0001",)
     assert row(at_0001, "SELECT ruolo FROM utenti") == (None,)
+
+
+# ============================================
+# 0005: every user gets a default apiary
+# ============================================
+
+
+def test_0005_puts_every_association_in_its_users_default_apiario(scratch_schemas):
+    """
+    Existing hives must stay visible: each account gets one "Default", and all
+    of its associations — revoked ones too, the column is NOT NULL — land in it.
+    """
+    upgrade(TEST_DB_URL, "0004", search_path=FROM_MIGRATIONS)
+    cursor = scratch_schemas
+    cursor.execute(f"SET search_path TO {FROM_MIGRATIONS}")
+    cursor.execute(
+        "INSERT INTO utenti (email, password_hash, nome, cognome)"
+        " VALUES ('a@b.org', 'x', 'A', 'A'), ('c@d.org', 'x', 'C', 'C'),"
+        " ('e@f.org', 'x', 'E', 'E')"
+    )
+    cursor.execute("INSERT INTO nodi (id_nodo) VALUES ('N1')")
+    cursor.execute(
+        "INSERT INTO arnie (id_nodo, id_sensore_fisico) VALUES ('N1', 'S1'), ('N1', 'S2')"
+    )
+    cursor.execute(
+        "INSERT INTO utenti_arnie (id_utente, id_arnia, attivo)"
+        " VALUES (1, 1, true), (1, 2, false), (2, 1, true)"
+    )
+
+    upgrade(TEST_DB_URL, "0005", search_path=FROM_MIGRATIONS)
+
+    cursor.execute(
+        "SELECT id_utente_proprietario, nome_apiario, predefinito FROM apiari"
+        " ORDER BY id_utente_proprietario"
+    )
+    assert cursor.fetchall() == [
+        (1, "Default", True),
+        (2, "Default", True),
+        (3, "Default", True),
+    ]
+    cursor.execute(
+        "SELECT ua.id_utente, ua.id_arnia FROM utenti_arnie ua"
+        " JOIN apiari a ON a.id_apiario = ua.id_apiario"
+        " AND a.id_utente_proprietario = ua.id_utente AND a.predefinito"
+        " ORDER BY 1, 2"
+    )
+    assert cursor.fetchall() == [(1, 1), (1, 2), (2, 1)]

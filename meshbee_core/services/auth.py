@@ -82,11 +82,9 @@ def has_arnia_access(
 
 
 def has_apiario_access(session, id_utente: int, id_apiario: int) -> bool:
-    """
-    Whether a user may read an apiary: an admin always, anyone else through a
-    hive in it they are associated with. There is no per-apiary grant.
-    """
+    """Whether a user may act on an apiary: an admin always, otherwise its owner."""
     user = utenti.get_ruolo(session, id_utente)
     if user and user["ruolo"] == "admin":
         return True
-    return apiari.is_visible_to(session, id_utente, id_apiario)
+    apiario = apiari.get(session, id_apiario)
+    return apiario is not None and apiario["id_utente_proprietario"] == id_utente

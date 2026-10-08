@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, select
 
@@ -29,10 +29,21 @@ def get_permesso(
     return {"permessi": association.permessi} if association else None
 
 
-def upsert(session: Session, id_utente: int, id_arnia: int, permessi: str) -> None:
-    """Grant access, reviving and re-levelling a previously removed association."""
+def upsert(
+    session: Session, id_utente: int, id_arnia: int, permessi: str, id_apiario: int
+) -> None:
+    """
+    Grant access, reviving and re-levelling a previously removed association.
+
+    `id_apiario` only places a new association: a revived one stays in the
+    apiary the user had put the hive in.
+    """
     statement = pg_insert(UtenteArnia).values(
-        id_utente=id_utente, id_arnia=id_arnia, permessi=permessi, attivo=True
+        id_utente=id_utente,
+        id_arnia=id_arnia,
+        permessi=permessi,
+        attivo=True,
+        id_apiario=id_apiario,
     )
     session.exec(
         statement.on_conflict_do_update(
@@ -47,7 +58,7 @@ def upsert(session: Session, id_utente: int, id_arnia: int, permessi: str) -> No
 
 
 def insert_if_absent(
-    session: Session, id_utente: int, id_arnia: int, permessi: str
+    session: Session, id_utente: int, id_arnia: int, permessi: str, id_apiario: int
 ) -> None:
     """
     Grant access only where none was ever recorded, leaving existing rows alone.
@@ -58,7 +69,13 @@ def insert_if_absent(
     """
     session.exec(
         pg_insert(UtenteArnia)
-        .values(id_utente=id_utente, id_arnia=id_arnia, permessi=permessi, attivo=True)
+        .values(
+            id_utente=id_utente,
+            id_arnia=id_arnia,
+            permessi=permessi,
+            attivo=True,
+            id_apiario=id_apiario,
+        )
         .on_conflict_do_nothing(index_elements=PAIR)
     )
 
@@ -73,3 +90,24 @@ def deactivate(
     association.data_disassociazione = func.now()
     session.flush()
     return {"id": association.id}
+
+
+def move(
+    session: Session, id_utente: int, id_arnia: int, id_apiario: int
+) -> dict[str, Any] | None:
+    """Put the user's active association with an arnia in another apiary."""
+    association = active(session, id_utente, id_arnia)
+    if association is None:
+        return None
+    association.id_apiario = id_apiario
+    session.flush()
+    return {"id_arnia": id_arnia, "id_apiario": id_apiario}
+
+
+def move_all(session: Session, from_apiario: int, to_apiario: int) -> None:
+    """Re-point every association, revoked ones included, from one apiary to another."""
+    session.exec(
+        update(UtenteArnia)
+        .where(UtenteArnia.id_apiario == from_apiario)
+        .values(id_apiario=to_apiario)
+    )

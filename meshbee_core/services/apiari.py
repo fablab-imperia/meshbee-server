@@ -1,31 +1,47 @@
-"""Apiaries: the places hives are grouped by.
+"""Apiaries: each user's own grouping of the hives they can see.
 
-Access is never granted on an apiary itself. A user sees an apiary because they
-are associated with a hive in it (see `repository/apiari.py`), and inside it
-only those hives; admins see everything.
+Every user has one default apiary, created with the account, which new grants
+land in and which cannot be deleted. Beyond it a user may create, edit and
+delete as many as they like; which apiary a hive is in is stored per user on
+the association (`utenti_arnie.id_apiario`), never on the hive.
 """
 
 from typing import Any
 
 from meshbee_core.db import integrity_errors
-from meshbee_core.errors import Conflict, NotFound
-from meshbee_core.repository import apiari
+from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.repository import accessi, apiari
+
+DEFAULT_NOME = "Default"
 
 
-def owner_not_found(id_utente: int | None) -> NotFound:
-    return NotFound(f"Utente {id_utente} non trovato")
+def ensure_predefinito(session, id_utente: int) -> dict[str, Any]:
+    """
+    The user's default apiary, created if they have none yet.
+
+    Raises:
+        NotFound: if the user does not exist.
+    """
+    found = apiari.get_predefinito(session, id_utente)
+    if found:
+        return found
+    with integrity_errors(foreign_key=NotFound(f"Utente {id_utente} non trovato")):
+        return apiari.insert(
+            session,
+            id_utente_proprietario=id_utente,
+            nome_apiario=DEFAULT_NOME,
+            predefinito=True,
+        )
 
 
-def list_for_utente(session, current_user) -> list[dict[str, Any]]:
-    """Every active apiary for an admin, those holding the user's hives otherwise."""
-    if current_user["ruolo"] == "admin":
-        return apiari.list_attivi(session)
-    return apiari.list_for_utente(session, current_user["id_utente"])
+def list_for_utente(session, id_utente: int) -> list[dict[str, Any]]:
+    """The user's own apiaries, the default first."""
+    return apiari.list_all(session, id_utente)
 
 
-def list_all(session) -> list[dict[str, Any]]:
-    """Every apiary including the retired ones — the admin inventory."""
-    return apiari.list_all(session)
+def list_all(session, id_utente: int | None = None) -> list[dict[str, Any]]:
+    """Everyone's apiaries, or one owner's — the admin view."""
+    return apiari.list_all(session, id_utente)
 
 
 def get_apiario(session, id_apiario: int) -> dict[str, Any]:
@@ -39,20 +55,38 @@ def get_apiario(session, id_apiario: int) -> dict[str, Any]:
     return row
 
 
-def create_apiario(session, apiario) -> dict[str, Any]:
+def owned_by(session, id_apiario: int, id_utente: int) -> dict[str, Any]:
     """
+    The apiary, if it is one of the user's own.
+
+    A missing apiary and someone else's get the same answer, so the check
+    reveals nothing about other people's apiaries.
+
+    Raises:
+        InvalidData: if the user does not own it, or it does not exist.
+    """
+    row = apiari.get(session, id_apiario)
+    if not row or row["id_utente_proprietario"] != id_utente:
+        raise InvalidData("Apiario non accessibile")
+    return row
+
+
+def create_apiario(session, id_utente: int, apiario) -> dict[str, Any]:
+    """
+    A new, non-default apiary owned by `id_utente`.
+
     Raises:
         NotFound: if the owner is not a user.
     """
-    with integrity_errors(foreign_key=owner_not_found(apiario.id_utente_proprietario)):
+    with integrity_errors(foreign_key=NotFound(f"Utente {id_utente} non trovato")):
         return apiari.insert(
             session,
+            id_utente_proprietario=id_utente,
             nome_apiario=apiario.nome_apiario,
             descrizione=apiario.descrizione,
             posizione=apiario.posizione,
             latitudine=apiario.latitudine,
             longitudine=apiario.longitudine,
-            id_utente_proprietario=apiario.id_utente_proprietario,
             metadati=apiario.metadati,
         )
 
@@ -61,53 +95,45 @@ def update_apiario(session, id_apiario: int, apiario) -> dict[str, Any]:
     """
     Apply the supplied fields; unmentioned ones keep their stored value.
 
-    Switching `attivo` off goes through the same rule as deleting.
-
     Raises:
-        NotFound: if the apiary or the new owner does not exist.
-        Conflict: if it is being retired while active hives are still in it.
+        NotFound: if the apiary does not exist.
     """
-    if apiario.attivo is False:
-        refuse_if_occupied(session, id_apiario)
-
-    with integrity_errors(foreign_key=owner_not_found(apiario.id_utente_proprietario)):
-        row = apiari.update(
-            session,
-            id_apiario,
-            nome_apiario=apiario.nome_apiario,
-            descrizione=apiario.descrizione,
-            posizione=apiario.posizione,
-            latitudine=apiario.latitudine,
-            longitudine=apiario.longitudine,
-            id_utente_proprietario=apiario.id_utente_proprietario,
-            attivo=apiario.attivo,
-            metadati=apiario.metadati,
-        )
+    row = apiari.update(
+        session,
+        id_apiario,
+        nome_apiario=apiario.nome_apiario,
+        descrizione=apiario.descrizione,
+        posizione=apiario.posizione,
+        latitudine=apiario.latitudine,
+        longitudine=apiario.longitudine,
+        metadati=apiario.metadati,
+    )
     if not row:
         raise NotFound("Apiario non trovato")
     return row
 
 
-def deactivate_apiario(session, id_apiario: int) -> None:
+def delete_apiario(session, id_apiario: int) -> None:
     """
-    Soft delete, refused while active hives are still in the apiary.
+    Delete an apiary its owner has emptied.
 
-    Refusing rather than detaching them: emptying an apiary is a decision about
-    each hive, and an apiary retired silently would leave them pointing at a
-    place that no longer shows up anywhere.
+    Refused for the default apiary, and while active hives are still in it:
+    where each hive goes is the owner's decision. Revoked associations, which
+    the owner cannot see, are moved to their default apiary first.
 
     Raises:
         NotFound: if the apiary does not exist.
-        Conflict: if active hives are still in it.
+        Conflict: if it is the default, or still holds active hives.
     """
-    refuse_if_occupied(session, id_apiario)
-    if not apiari.deactivate(session, id_apiario):
-        raise NotFound("Apiario non trovato")
-
-
-def refuse_if_occupied(session, id_apiario: int) -> None:
+    apiario = get_apiario(session, id_apiario)
+    if apiario["predefinito"]:
+        raise Conflict("L'apiario predefinito non può essere eliminato")
     count = apiari.count_arnie_attive(session, id_apiario)
     if count:
         raise Conflict(
-            f"L'apiario contiene ancora {count} arnie attive: spostale prima di disattivarlo"
+            f"L'apiario contiene ancora {count} arnie: spostale prima di eliminarlo"
         )
+
+    predefinito = ensure_predefinito(session, apiario["id_utente_proprietario"])
+    accessi.move_all(session, id_apiario, predefinito["id_apiario"])
+    apiari.delete(session, id_apiario)

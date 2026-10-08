@@ -78,23 +78,22 @@ modello alternativo, mai collegato ad `arnie` né letto da alcuna query.
 | `data_installazione`, `data_rimozione` | TIMESTAMP | |
 | `attiva` | BOOLEAN | Soft delete — le letture restano. |
 | `metadati` | JSONB | Razza e anno della regina, colore dell'arnia, quello che l'apicoltore vuole tracciare. |
-| `id_apiario` | INTEGER | FK → `apiari` ON DELETE SET NULL. **Opzionale**: le arnie registrate via MQTT, e quelle precedenti agli apiari, non ne hanno. |
 
-### `apiari` — dove stanno le arnie
+### `apiari` — come ogni utente raggruppa le sue arnie
 
 | Colonna | Tipo | Note |
 |---|---|---|
-| `id_apiario` | SERIAL | PK |
+| `id_apiario` | SERIAL | PK. **UNIQUE insieme a `id_utente_proprietario`**, come destinazione della FK composta qui sotto. |
+| `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. |
 | `nome_apiario` | VARCHAR(100) | NOT NULL |
 | `descrizione`, `posizione` | | Testo libero. |
 | `latitudine`, `longitudine` | DECIMAL(9,6) | Stessi limiti di un'arnia, CHECK con prefisso `apiari_`. Indipendenti dalle coordinate delle arnie. |
-| `id_utente_proprietario` | INTEGER | FK → `utenti` ON DELETE SET NULL. **Informativo**: non dà alcun permesso. |
-| `data_creazione`, `data_disattivazione` | TIMESTAMP | |
-| `attivo` | BOOLEAN | Soft delete, rifiutato dal service finché contiene arnie attive. |
+| `predefinito` | BOOLEAN | Il `Default` dell'utente. **Uno per utente** (indice unico parziale `uq_apiari_predefinito`); il service non lo elimina mai. |
+| `data_creazione` | TIMESTAMP | |
 | `metadati` | JSONB | |
 
-Un apiario **non ha permessi propri**: un utente lo vede perché è associato
-(`utenti_arnie`) a un'arnia attiva che ci sta, e al suo interno vede solo quelle arnie.
+Gli apiari sono **personali e non danno permessi**. Eliminarne uno è un DELETE vero,
+rifiutato dal service per quello predefinito e finché contiene arnie attive.
 
 ### `utenti_arnie` — chi può vedere quale arnia
 
@@ -105,6 +104,7 @@ Un apiario **non ha permessi propri**: un utente lo vede perché è associato
 | `data_associazione`, `data_disassociazione` | TIMESTAMP | CHECK: la fine non può precedere l'inizio. |
 | `permessi` | VARCHAR(20) | CHECK `('read','write','admin')`, default `read`. |
 | `attivo` | BOOLEAN | La revoca è un flag, così resta lo storico. |
+| `id_apiario` | INTEGER | NOT NULL. In quale degli apiari **di questo utente** sta l'arnia, solo per lui. FK composta `(id_apiario, id_utente)` → `apiari (id_apiario, id_utente_proprietario)`, così il database rifiuta l'apiario di un altro. |
 
 I permessi sono una scala: `read` < `write` < `admin`. Un account con `ruolo = 'admin'`
 scavalca del tutto questa tabella.
@@ -154,7 +154,7 @@ qualcuna. Quello che stava qui ora sta in `meshbee_core`, dove è dichiarato una
 sola e testato come il resto del codice:
 
 - **L'elenco delle arnie con le ultime letture** era la vista `v_arnie_stato`. Ora è
-  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi LEFT JOIN apiari` più un'unica sottoquery
+  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi` più un'unica sottoquery
   `LATERAL` per l'ultima lettura, così ogni valore "ultimo" viene dalla stessa riga. È
   quello che restituisce `GET /api/user/arnie`.
 - **`nodi.ultimo_messaggio`** veniva impostata da `trigger_aggiorna_nodo` a ogni insert
@@ -231,7 +231,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0002` | NOT NULL sulle 16 colonne che l'API restituisce come obbligatorie. Prima riempie i NULL esistenti — i flag a **false**, `ruolo` a `user`, `permessi` a `read` con l'associazione disattivata, le date dalla migliore informazione presente nella riga — e **si ferma senza cambiare niente** se una chiave esterna è NULL (un'arnia senza nodo, una lettura senza arnia), perché quelle non si possono riempire. |
 | `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
 | `0004` | Eliminata l'estensione `uuid-ossp`, installata da `init.sql` e mai usata. Senza CASCADE: se qualcosa ne dipende, la migrazione si ferma invece di eliminarlo. |
-| `0005` | Aggiunti `apiari` e la colonna opzionale `arnie.id_apiario` (#2). Nessun backfill: le arnie esistenti partono senza apiario. |
+| `0005` | Aggiunti `apiari` e `utenti_arnie.id_apiario` (#2). Dà a ogni account esistente un apiario `Default` e ci mette tutte le sue associazioni — anche quelle revocate. |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:
@@ -249,8 +249,8 @@ vanno dove si possono configurare per singola arnia, non scritte in un trigger.
 ## Dati di esempio
 
 Le revisioni non portano dati. Su un'installazione senza nessuna arnia,
-`scripts/seed.py` crea un apiario ("Apiario Collina"), un nodo (`NODE001`), due arnie
-in quell'apiario (`SENSOR01` / `SENSOR02`) con coordinate e metadati, e quattro letture — quanto basta perché l'app
+`scripts/seed.py` crea un nodo (`NODE001`, "Apiario Collina"), due arnie (`SENSOR01` /
+`SENSOR02`) con coordinate e metadati, e quattro letture — quanto basta perché l'app
 abbia qualcosa da disegnare. Appena esiste un'arnia qualsiasi non li tocca più, quindi
 cancellare i dati di esempio non li fa ricomparire.
 

@@ -3,7 +3,7 @@
 from typing import Any
 
 from meshbee_core.db import integrity_errors
-from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.errors import Conflict, NotFound
 from meshbee_core.repository import apiari, arnie
 
 
@@ -16,11 +16,12 @@ def list_for_utente(
     The admin branch is not a shortcut around the association table: an admin
     is expected to see hives nobody has been granted access to yet.
 
-    `id_apiario` narrows either list to one apiary. It needs no access check of
-    its own: a user still only gets the hives they are associated with.
+    Each hive carries the caller's own apiary for it, and `id_apiario` narrows
+    the list to one of the caller's apiaries. Someone else's apiary just
+    matches nothing: apiaries are per user.
     """
     if current_user["ruolo"] == "admin":
-        rows = arnie.list_stato_attive(session, id_apiario)
+        rows = arnie.list_stato_attive(session, current_user["id_utente"], id_apiario)
     else:
         rows = arnie.list_stato_for_utente(
             session, current_user["id_utente"], id_apiario
@@ -29,8 +30,22 @@ def list_for_utente(
 
 
 def list_all(session, id_apiario: int | None = None) -> list[dict[str, Any]]:
-    """Every arnia including the retired ones — the admin inventory."""
-    return [dict(row) for row in arnie.list_stato(session, id_apiario)]
+    """
+    Every arnia including the retired ones — the admin inventory.
+
+    With `id_apiario`, the hives its owner has put in that apiary instead.
+
+    Raises:
+        NotFound: if `id_apiario` names no apiary.
+    """
+    if id_apiario is None:
+        return [dict(row) for row in arnie.list_stato(session)]
+    apiario = apiari.get(session, id_apiario)
+    if not apiario:
+        raise NotFound("Apiario non trovato")
+    return arnie.list_stato_in_apiario(
+        session, apiario["id_utente_proprietario"], id_apiario
+    )
 
 
 def list_ids(session) -> list[int]:
@@ -38,12 +53,14 @@ def list_ids(session) -> list[int]:
     return [row["id_arnia"] for row in arnie.list_ids(session)]
 
 
-def get_arnia(session, id_arnia: int) -> dict[str, Any]:
+def get_arnia(session, id_arnia: int, id_utente: int | None = None) -> dict[str, Any]:
     """
+    With `id_utente`, the hive carries the apiary that user has put it in.
+
     Raises:
         NotFound: se l'arnia non esiste.
     """
-    row = arnie.get_stato(session, id_arnia)
+    row = arnie.get_stato(session, id_arnia, id_utente)
     if not row:
         raise NotFound("Arnia non trovata")
     return dict(row)
@@ -55,7 +72,6 @@ def create_arnia(session, arnia) -> dict[str, Any]:
         Conflict: se il sensore è già registrato per quel nodo.
         NotFound: se il nodo non esiste.
     """
-    check_apiario(session, arnia.id_apiario)
     conflict = Conflict(
         f"Sensore '{arnia.id_sensore_fisico}' già registrato per il nodo '{arnia.id_nodo}'"
     )
@@ -76,13 +92,12 @@ def create_arnia(session, arnia) -> dict[str, Any]:
                 latitudine=arnia.latitudine,
                 longitudine=arnia.longitudine,
                 metadati=arnia.metadati,
-                id_apiario=arnia.id_apiario,
             )
         )
 
 
 def update_arnia(
-    session, id_arnia: int, arnia, current_user, *, allow_attiva: bool = False
+    session, id_arnia: int, arnia, *, allow_attiva: bool = False
 ) -> dict[str, Any]:
     """
     Apply the supplied fields; unmentioned ones keep their stored value.
@@ -90,17 +105,10 @@ def update_arnia(
     `allow_attiva` is what separates the two update endpoints: a user with write
     permission may edit a hive's details but not retire or revive it.
 
-    `id_apiario` moves the hive only when the request names it, so a client
-    unaware of apiaries never takes a hive out of one; an explicit null does.
-
     Raises:
         NotFound: se l'arnia non esiste.
-        InvalidData: if the hive cannot be moved into that apiary.
     """
     optional = {"attiva": arnia.attiva} if allow_attiva else {}
-    if "id_apiario" in arnia.model_fields_set:
-        check_apiario(session, arnia.id_apiario, current_user)
-        optional["id_apiario"] = arnia.id_apiario
 
     row = arnie.update(
         session,
@@ -127,31 +135,3 @@ def deactivate_arnia(session, id_arnia: int) -> None:
     """
     if not arnie.deactivate(session, id_arnia):
         raise NotFound("Arnia non trovata")
-
-
-def check_apiario(session, id_apiario: int | None, current_user=None) -> None:
-    """
-    Refuse to put a hive in an apiary it may not go to. None always may.
-
-    A non-admin may only use an apiary they can already see — one holding a
-    hive they are associated with — and gets the same answer whether a hidden apiary
-    exists or not, so the check reveals nothing about other people's apiaries.
-    `current_user` None is the admin-only creation path.
-
-    Raises:
-        InvalidData: if the user cannot see the apiary, or it is retired.
-        NotFound: if the apiary does not exist (admins only).
-    """
-    if id_apiario is None:
-        return
-    if (
-        current_user is not None
-        and current_user["ruolo"] != "admin"
-        and not apiari.is_visible_to(session, current_user["id_utente"], id_apiario)
-    ):
-        raise InvalidData("Apiario non accessibile")
-    apiario = apiari.get(session, id_apiario)
-    if apiario is None:
-        raise NotFound(f"Apiario {id_apiario} non trovato")
-    if not apiario["attivo"]:
-        raise InvalidData(f"Apiario {id_apiario} disattivato")

@@ -78,23 +78,22 @@ joined to `arnie` and never read.
 | `data_installazione`, `data_rimozione` | TIMESTAMP | |
 | `attiva` | BOOLEAN | Soft delete — readings survive. |
 | `metadati` | JSONB | Queen's race and year, hive colour, whatever the beekeeper tracks. |
-| `id_apiario` | INTEGER | FK → `apiari` ON DELETE SET NULL. **Optional**: hives provisioned over MQTT, and those that predate apiaries, are in none. |
 
-### `apiari` — where hives stand
+### `apiari` — each user's grouping of their hives
 
 | Column | Type | Notes |
 |---|---|---|
-| `id_apiario` | SERIAL | PK |
+| `id_apiario` | SERIAL | PK. **UNIQUE together with `id_utente_proprietario`**, as the target of the composite FK below. |
+| `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. |
 | `nome_apiario` | VARCHAR(100) | NOT NULL |
 | `descrizione`, `posizione` | | Free text. |
 | `latitudine`, `longitudine` | DECIMAL(9,6) | Same bounds as a hive's, CHECKs prefixed `apiari_`. Independent of the hives' own coordinates. |
-| `id_utente_proprietario` | INTEGER | FK → `utenti` ON DELETE SET NULL. **Informational**: it grants nothing. |
-| `data_creazione`, `data_disattivazione` | TIMESTAMP | |
-| `attivo` | BOOLEAN | Soft delete, refused by the service while active hives are still in it. |
+| `predefinito` | BOOLEAN | The user's `Default`. **One per user** (partial unique index `uq_apiari_predefinito`); the service never deletes it. |
+| `data_creazione` | TIMESTAMP | |
 | `metadati` | JSONB | |
 
-An apiary has **no permissions of its own**: a user sees one because they are
-associated (`utenti_arnie`) with an active hive in it, and inside it only those hives.
+Apiaries are **personal and grant nothing**. Deleting one is a real DELETE, refused by
+the service for the default and while active hives are in it.
 
 ### `utenti_arnie` — who may see which hive
 
@@ -105,6 +104,7 @@ associated (`utenti_arnie`) with an active hive in it, and inside it only those 
 | `data_associazione`, `data_disassociazione` | TIMESTAMP | CHECK: end cannot precede start. |
 | `permessi` | VARCHAR(20) | CHECK `('read','write','admin')`, default `read`. |
 | `attivo` | BOOLEAN | Revocation is a flag, so the history stays. |
+| `id_apiario` | INTEGER | NOT NULL. Which of **this user's** apiaries the hive is in, for them only. Composite FK `(id_apiario, id_utente)` → `apiari (id_apiario, id_utente_proprietario)`, so the database refuses someone else's apiary. |
 
 Permissions are a ladder: `read` < `write` < `admin`. An account with `ruolo = 'admin'`
 bypasses this table entirely.
@@ -154,7 +154,7 @@ to live here is now in `meshbee_core`, where it is declared once and tested like
 rest of the code:
 
 - **The hive list with its latest readings** was the view `v_arnie_stato`. It is now
-  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi LEFT JOIN apiari` plus one `LATERAL` subquery for
+  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi` plus one `LATERAL` subquery for
   the latest reading, so every "ultimo" value comes from the same row. That is what
   `GET /api/user/arnie` returns.
 - **`nodi.ultimo_messaggio`** was set by `trigger_aggiorna_nodo` on every insert into
@@ -230,7 +230,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0002` | NOT NULL on the 16 columns the API returns as required. Fills existing NULLs first — flags to **false**, `ruolo` to `user`, `permessi` to `read` with the association deactivated, dates from the best evidence in the row — and **stops without changing anything** if a foreign key is NULL (an arnia without a node, a reading without an arnia), since those cannot be filled. |
 | `0003` | Dropped `trigger_aggiorna_nodo`, its function and `v_arnie_stato`: their logic moved to `services/ingest.py` and `repository/arnie.py` (#17). |
 | `0004` | Dropped the `uuid-ossp` extension, which `init.sql` installed and nothing ever used. Without CASCADE: anything depending on it makes the migration stop instead. |
-| `0005` | Added `apiari` and the nullable `arnie.id_apiario` (#2). Nothing is backfilled: existing hives start in no apiary. |
+| `0005` | Added `apiari` and `utenti_arnie.id_apiario` (#2). Gives every existing account a `Default` apiary and puts all its associations — revoked ones too — in it. |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:
@@ -248,8 +248,8 @@ where they can be configured per hive, not hard-coded in a trigger.
 ## Sample data
 
 Revisions carry no data. On an install with no hives at all, `scripts/seed.py` creates
-one apiary ("Apiario Collina"), one node (`NODE001`), two hives in that apiary
-(`SENSOR01` / `SENSOR02`) with coordinates and metadata, and four readings — enough for the app to have something to
+one node (`NODE001`, "Apiario Collina"), two hives (`SENSOR01` / `SENSOR02`) with
+coordinates and metadata, and four readings — enough for the app to have something to
 draw. Once any hive exists it leaves them alone, so deleting the demo data does not
 bring it back.
 

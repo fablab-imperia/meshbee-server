@@ -1,4 +1,4 @@
-"""The /api/admin/apiari endpoints, and assigning hives through the admin hive routes."""
+"""The /api/admin/apiari endpoints: any user's apiaries, under the owner's rules."""
 
 import pytest
 
@@ -9,7 +9,7 @@ def admin(as_user, make_utente):
     return as_user(make_utente(ruolo="admin"))
 
 
-def test_an_apiario_is_created_and_read_back(admin, make_utente):
+def test_an_admin_creates_an_apiario_for_a_user(admin, make_utente):
     owner = make_utente()
 
     created = admin.post(
@@ -24,9 +24,8 @@ def test_an_apiario_is_created_and_read_back(admin, make_utente):
 
     assert created.status_code == 200
     body = admin.get(f"/api/admin/apiari/{created.json()['id_apiario']}").json()
-    assert body["nome_apiario"] == "Collina"
     assert body["id_utente_proprietario"] == owner["id_utente"]
-    assert body["attivo"] is True
+    assert body["predefinito"] is False
 
 
 def test_an_unknown_owner_is_not_found(admin):
@@ -38,24 +37,56 @@ def test_an_unknown_owner_is_not_found(admin):
     assert response.status_code == 404
 
 
-def test_coordinates_out_of_range_are_refused(admin):
+def test_an_owner_is_required(admin):
+    """There is no unowned apiary: it would be nobody's grouping."""
+    response = admin.post("/api/admin/apiari", json={"nome_apiario": "Collina"})
+
+    assert response.status_code == 422
+
+
+def test_coordinates_out_of_range_are_refused(admin, make_utente):
     """The same bounds as a hive's, from limits.py."""
     response = admin.post(
-        "/api/admin/apiari", json={"nome_apiario": "Collina", "latitudine": "91"}
+        "/api/admin/apiari",
+        json={
+            "nome_apiario": "Collina",
+            "latitudine": "91",
+            "id_utente_proprietario": make_utente()["id_utente"],
+        },
     )
 
     assert response.status_code == 422
 
 
-def test_the_admin_list_includes_retired_apiari(admin, make_apiario):
-    active, retired = make_apiario(), make_apiario(attivo=False)
+def test_the_admin_list_spans_every_user_and_filters_by_one(
+    admin, make_utente, make_apiario
+):
+    first, second = make_utente(), make_utente()
+    extra = make_apiario(second)
 
-    body = admin.get("/api/admin/apiari").json()
+    everyone = {a["id_apiario"] for a in admin.get("/api/admin/apiari").json()}
+    one = admin.get(f"/api/admin/apiari?id_utente={second['id_utente']}").json()
 
-    assert [a["id_apiario"] for a in body] == [
-        active["id_apiario"],
-        retired["id_apiario"],
+    assert {
+        first["id_apiario_predefinito"],
+        second["id_apiario_predefinito"],
+        extra["id_apiario"],
+    } <= everyone
+    assert [a["id_apiario"] for a in one] == [
+        second["id_apiario_predefinito"],
+        extra["id_apiario"],
     ]
+
+
+def test_an_admin_edits_anyones_apiario(admin, make_utente, make_apiario):
+    apiario = make_apiario(make_utente())
+
+    response = admin.put(
+        f"/api/admin/apiari/{apiario['id_apiario']}", json={"posizione": "Nord"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["posizione"] == "Nord"
 
 
 def test_an_unknown_apiario_is_not_found(admin):
@@ -64,122 +95,44 @@ def test_an_unknown_apiario_is_not_found(admin):
     assert admin.delete("/api/admin/apiari/999999").status_code == 404
 
 
-def test_an_empty_apiario_is_retired(admin, make_apiario, make_arnia, db):
-    """Retired hives do not hold an apiary back."""
-    apiario = make_apiario()
-    retired = make_arnia(apiario=apiario)
-    db.execute(
-        "UPDATE arnie SET attiva = false WHERE id_arnia = %s", (retired["id_arnia"],)
-    )
-
-    response = admin.delete(f"/api/admin/apiari/{apiario['id_apiario']}")
-
-    assert response.status_code == 200
-    db.execute(
-        "SELECT attivo, data_disattivazione FROM apiari WHERE id_apiario = %s",
-        (apiario["id_apiario"],),
-    )
-    row = db.fetchone()
-    assert row["attivo"] is False
-    assert row["data_disattivazione"] is not None
-
-
-@pytest.mark.parametrize("how", ["delete", "put"])
-def test_an_apiario_with_active_hives_cannot_be_retired(
-    admin, make_apiario, make_arnia, db, how
+def test_admins_follow_the_owners_delete_rules(
+    admin, make_utente, make_apiario, make_arnia, grant_access
 ):
-    """Both ways of retiring it go through the same rule, and the hives stay put."""
-    apiario = make_apiario()
-    arnia = make_arnia(apiario=apiario)
-    path = f"/api/admin/apiari/{apiario['id_apiario']}"
-
-    if how == "delete":
-        response = admin.delete(path)
-    else:
-        response = admin.put(path, json={"attivo": False})
-
-    assert response.status_code == 409
-    db.execute(
-        "SELECT a.attivo, h.id_apiario FROM apiari a JOIN arnie h USING (id_apiario)"
-        " WHERE h.id_arnia = %s",
-        (arnia["id_arnia"],),
-    )
-    assert dict(db.fetchone()) == {"attivo": True, "id_apiario": apiario["id_apiario"]}
-
-
-def test_an_apiario_is_revived(admin, make_apiario):
-    apiario = make_apiario(attivo=False)
-
-    response = admin.put(
-        f"/api/admin/apiari/{apiario['id_apiario']}", json={"attivo": True}
+    """Neither the default nor an apiary with hives in it, even for an admin."""
+    utente = make_utente()
+    full, empty = make_apiario(utente), make_apiario(utente)
+    grant_access(
+        utente["id_utente"], make_arnia()["id_arnia"], id_apiario=full["id_apiario"]
     )
 
-    assert response.status_code == 200
-    assert response.json()["attivo"] is True
-    assert response.json()["data_disattivazione"] is None
-
-
-# ============================================
-# Hives, through the admin routes
-# ============================================
-
-
-def test_a_hive_is_created_in_an_apiario(admin, make_apiario, db):
-    db.execute("INSERT INTO nodi (id_nodo) VALUES ('NODE-AP')")
-    apiario = make_apiario()
-
-    response = admin.post(
-        "/api/admin/arnie",
-        json={
-            "id_nodo": "NODE-AP",
-            "id_sensore_fisico": "S1",
-            "id_apiario": apiario["id_apiario"],
-        },
+    assert (
+        admin.delete(
+            f"/api/admin/apiari/{utente['id_apiario_predefinito']}"
+        ).status_code
+        == 409
     )
+    assert admin.delete(f"/api/admin/apiari/{full['id_apiario']}").status_code == 409
+    assert admin.delete(f"/api/admin/apiari/{empty['id_apiario']}").status_code == 200
 
-    assert response.status_code == 200
-    assert response.json()["id_apiario"] == apiario["id_apiario"]
 
-
-@pytest.mark.parametrize(
-    "attivo, expected",
-    [(None, 404), (False, 400)],
-    ids=["unknown", "retired"],
-)
-def test_a_hive_is_not_created_in_an_apiario_it_cannot_go_to(
-    admin, make_apiario, db, attivo, expected
+def test_the_admin_hive_list_filters_by_apiario(
+    admin, make_utente, make_apiario, make_arnia, grant_access
 ):
-    """An unknown apiary is named as such, not reported as a missing node."""
-    db.execute("INSERT INTO nodi (id_nodo) VALUES ('NODE-AP')")
-    target = 999999 if attivo is None else make_apiario(attivo=attivo)["id_apiario"]
-
-    response = admin.post(
-        "/api/admin/arnie",
-        json={"id_nodo": "NODE-AP", "id_sensore_fisico": "S1", "id_apiario": target},
+    """The hives the apiary's owner has put in it, with that apiary on each."""
+    utente = make_utente()
+    apiario = make_apiario(utente)
+    inside = make_arnia()
+    grant_access(
+        utente["id_utente"], inside["id_arnia"], id_apiario=apiario["id_apiario"]
     )
-
-    assert response.status_code == expected
-    assert "Apiario" in response.json()["detail"]
-
-
-def test_an_admin_moves_a_hive_into_any_apiario(admin, make_apiario, make_arnia):
-    """No visibility rule for admins: they see every apiary."""
-    arnia, apiario = make_arnia(), make_apiario()
-
-    response = admin.put(
-        f"/api/admin/arnie/{arnia['id_arnia']}",
-        json={"id_apiario": apiario["id_apiario"]},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["id_apiario"] == apiario["id_apiario"]
-
-
-def test_the_admin_hive_list_filters_by_apiario(admin, make_apiario, make_arnia):
-    apiario = make_apiario()
-    inside = make_arnia(apiario=apiario)
-    make_arnia()
+    grant_access(utente["id_utente"], make_arnia()["id_arnia"])
 
     body = admin.get(f"/api/admin/arnie?id_apiario={apiario['id_apiario']}").json()
 
-    assert [a["id_arnia"] for a in body] == [inside["id_arnia"]]
+    assert [(a["id_arnia"], a["id_apiario"]) for a in body] == [
+        (inside["id_arnia"], apiario["id_apiario"])
+    ]
+
+
+def test_the_admin_hive_list_rejects_an_unknown_apiario(admin):
+    assert admin.get("/api/admin/arnie?id_apiario=999999").status_code == 404

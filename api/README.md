@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 44 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 48 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -25,15 +25,15 @@ here.
 
 ## Endpoints
 
-44 operations. `Auth` says what a request must carry:
+48 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
 - **admin** — the above *and* `ruolo = 'admin'` (`get_current_admin_user`).
 - **user + `read`/`write`** — the above *and* that permission on the specific arnia.
   Admins pass this check unconditionally.
-- **user + hive there** — the above *and* an active association with an active hive
-  in that apiary. Admins pass this check unconditionally.
+- **user + owner** — the above *and* the apiary is the caller's own. Admins pass this
+  check unconditionally.
 
 ### Autenticazione
 
@@ -48,9 +48,10 @@ Everything under `/api/user/arnie/{id_arnia}` is gated on that arnia.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/user/arnie` | user | Hives visible to the caller, each with its latest reading and apiary. Optional `id_apiario` narrows it to one apiary. |
+| GET | `/api/user/arnie` | user | Hives visible to the caller, each with its latest reading and the caller's apiary for it. Optional `id_apiario` narrows it to one of the caller's apiaries. |
 | GET | `/api/user/arnie/{id_arnia}` | user + `read` | One hive with its latest reading. |
-| PUT | `/api/user/arnie/{id_arnia}` | user + `write` | Rename/move a hive. **Cannot** change `attiva`. `id_apiario` only into an apiary the caller can see; `null` takes the hive out, omitting it leaves it. |
+| PUT | `/api/user/arnie/{id_arnia}` | user + `write` | Rename/move a hive. **Cannot** change `attiva`. |
+| PUT | `/api/user/arnie/{id_arnia}/apiario` | user + `write` | Move the hive into another of the caller's apiaries. Only the caller's view changes. |
 | GET | `/api/user/arnie/{id_arnia}/letture` | user + `read` | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + `read` | `{timestamp, temperatura}` only — sized for charts. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | user + `read` | `{timestamp, umidita}` only. |
@@ -61,8 +62,11 @@ Everything under `/api/user/arnie/{id_arnia}` is gated on that arnia.
 | PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + `write` | Edit an activity — **only your own**. |
 | DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + `write` | Delete an activity — **only your own**. |
 | PUT | `/api/user/password` | user | Change your own password. Requires `current_password`. |
-| GET | `/api/user/apiari` | user | Active apiaries holding at least one of the caller's hives (all of them for an admin). |
-| GET | `/api/user/apiari/{id_apiario}` | user + hive there | One apiary. |
+| GET | `/api/user/apiari` | user | The caller's own apiaries, the default one first. |
+| POST | `/api/user/apiari` | user | Create an apiary owned by the caller. |
+| GET | `/api/user/apiari/{id_apiario}` | user + owner | One apiary. |
+| PUT | `/api/user/apiari/{id_apiario}` | user + owner | Edit it — the default one included. |
+| DELETE | `/api/user/apiari/{id_apiario}` | user + owner | Delete it. **409** for the default one, and while hives are still in it. |
 
 The four series endpoints exist because a chart needs two columns out of a row of
 nine; they drop rows where the field is NULL. The list of fields they accept is a
@@ -84,16 +88,16 @@ whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 | GET | `/api/admin/nodi/{id_nodo}` | admin | One node. |
 | PUT | `/api/admin/nodi/{id_nodo}` | admin | Update a node (body is a full `NodoCreate`). |
 | DELETE | `/api/admin/nodi/{id_nodo}` | admin | Deactivate. Hives and readings are kept. |
-| GET | `/api/admin/arnie` | admin | All hives, retired ones included. Optional `id_apiario`. |
-| POST | `/api/admin/arnie` | admin | Create a hive, optionally in an apiary (`id_apiario`). |
+| GET | `/api/admin/arnie` | admin | All hives, retired ones included. Optional `id_apiario`: the hives its owner has put in it. |
+| POST | `/api/admin/arnie` | admin | Create a hive. |
 | GET | `/api/admin/arnie/{id_arnia}` | admin | One hive with its latest reading. |
 | PUT | `/api/admin/arnie/{id_arnia}` | admin | Update a hive — **including `attiva`**, unlike the user route. |
 | DELETE | `/api/admin/arnie/{id_arnia}` | admin | Deactivate. Historical readings are kept. |
-| GET | `/api/admin/apiari` | admin | All apiaries, retired ones included. |
-| POST | `/api/admin/apiari` | admin | Create an apiary. `id_utente_proprietario` is informational and grants nothing. |
-| GET | `/api/admin/apiari/{id_apiario}` | admin | One apiary. |
-| PUT | `/api/admin/apiari/{id_apiario}` | admin | Update an apiary, `attivo` included. |
-| DELETE | `/api/admin/apiari/{id_apiario}` | admin | Deactivate. **409** while active hives are still in it. |
+| GET | `/api/admin/apiari` | admin | Every user's apiaries. Optional `id_utente`. |
+| POST | `/api/admin/apiari` | admin | Create an apiary for the user named in `id_utente_proprietario`. |
+| GET | `/api/admin/apiari/{id_apiario}` | admin | Any user's apiary. |
+| PUT | `/api/admin/apiari/{id_apiario}` | admin | Edit any user's apiary. |
+| DELETE | `/api/admin/apiari/{id_apiario}` | admin | Delete any user's apiary, under the owner's rules (**409** as above). |
 | GET | `/api/admin/letture` | admin | All readings. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Insert a reading by hand — backfill and testing. |
 | GET | `/api/admin/attivita` | admin | All activities. `limit` 1–1000, default 100. |
@@ -131,7 +135,7 @@ The dependencies stack, each building on the previous one:
 | `get_current_active_user` | **400** `Utente non attivo` | The account exists but `attivo` is false. |
 | `get_current_admin_user` | **403** `Permessi insufficienti - richiesto ruolo admin` | The account is not an admin. |
 | `check_user_arnia_access` | **403** | No association with that arnia at the required level. |
-| `check_user_apiario_access` | **403** | No active association with an active hive in that apiary. |
+| `check_user_apiario_access` | **403** | The apiary is not the caller's own. |
 
 `HTTPBearer(auto_error=False)` is deliberate. Left at its default, FastAPI answers a
 *missing* header with a bare 403 and no `WWW-Authenticate`; disabling it lets the
@@ -143,11 +147,15 @@ in `meshbee_core/services/auth.py`. An account with `ruolo = 'admin'` bypasses t
 association table entirely. An unrecognised permission name raises rather than
 returning False, so a typo fails closed.
 
-**Apiaries carry no permissions of their own.** A user sees an apiary because they are
-associated with a hive in it, and inside it only those hives — `?id_apiario=` narrows
-the caller's hive list, it never widens it. A user with `write` on a hive may move it
-only into an apiary they can already see; a hidden or nonexistent one gets the same
-**400**, so the answer reveals nothing.
+**Apiaries are personal and carry no permissions.** Every account starts with a
+`Default` apiary (`predefinito`), created with it; new grants land there unless
+`POST /api/admin/utenti-arnie` names another of that user's apiaries. Which apiary a
+hive is in is stored per user, on the association, so a hive shared by two users can
+sit in a different apiary for each, and moving it changes only the mover's view.
+Access to the hive still comes only from `utenti_arnie` — `?id_apiario=` narrows the
+caller's hive list, it never widens it. Moving into an apiary that is not the
+caller's own gets the same **400** whether it exists or not, so the answer reveals
+nothing.
 
 Two things to know about tokens:
 

@@ -11,7 +11,13 @@ from meshbee_core.repository import accessi
 def test_a_grant_creates_an_active_association(session, db, make_utente, make_arnia):
     utente, arnia = make_utente(), make_arnia()
 
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "read",
+        utente["id_apiario_predefinito"],
+    )
 
     assert (
         accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
@@ -26,9 +32,21 @@ def test_granting_again_changes_the_permission_level(
 ):
     """UNIQUE(id_utente, id_arnia) means the second grant must update, not fail."""
     utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "read",
+        utente["id_apiario_predefinito"],
+    )
 
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "admin")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "admin",
+        utente["id_apiario_predefinito"],
+    )
 
     assert (
         accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
@@ -41,7 +59,13 @@ def test_granting_again_changes_the_permission_level(
 def test_a_revoked_association_is_invisible(session, db, make_utente, make_arnia):
     """Revoking is a soft delete, so the lookup has to filter on attivo."""
     utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "write")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "write",
+        utente["id_apiario_predefinito"],
+    )
 
     accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"])
 
@@ -58,10 +82,22 @@ def test_granting_again_revives_a_revoked_association(
     and revoked.
     """
     utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "write")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "write",
+        utente["id_apiario_predefinito"],
+    )
     accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"])
 
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "read",
+        utente["id_apiario_predefinito"],
+    )
 
     assert (
         accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
@@ -90,7 +126,13 @@ def test_revoking_twice_reports_nothing_the_second_time(
 ):
     """`attivo = true` is in the WHERE clause, so the second call matches no row."""
     utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(session, utente["id_utente"], arnia["id_arnia"], "read")
+    accessi.upsert(
+        session,
+        utente["id_utente"],
+        arnia["id_arnia"],
+        "read",
+        utente["id_apiario_predefinito"],
+    )
 
     assert (
         accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is not None

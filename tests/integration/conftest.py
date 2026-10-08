@@ -45,6 +45,9 @@ def make_utente(db):
 
     Defaults produce a valid active user; `ruolo` accepts only 'user' or 'admin'
     (CHECK constraint built from meshbee_core.limits).
+
+    Like `create_utente`, it also gives the user their default apiary, whose id
+    the returned row carries as `id_apiario_predefinito`.
     """
     counter = iter(range(1, 1000))
 
@@ -65,37 +68,38 @@ def make_utente(db):
                 attivo,
             ),
         )
-        return dict(db.fetchone())
+        utente = dict(db.fetchone())
+        db.execute(
+            """
+            INSERT INTO apiari (nome_apiario, id_utente_proprietario, predefinito)
+            VALUES ('Default', %s, true)
+            RETURNING id_apiario
+            """,
+            (utente["id_utente"],),
+        )
+        utente["id_apiario_predefinito"] = db.fetchone()["id_apiario"]
+        return utente
 
     return _make
 
 
 @pytest.fixture
 def make_arnia(db):
-    """
-    Insert a `nodi` row (once) plus an `arnie` row, and return the arnia.
-
-    `apiario` is a row from `make_apiario`; by default the arnia is in none.
-    """
+    """Insert a `nodi` row (once) plus an `arnie` row, and return the arnia."""
     counter = iter(range(1, 1000))
 
-    def _make(id_nodo="NODE-TEST", apiario=None):
+    def _make(id_nodo="NODE-TEST"):
         db.execute(
             "INSERT INTO nodi (id_nodo, nome_nodo) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             (id_nodo, "Nodo di test"),
         )
         db.execute(
             """
-            INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia, id_apiario)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia)
+            VALUES (%s, %s, %s)
             RETURNING *
             """,
-            (
-                id_nodo,
-                f"SENSOR{next(counter):02d}",
-                "Arnia di test",
-                apiario["id_apiario"] if apiario else None,
-            ),
+            (id_nodo, f"SENSOR{next(counter):02d}", "Arnia di test"),
         )
         return dict(db.fetchone())
 
@@ -104,20 +108,19 @@ def make_arnia(db):
 
 @pytest.fixture
 def make_apiario(db):
-    """Insert an `apiari` row and return it."""
+    """Insert a non-default apiary owned by a `make_utente` row, and return it."""
     counter = iter(range(1, 1000))
 
-    def _make(nome_apiario=None, attivo=True, proprietario=None):
+    def _make(proprietario, nome_apiario=None):
         db.execute(
             """
-            INSERT INTO apiari (nome_apiario, attivo, id_utente_proprietario)
-            VALUES (%s, %s, %s)
+            INSERT INTO apiari (nome_apiario, id_utente_proprietario)
+            VALUES (%s, %s)
             RETURNING *
             """,
             (
                 nome_apiario or f"Apiario {next(counter):02d}",
-                attivo,
-                proprietario["id_utente"] if proprietario else None,
+                proprietario["id_utente"],
             ),
         )
         return dict(db.fetchone())
@@ -233,16 +236,22 @@ def utente_con_arnia(make_utente, make_arnia, grant_access):
 
 @pytest.fixture
 def grant_access(db):
-    """Associate a user with an arnia at the given permission level."""
+    """
+    Associate a user with an arnia at the given permission level, in the given
+    apiary of theirs or, by default, in their default one.
+    """
 
-    def _grant(id_utente, id_arnia, permessi="read", attivo=True):
+    def _grant(id_utente, id_arnia, permessi="read", attivo=True, id_apiario=None):
         db.execute(
             """
-            INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo, id_apiario)
+            VALUES (%s, %s, %s, %s, COALESCE(%s, (
+                SELECT id_apiario FROM apiari
+                WHERE id_utente_proprietario = %s AND predefinito
+            )))
             RETURNING *
             """,
-            (id_utente, id_arnia, permessi, attivo),
+            (id_utente, id_arnia, permessi, attivo, id_apiario, id_utente),
         )
         return dict(db.fetchone())
 

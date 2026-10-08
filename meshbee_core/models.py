@@ -42,6 +42,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    ForeignKeyConstraint,
     Index,
     Numeric,
     String,
@@ -340,27 +341,40 @@ class Nodo(NodoResponse, table=True):
 
 
 class ApiarioBase(SQLModel):
-    """An apiary: the place a group of hives stands in."""
+    """
+    An apiary: one user's grouping of the hives they can see.
+
+    Apiaries are personal. Membership lives on the association
+    (`utenti_arnie.id_apiario`), so a hive shared by two users sits in an
+    apiary of each, and moving it never touches the other user's view.
+    """
 
     nome_apiario: str = Field(sa_type=String(100))
     descrizione: str | None = Field(None, sa_type=Text)
     posizione: str | None = Field(None, sa_type=String(255))
     latitudine: Decimal | None = latitudine_column()
     longitudine: Decimal | None = longitudine_column()
-    # Informational only: access to an apiary still comes from `utenti_arnie`.
-    id_utente_proprietario: int | None = Field(
-        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
-    )
 
 
 class ApiarioCreate(ApiarioBase):
-    """New apiary."""
+    """New apiary, owned by the caller."""
 
     metadati: dict[str, Any] | None = None
 
 
+class ApiarioAdminCreate(ApiarioCreate):
+    """New apiary created by an admin on behalf of a user."""
+
+    id_utente_proprietario: int
+
+
 class ApiarioUpdate(BaseModel):
-    """Partial apiary update: an omitted or null field keeps its stored value."""
+    """
+    Partial apiary update: an omitted or null field keeps its stored value.
+
+    Neither the owner nor `predefinito` can change: the hives in an apiary
+    belong to its owner, and every user keeps exactly one default.
+    """
 
     nome_apiario: str | None = None
     descrizione: str | None = None
@@ -377,8 +391,6 @@ class ApiarioUpdate(BaseModel):
         le=LONGITUDINE_MAX,
         description="Longitudine in formato DD",
     )
-    id_utente_proprietario: int | None = None
-    attivo: bool | None = None
     metadati: dict[str, Any] | None = None
 
 
@@ -386,9 +398,13 @@ class ApiarioResponse(ApiarioBase):
     """An apiary as the API returns it."""
 
     id_apiario: int = Field(primary_key=True)
+    id_utente_proprietario: int = Field(
+        foreign_key="utenti.id_utente", ondelete="CASCADE"
+    )
+    # The apiary a user starts with and new grants land in. It cannot be
+    # deleted, so every hive a user can see always has an apiary.
+    predefinito: bool = Field(sa_column_kwargs=FALSE)
     data_creazione: datetime = Field(sa_column_kwargs=NOW)
-    data_disattivazione: datetime | None = None
-    attivo: bool = Field(sa_column_kwargs=TRUE)
     metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
@@ -397,8 +413,15 @@ class ApiarioResponse(ApiarioBase):
 class Apiario(ApiarioResponse, table=True):
     __tablename__ = "apiari"
     __table_args__ = (
+        # Target of the composite foreign key from `utenti_arnie`, which is
+        # what keeps a hive out of an apiary its user does not own.
+        UniqueConstraint(
+            "id_apiario",
+            "id_utente_proprietario",
+            name="apiari_id_apiario_id_utente_proprietario_key",
+        ),
         *coordinate_checks("apiari_"),
-        {"comment": "Apiari: luoghi fisici che raggruppano le arnie"},
+        {"comment": "Apiari: raggruppamenti personali delle arnie di un utente"},
     )
 
 
@@ -417,10 +440,6 @@ class ArniaBase(SQLModel):
     posizione: str | None = Field(None, sa_type=String(255))
     latitudine: Decimal | None = latitudine_column()
     longitudine: Decimal | None = longitudine_column()
-    # Optional, so hives provisioned over MQTT and those predating apiaries fit.
-    id_apiario: int | None = Field(
-        None, foreign_key="apiari.id_apiario", ondelete="SET NULL"
-    )
 
 
 class ArniaCreate(ArniaBase):
@@ -449,9 +468,6 @@ class ArniaUpdate(BaseModel):
     )
     attiva: bool | None = None
     metadati: dict[str, Any] | None = None
-    # Unlike the fields above, an explicit null here means "take the hive out
-    # of its apiary"; only leaving the field out keeps the stored value.
-    id_apiario: int | None = None
 
 
 class ArniaResponse(ArniaBase):
@@ -477,9 +493,19 @@ class Arnia(ArniaResponse, table=True):
     )
 
 
+class ArniaApiarioUpdate(BaseModel):
+    """Move a hive into another of the caller's apiaries."""
+
+    id_apiario: int
+
+
 class ArniaConStato(ArniaResponse):
     """Arnia con ultime letture e coordinate"""
 
+    # The caller's own apiary for this hive: apiaries are per user, so two
+    # users sharing a hive can see it in different ones. Null when the caller
+    # has no association with it (an admin browsing every hive).
+    id_apiario: int | None = None
     nome_apiario: str | None = None
     ultima_temperatura: Decimal | None = None
     ultima_umidita: Decimal | None = None
@@ -691,6 +717,9 @@ class UtenteArniaCreate(BaseModel):
     id_utente: int
     id_arnia: int
     permessi: Permesso = "read"
+    # One of that user's apiaries; their default when omitted. Ignored when
+    # the association already exists, so re-granting never moves a hive.
+    id_apiario: int | None = None
 
 
 class UtenteArniaResponse(SQLModel):
@@ -703,6 +732,9 @@ class UtenteArniaResponse(SQLModel):
     data_disassociazione: datetime | None = None
     permessi: str = Field(sa_type=String(20), sa_column_kwargs=default("read"))
     attivo: bool = Field(sa_column_kwargs=TRUE)
+    # Which of the user's apiaries the hive is in, for that user only. The
+    # foreign key is the composite one in UtenteArnia's table args.
+    id_apiario: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -719,6 +751,12 @@ class UtenteArnia(UtenteArniaResponse, table=True):
         CheckConstraint(
             "data_disassociazione IS NULL OR data_disassociazione >= data_associazione",
             name="valid_association_dates",
+        ),
+        # Composite, so the apiary must belong to the association's own user.
+        ForeignKeyConstraint(
+            ["id_apiario", "id_utente"],
+            ["apiari.id_apiario", "apiari.id_utente_proprietario"],
+            name="utenti_arnie_id_apiario_fkey",
         ),
     )
 
@@ -774,12 +812,18 @@ INDEXES = (
     Index("idx_nodi_ultimo_messaggio", Nodo.ultimo_messaggio),
     Index("idx_arnie_nodo", Arnia.id_nodo),
     Index("idx_arnie_attiva", Arnia.attiva),
-    Index("idx_arnie_apiario", Arnia.id_apiario),
-    Index("idx_apiari_attivo", Apiario.attivo),
     Index("idx_apiari_proprietario", Apiario.id_utente_proprietario),
+    # One default apiary per user.
+    Index(
+        "uq_apiari_predefinito",
+        Apiario.id_utente_proprietario,
+        unique=True,
+        postgresql_where=Apiario.predefinito,
+    ),
     Index("idx_utenti_arnie_utente", UtenteArnia.id_utente),
     Index("idx_utenti_arnie_arnia", UtenteArnia.id_arnia),
     Index("idx_utenti_arnie_attivo", UtenteArnia.attivo),
+    Index("idx_utenti_arnie_apiario", UtenteArnia.id_apiario),
     Index("idx_letture_arnia", Lettura.id_arnia),
     Index("idx_letture_timestamp", Lettura.timestamp.desc()),
     Index("idx_letture_arnia_timestamp", Lettura.id_arnia, Lettura.timestamp.desc()),

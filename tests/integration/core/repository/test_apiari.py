@@ -1,86 +1,79 @@
 """Tests for the apiari repository (meshbee_core/repository/apiari.py).
 
-The weight is on visibility: access is granted per hive, so which apiari a user
-can see is a query over `arnie` and `utenti_arnie`, and every condition in it is
-an access rule.
+Apiaries are personal, and which one a hive is in lives on the association.
+The weight is on what counts as "a hive in it": that is the rule that decides
+whether an apiary can be deleted.
 """
+
+import psycopg2
+import pytest
 
 from meshbee_core.repository import apiari
 
 
-def visible_ids(session, utente):
-    return [
-        a["id_apiario"] for a in apiari.list_for_utente(session, utente["id_utente"])
-    ]
-
-
-def test_a_user_sees_the_apiario_of_a_hive_they_are_associated_with(
-    session, make_utente, make_apiario, make_arnia, grant_access
+def test_a_users_list_holds_only_their_apiari_default_first(
+    session, make_utente, make_apiario
 ):
-    utente, mine, other = make_utente(), make_apiario(), make_apiario()
-    grant_access(utente["id_utente"], make_arnia(apiario=mine)["id_arnia"])
-    make_arnia(apiario=other)
+    utente, other = make_utente(), make_utente()
+    extra = make_apiario(utente, nome_apiario="Alpha")
+    make_apiario(other)
 
-    assert visible_ids(session, utente) == [mine["id_apiario"]]
-    assert apiari.is_visible_to(session, utente["id_utente"], mine["id_apiario"])
-    assert not apiari.is_visible_to(session, utente["id_utente"], other["id_apiario"])
+    ids = [a["id_apiario"] for a in apiari.list_all(session, utente["id_utente"])]
+
+    assert ids == [utente["id_apiario_predefinito"], extra["id_apiario"]]
 
 
-def test_two_hives_in_one_apiario_list_it_once(
-    session, make_utente, make_apiario, make_arnia, grant_access
+def test_the_default_is_found(session, make_utente):
+    utente = make_utente()
+
+    found = apiari.get_predefinito(session, utente["id_utente"])
+
+    assert found["id_apiario"] == utente["id_apiario_predefinito"]
+
+
+def test_a_user_cannot_have_two_defaults(db, make_utente):
+    """The partial unique index is what keeps "the default" well defined."""
+    utente = make_utente()
+
+    with pytest.raises(psycopg2.errors.UniqueViolation):
+        db.execute(
+            "INSERT INTO apiari (nome_apiario, id_utente_proprietario, predefinito)"
+            " VALUES ('Second', %s, true)",
+            (utente["id_utente"],),
+        )
+
+
+def test_a_hive_cannot_go_in_someone_elses_apiario(
+    db, make_utente, make_apiario, make_arnia, grant_access
 ):
-    """The join fans out per hive; the list must not."""
-    utente, apiario = make_utente(), make_apiario()
-    for _ in range(2):
-        grant_access(utente["id_utente"], make_arnia(apiario=apiario)["id_arnia"])
+    """The composite foreign key: the database itself refuses a cross-user placement."""
+    utente, other = make_utente(), make_utente()
+    theirs = make_apiario(other)
 
-    assert visible_ids(session, utente) == [apiario["id_apiario"]]
-
-
-def test_a_revoked_association_hides_the_apiario(
-    session, make_utente, make_apiario, make_arnia, grant_access
-):
-    utente, apiario = make_utente(), make_apiario()
-    arnia = make_arnia(apiario=apiario)
-    grant_access(utente["id_utente"], arnia["id_arnia"], attivo=False)
-
-    assert visible_ids(session, utente) == []
-    assert not apiari.is_visible_to(session, utente["id_utente"], apiario["id_apiario"])
+    with pytest.raises(psycopg2.errors.ForeignKeyViolation):
+        grant_access(
+            utente["id_utente"],
+            make_arnia()["id_arnia"],
+            id_apiario=theirs["id_apiario"],
+        )
 
 
-def test_a_retired_hive_does_not_open_its_apiario(
+def test_only_active_associations_with_active_hives_are_counted(
     session, db, make_utente, make_apiario, make_arnia, grant_access
 ):
-    """The same rule as the hive list: a retired hive is out of the user's view."""
-    utente, apiario = make_utente(), make_apiario()
-    arnia = make_arnia(apiario=apiario)
-    grant_access(utente["id_utente"], arnia["id_arnia"])
-    db.execute(
-        "UPDATE arnie SET attiva = false WHERE id_arnia = %s", (arnia["id_arnia"],)
+    utente = make_utente()
+    apiario = make_apiario(utente)
+    for attivo in (True, False):
+        grant_access(
+            utente["id_utente"],
+            make_arnia()["id_arnia"],
+            attivo=attivo,
+            id_apiario=apiario["id_apiario"],
+        )
+    retired = make_arnia()
+    grant_access(
+        utente["id_utente"], retired["id_arnia"], id_apiario=apiario["id_apiario"]
     )
-
-    assert visible_ids(session, utente) == []
-
-
-def test_a_retired_apiario_is_left_out_of_the_lists(
-    session, make_utente, make_apiario, make_arnia, grant_access
-):
-    utente, apiario = make_utente(), make_apiario(attivo=False)
-    grant_access(utente["id_utente"], make_arnia(apiario=apiario)["id_arnia"])
-
-    assert visible_ids(session, utente) == []
-    assert apiari.list_attivi(session) == []
-    assert [a["id_apiario"] for a in apiari.list_all(session)] == [
-        apiario["id_apiario"]
-    ]
-
-
-def test_only_active_hives_are_counted(session, db, make_apiario, make_arnia):
-    """What stands between an apiary and its retirement."""
-    apiario = make_apiario()
-    make_arnia(apiario=apiario)
-    retired = make_arnia(apiario=apiario)
-    make_arnia()
     db.execute(
         "UPDATE arnie SET attiva = false WHERE id_arnia = %s", (retired["id_arnia"],)
     )
@@ -88,21 +81,8 @@ def test_only_active_hives_are_counted(session, db, make_apiario, make_arnia):
     assert apiari.count_arnie_attive(session, apiario["id_apiario"]) == 1
 
 
-def test_switching_attivo_stamps_and_clears_the_removal_date(session, make_apiario):
-    """A revived apiary must not keep the date of a removal that no longer holds."""
-    apiario = make_apiario()
-
-    retired = apiari.update(session, apiario["id_apiario"], attivo=False)
-    assert retired["attivo"] is False
-    assert retired["data_disattivazione"] is not None
-
-    revived = apiari.update(session, apiario["id_apiario"], attivo=True)
-    assert revived["attivo"] is True
-    assert revived["data_disattivazione"] is None
-
-
-def test_update_leaves_unmentioned_columns_alone(session, make_apiario):
-    apiario = make_apiario(nome_apiario="Collina")
+def test_update_leaves_unmentioned_columns_alone(session, make_utente, make_apiario):
+    apiario = make_apiario(make_utente(), nome_apiario="Collina")
 
     updated = apiari.update(
         session, apiario["id_apiario"], posizione="Collina sud", nome_apiario=None
@@ -112,11 +92,10 @@ def test_update_leaves_unmentioned_columns_alone(session, make_apiario):
     assert updated["posizione"] == "Collina sud"
 
 
-def test_deleting_the_owner_keeps_the_apiario(session, db, make_utente, make_apiario):
-    """ON DELETE SET NULL: the owner is information, not something the apiary hangs on."""
-    owner = make_utente()
-    apiario = make_apiario(proprietario=owner)
+def test_deleting_the_user_deletes_their_apiari(session, db, make_utente):
+    """ON DELETE CASCADE: personal groupings mean nothing without their owner."""
+    utente = make_utente()
 
-    db.execute("DELETE FROM utenti WHERE id_utente = %s", (owner["id_utente"],))
+    db.execute("DELETE FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
 
-    assert apiari.get(session, apiario["id_apiario"])["id_utente_proprietario"] is None
+    assert apiari.get(session, utente["id_apiario_predefinito"]) is None

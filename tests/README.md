@@ -87,10 +87,10 @@ Its `deliver` fixture wraps each message in a SAVEPOINT, because in production e
 message gets its own transaction and the test must not let one message see another's
 uncommitted work.
 
-**`integration/api/test_main_authz.py` — the gate.** One table sweeps **all 44
+**`integration/api/test_main_authz.py` — the gate.** One table sweeps **all 48
 endpoints** for anonymous, authenticated-but-not-admin, and authenticated-without-the-
-association (with a hive, or a hive in the apiary). **Add every new endpoint to that table.** It is what catches a route that
-forgot its `Depends`.
+association (or, for an apiary, not its owner). **Add every new endpoint to that
+table.** It is what catches a route that forgot its `Depends`.
 
 ## Fixtures
 
@@ -143,7 +143,8 @@ because the session flows on into the service and repository calls unchanged.
 
 ### Data builders
 
-`make_utente`, `make_apiario`, `make_arnia(apiario=...)`, `grant_access`,
+`make_utente` (with its `Default` apiary, `id_apiario_predefinito`), `make_apiario`,
+`make_arnia`, `grant_access` (into the Default unless `id_apiario=`),
 `utente_con_arnia`, `make_lettura`, `make_attivita`.
 
 ## Conventions

@@ -48,7 +48,11 @@ ADMIN_ONLY = [
     ("post", "/api/admin/letture", {"id_arnia": 1, "id_nodo": "NODE-X"}),
     ("get", "/api/admin/attivita", None),
     ("get", "/api/admin/apiari", None),
-    ("post", "/api/admin/apiari", {"nome_apiario": "Apiario X"}),
+    (
+        "post",
+        "/api/admin/apiari",
+        {"nome_apiario": "Apiario X", "id_utente_proprietario": 1},
+    ),
     ("get", "/api/admin/apiari/1", None),
     ("put", "/api/admin/apiari/1", {}),
     ("delete", "/api/admin/apiari/1", None),
@@ -59,6 +63,7 @@ USER_GLOBAL = [
     ("get", "/api/auth/me", None),
     ("get", "/api/user/arnie", None),
     ("get", "/api/user/apiari", None),
+    ("post", "/api/user/apiari", {"nome_apiario": "Apiario X"}),
     (
         "put",
         "/api/user/password",
@@ -83,12 +88,15 @@ ARNIA_SCOPED = [
     ),
     ("patch", "/api/user/arnie/{}/attivita/1", {}),
     ("delete", "/api/user/arnie/{}/attivita/1", None),
+    ("put", "/api/user/arnie/{}/apiario", {"id_apiario": 1}),
 ]
 
-# Scoped to {id_apiario}: guarded by check_user_apiario_access, which admits a
-# user through a hive of theirs in the apiary. `{}` is substituted.
+# Scoped to {id_apiario}: guarded by check_user_apiario_access, which admits only
+# the apiary's owner (and admins). `{}` is substituted.
 APIARIO_SCOPED = [
     ("get", "/api/user/apiari/{}", None),
+    ("put", "/api/user/apiari/{}", {}),
+    ("delete", "/api/user/apiari/{}", None),
 ]
 
 PROTECTED = (
@@ -229,12 +237,11 @@ def test_admins_reach_arnie_they_are_not_associated_with(
 
 
 @pytest.mark.parametrize("method, path, body", APIARIO_SCOPED, ids=ids(APIARIO_SCOPED))
-def test_apiario_endpoints_reject_a_user_without_a_hive_there(
-    as_user, make_utente, make_apiario, make_arnia, method, path, body
+def test_apiario_endpoints_reject_a_user_who_does_not_own_it(
+    as_user, make_utente, make_apiario, method, path, body
 ):
-    """An apiary is not readable just for existing, nor for holding someone else's hive."""
-    apiario = make_apiario()
-    make_arnia(apiario=apiario)
+    """Apiaries are personal: someone else's is off limits, whatever it holds."""
+    apiario = make_apiario(make_utente())
 
     response = call(
         as_user(make_utente()), method, path.format(apiario["id_apiario"]), body
@@ -244,22 +251,20 @@ def test_apiario_endpoints_reject_a_user_without_a_hive_there(
 
 
 @pytest.mark.parametrize("method, path, body", APIARIO_SCOPED, ids=ids(APIARIO_SCOPED))
-def test_apiario_endpoints_admit_a_user_with_a_hive_there(
-    as_user, make_utente, make_apiario, make_arnia, grant_access, method, path, body
+def test_apiario_endpoints_admit_the_owner(
+    as_user, make_utente, make_apiario, method, path, body
 ):
-    """A read association with one hive in the apiary is what opens it."""
-    utente, apiario = make_utente(), make_apiario()
-    arnia = make_arnia(apiario=apiario)
-    grant_access(utente["id_utente"], arnia["id_arnia"], "read")
+    utente = make_utente()
+    apiario = make_apiario(utente)
 
     response = call(as_user(utente), method, path.format(apiario["id_apiario"]), body)
 
     assert response.status_code != 403
 
 
-def test_admins_reach_apiari_they_have_no_hive_in(as_user, make_utente, make_apiario):
+def test_admins_reach_apiari_they_do_not_own(as_user, make_utente, make_apiario):
     """check_user_apiario_access short-circuits for admins, like the arnia gate."""
-    apiario = make_apiario()
+    apiario = make_apiario(make_utente())
 
     response = as_user(make_utente(ruolo="admin")).get(
         f"/api/user/apiari/{apiario['id_apiario']}"
