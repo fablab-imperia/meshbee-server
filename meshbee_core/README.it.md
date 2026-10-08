@@ -38,22 +38,25 @@ scripts/ ───────┘
 | Modulo | Copre |
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` è l'unica proiezione che include `password_hash`. |
-| `nodi.py` | `nodi`, compreso `register_if_absent` per il percorso di ingest. |
-| `arnie.py` | `arnie`, e `STATO`: ogni arnia con il nome del nodo e l'ultima lettura. `update` usa un sentinella `UNSET` così `attiva` viene toccata solo se passata esplicitamente. |
+| `nodi.py` | `nodi`, compreso `register_if_absent` per il percorso di ingest e `set_proprietario`. |
+| `arnie.py` | `arnie`, e `STATO`: ogni arnia con il nome del nodo, il suo apiario e l'ultima lettura; `with_accesso` aggiunge cosa può farci un dato utente. `update` usa un sentinella `UNSET` così `attiva` viene toccata solo se passata esplicitamente. |
+| `apiari.py` | `apiari`: quelli di un utente e quelli condivisi con lui, e quante arnie attive ne contiene uno. |
 | `letture.py` | `letture`. `insert` è l'unica INSERT a cui arrivano entrambi gli entry point; `series` mette in whitelist il nome della colonna. |
 | `attivita.py` | `log_attivita`, con update e delete limitati al proprietario. |
-| `accessi.py` | `utenti_arnie` — la tabella delle associazioni. |
+| `accessi.py` | `utenti_apiari` — le condivisioni — e l'accesso di un utente (`owner`, un ruolo, o nessuno) a un apiario o a un'arnia. |
 
 ### `services/` — decisioni
 
 | Modulo | Copre |
 |---|---|
-| `auth.py` | Autenticazione e la scala dei permessi `read < write < admin`. |
-| `utenti.py` | Ciclo di vita degli account, incluso il rifiuto di disattivare se stessi. |
-| `arnie.py` | Le arnie, e chi può vedere quali. |
+| `auth.py` | Autenticazione, e autorizzazione: `ROLE_ACTIONS`, cosa consente ogni ruolo, e `can_on_arnia` / `can_on_apiario`. |
+| `utenti.py` | Ciclo di vita degli account, incluso il rifiuto di disattivare se stessi; ogni nuovo account riceve il suo apiario `Default`. |
+| `nodi.py` | I nodi, e l'assegnazione di uno a un proprietario — le sue arnie lo seguono. |
+| `arnie.py` | Le arnie: quali vede un utente, dove finisce una nuova, lo spostamento tra gli apiari del suo proprietario. |
+| `apiari.py` | Gli apiari: il `Default` di ogni utente, e le regole per eliminarne uno. |
 | `letture.py` | Le letture, la finestra di default di un anno, la validazione dei limiti. |
 | `attivita.py` | Il log attività. |
-| `accessi.py` | Concessione e revoca dell'accesso a un'arnia. |
+| `accessi.py` | La condivisione di un apiario: concedere, cambiare e revocare i ruoli. |
 | `ingest.py` | Il percorso MQTT: registra il nodo, risolve o crea l'arnia, archivia la lettura. |
 
 ## Regole dei livelli
@@ -156,7 +159,7 @@ I limiti sono validati dai modelli in `models.py`, con i valori di `limits.py`:
 | `longitudine` | da −180 a 180 | CHECK `valid_longitudine` |
 | password | minimo 8 caratteri, massimo **72 byte** | — |
 | `ruolo` | `user`, `admin` | CHECK su `utenti.ruolo` |
-| `permessi` | `read`, `write`, `admin` | CHECK su `utenti_arnie.permessi` |
+| ruoli sugli apiari | `viewer`, `collaborator`, `manager` | CHECK su `utenti_apiari.ruolo` |
 | `tipo_attivita` | 8 valori | CHECK su `log_attivita.tipo_attivita` |
 
 **Ogni limite e insieme di valori è dichiarato una volta sola, in `limits.py`.** I
@@ -215,9 +218,9 @@ un'istruzione, non che l'istruzione sia giusta. Vedi [`tests/`](../tests/README.
   legittimo da scrivere; il sentinella è il modo per tenere distinto "il chiamante non
   ha detto niente su questa colonna", ed è quello che impedisce a un update lato utente
   di dismettere un'arnia in silenzio.
-- **Un nome di permesso sconosciuto solleva un'eccezione** invece di restituire `False`:
-  un errore di battitura fallisce in chiusura invece di negare l'accesso a tutti senza
-  dirlo.
+- **Un'azione sconosciuta solleva un'eccezione** invece di restituire `False`: un errore
+  di battitura fallisce rumorosamente invece di valere in silenzio come "solo il
+  proprietario".
 
 ## Collegamenti
 

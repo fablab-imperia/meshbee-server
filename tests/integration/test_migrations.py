@@ -290,3 +290,101 @@ def test_0002_refuses_rows_it_cannot_fill_and_changes_nothing(at_0001):
 
     assert row(at_0001, "SELECT version_num FROM alembic_version") == ("0001",)
     assert row(at_0001, "SELECT ruolo FROM utenti") == (None,)
+
+
+# ============================================
+# 0005: ownership, apiaries, sharing per apiary
+# ============================================
+
+
+@pytest.fixture
+def before_0005(scratch_schemas):
+    """
+    A schema at 0004 with three users, three nodes and per-hive access:
+
+    - N1 holds S1 (user 1 admin, user 2 read) and S2 (user 2 write, user 3
+      admin but revoked): one hive each for users 1 and 2, a tie;
+    - N2 holds S3 (user 2 read);
+    - N3 holds S4, which nobody has access to.
+    """
+    upgrade(TEST_DB_URL, "0004", search_path=FROM_MIGRATIONS)
+    cursor = scratch_schemas
+    cursor.execute(f"SET search_path TO {FROM_MIGRATIONS}")
+    cursor.execute(
+        "INSERT INTO utenti (email, password_hash, nome, cognome) VALUES"
+        " ('a@b.org', 'x', 'A', 'A'), ('c@d.org', 'x', 'C', 'C'), ('e@f.org', 'x', 'E', 'E')"
+    )
+    cursor.execute("INSERT INTO nodi (id_nodo) VALUES ('N1'), ('N2'), ('N3')")
+    cursor.execute(
+        "INSERT INTO arnie (id_nodo, id_sensore_fisico) VALUES"
+        " ('N1', 'S1'), ('N1', 'S2'), ('N2', 'S3'), ('N3', 'S4')"
+    )
+    cursor.execute(
+        "INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo) VALUES"
+        " (1, 1, 'admin', true), (2, 1, 'read', true), (2, 2, 'write', true),"
+        " (3, 2, 'admin', false), (2, 3, 'read', true)"
+    )
+    return cursor
+
+
+def rows(cursor, query):
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def test_0005_turns_access_into_ownership_and_shares(before_0005):
+    cursor = before_0005
+
+    upgrade(TEST_DB_URL, "0005", search_path=FROM_MIGRATIONS)
+
+    # Every account gets its Default.
+    assert rows(
+        cursor,
+        "SELECT id_utente_proprietario, nome_apiario, predefinito FROM apiari ORDER BY 1",
+    ) == [(1, "Default", True), (2, "Default", True), (3, "Default", True)]
+    # N1 is a tie between users 1 and 2: the lowest id wins. A revoked
+    # association counts for nothing; N3 had no access at all and stays unassigned.
+    assert rows(cursor, "SELECT id_nodo, id_proprietario FROM nodi ORDER BY 1") == [
+        ("N1", 1),
+        ("N2", 2),
+        ("N3", None),
+    ]
+    # A node's hives all go in its owner's Default, S2 included.
+    assert rows(
+        cursor,
+        "SELECT a.id_sensore_fisico, ap.id_utente_proprietario FROM arnie a"
+        " LEFT JOIN apiari ap USING (id_apiario) ORDER BY 1",
+    ) == [("S1", 1), ("S2", 1), ("S3", 2), ("S4", None)]
+    # User 2 keeps access to S1 and S2 as a role on user 1's Default: the
+    # higher of read and write. User 3's revoked access is not revived.
+    assert rows(
+        cursor,
+        "SELECT s.id_utente, ap.id_utente_proprietario, s.ruolo FROM utenti_apiari s"
+        " JOIN apiari ap USING (id_apiario)",
+    ) == [(2, 1, "collaborator")]
+    assert rows(cursor, "SELECT to_regclass('utenti_arnie') IS NULL") == [(True,)]
+
+
+def test_0005_downgrades_back_to_per_hive_access(before_0005):
+    """Owners come back as 'admin' on each hive, shares as their level on each."""
+    from alembic import command
+
+    from meshbee_core.migrations import alembic_config
+
+    cursor = before_0005
+    upgrade(TEST_DB_URL, "0005", search_path=FROM_MIGRATIONS)
+
+    command.downgrade(alembic_config(TEST_DB_URL, search_path=FROM_MIGRATIONS), "0004")
+
+    assert rows(
+        cursor,
+        "SELECT ua.id_utente, a.id_sensore_fisico, ua.permessi FROM utenti_arnie ua"
+        " JOIN arnie a USING (id_arnia) ORDER BY 1, 2",
+    ) == [
+        (1, "S1", "admin"),
+        (1, "S2", "admin"),
+        (2, "S1", "write"),
+        (2, "S2", "write"),
+        (2, "S3", "admin"),
+    ]
+    assert rows(cursor, "SELECT to_regclass('apiari') IS NULL") == [(True,)]

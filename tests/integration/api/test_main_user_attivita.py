@@ -9,8 +9,8 @@ NOW = datetime(2026, 6, 1, 12, 0, 0)
 
 @pytest.fixture
 def scrittore(utente_con_arnia):
-    """A user with write access to an arnia."""
-    return utente_con_arnia("write")
+    """A user who may log activities on an arnia: a collaborator."""
+    return utente_con_arnia("collaborator")
 
 
 # ============================================
@@ -179,12 +179,11 @@ def test_activities_are_returned_newest_first(as_user, scrittore, make_attivita)
 
 
 def test_activities_are_scoped_to_the_arnia(
-    as_user, scrittore, make_arnia, make_attivita, grant_access
+    as_user, scrittore, make_arnia, make_attivita
 ):
     """Another arnia's log never leaks in."""
     utente, arnia = scrittore
-    other = make_arnia()
-    grant_access(utente["id_utente"], other["id_arnia"], "read")
+    other = make_arnia(apiario=utente)
     make_attivita(arnia, utente)
     make_attivita(other, utente)
 

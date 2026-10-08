@@ -60,6 +60,7 @@ a reliable source of a failing INSERT.
 | `ultimo_messaggio` | TIMESTAMP | When the last MQTT message was **received**; set by `services/ingest.py` — see [No views, no triggers](#no-views-no-triggers). |
 | `attivo` | BOOLEAN | Soft delete. |
 | `configurazione` | JSONB | Per-node settings. |
+| `id_proprietario` | INTEGER | FK → `utenti` ON DELETE SET NULL. Set by an admin; null while the node is **unassigned**. Its hives belong to its owner. |
 
 There is **no `sensori` table**. A sensor's identity lives on `arnie.id_sensore_fisico`,
 and readings have fixed columns rather than generic `(sensore, valore)` rows. A
@@ -78,19 +79,38 @@ joined to `arnie` and never read.
 | `data_installazione`, `data_rimozione` | TIMESTAMP | |
 | `attiva` | BOOLEAN | Soft delete — readings survive. |
 | `metadati` | JSONB | Queen's race and year, hive colour, whatever the beekeeper tracks. |
+| `id_apiario` | INTEGER | FK → `apiari`. The hive's owner is this apiary's owner; null while its node is unassigned. The service keeps a node's hives in its owner's apiaries. |
 
-### `utenti_arnie` — who may see which hive
+### `apiari` — where an owner's hives stand
+
+| Column | Type | Notes |
+|---|---|---|
+| `id_apiario` | SERIAL | PK |
+| `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. Owns the apiary and every hive in it. |
+| `nome_apiario` | VARCHAR(100) | NOT NULL |
+| `descrizione`, `posizione` | | Free text. |
+| `latitudine`, `longitudine` | DECIMAL(9,6) | Same bounds as a hive's, CHECKs prefixed `apiari_`. Independent of the hives' own coordinates. |
+| `predefinito` | BOOLEAN | The user's `Default`, where the hives of their newly assigned nodes land. **One per user** (partial unique index `uq_apiari_predefinito`); the service never deletes it. |
+| `data_creazione` | TIMESTAMP | |
+| `metadati` | JSONB | |
+
+Deleting an apiary is a real DELETE, taking its shares with it; the service refuses it
+for the default and while active hives are in it.
+
+### `utenti_apiari` — who an owner shares an apiary with
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | SERIAL | PK |
-| `id_utente`, `id_arnia` | INTEGER | FKs, CASCADE. **UNIQUE together.** |
-| `data_associazione`, `data_disassociazione` | TIMESTAMP | CHECK: end cannot precede start. |
-| `permessi` | VARCHAR(20) | CHECK `('read','write','admin')`, default `read`. |
-| `attivo` | BOOLEAN | Revocation is a flag, so the history stays. |
+| `id_utente`, `id_apiario` | INTEGER | FKs, CASCADE. **UNIQUE together.** |
+| `ruolo` | VARCHAR(20) | CHECK `('viewer','collaborator','manager')`, default `viewer`. |
+| `data_condivisione` | TIMESTAMP | |
 
-Permissions are a ladder: `read` < `write` < `admin`. An account with `ruolo = 'admin'`
-bypasses this table entirely.
+A role applies to the apiary and every hive in it. The owner is not a row here: owning
+the apiary allows everything. Revoking deletes the row. What each role allows is
+`ROLE_ACTIONS` in `meshbee_core/services/auth.py`; an account with `ruolo = 'admin'`
+bypasses all of it. This table replaced `utenti_arnie` (per-hive `read`/`write`/`admin`
+levels) in revision `0005`.
 
 ### `letture` — the telemetry
 
@@ -137,7 +157,7 @@ to live here is now in `meshbee_core`, where it is declared once and tested like
 rest of the code:
 
 - **The hive list with its latest readings** was the view `v_arnie_stato`. It is now
-  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi` plus one `LATERAL` subquery for
+  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi LEFT JOIN apiari` plus one `LATERAL` subquery for
   the latest reading, so every "ultimo" value comes from the same row. That is what
   `GET /api/user/arnie` returns.
 - **`nodi.ultimo_messaggio`** was set by `trigger_aggiorna_nodo` on every insert into
@@ -213,6 +233,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0002` | NOT NULL on the 16 columns the API returns as required. Fills existing NULLs first — flags to **false**, `ruolo` to `user`, `permessi` to `read` with the association deactivated, dates from the best evidence in the row — and **stops without changing anything** if a foreign key is NULL (an arnia without a node, a reading without an arnia), since those cannot be filled. |
 | `0003` | Dropped `trigger_aggiorna_nodo`, its function and `v_arnie_stato`: their logic moved to `services/ingest.py` and `repository/arnie.py` (#17). |
 | `0004` | Dropped the `uuid-ossp` extension, which `init.sql` installed and nothing ever used. Without CASCADE: anything depending on it makes the migration stop instead. |
+| `0005` | Ownership and apiaries (#2, #36): `apiari` with a `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, and `utenti_apiari` replacing `utenti_arnie`. A hive's owner becomes its best-placed active association (`admin` > `write` > `read`, earliest first); a node goes to the owner of most of its hives, and all its hives to that owner's Default; every other active association becomes a role on that Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), which can widen access but never removes it. Hives nobody could access stay unassigned. Downgrade rebuilds per-hive access. |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:
@@ -230,12 +251,14 @@ where they can be configured per hive, not hard-coded in a trigger.
 ## Sample data
 
 Revisions carry no data. On an install with no hives at all, `scripts/seed.py` creates
-one node (`NODE001`, "Apiario Collina"), two hives (`SENSOR01` / `SENSOR02`) with
-coordinates and metadata, and four readings — enough for the app to have something to
+one node (`NODE001`, "Apiario Collina") **owned by the test account**, two hives
+(`SENSOR01` / `SENSOR02`) in its Default apiary with coordinates and metadata, and four
+readings — enough for the app to have something to
 draw. Once any hive exists it leaves them alone, so deleting the demo data does not
 bring it back.
 
-The seed also creates the accounts, the associations and a sample activity. See the
+The seed also creates the accounts and a sample activity; it shares nothing, so a live
+install's hives are never opened to the test account. See the
 main [README](../README.md#setup).
 
 ## Development
@@ -273,7 +296,7 @@ built with `upgrade head` on every run. See [`tests/`](../tests/README.md).
 - **A pre-Alembic install must be stamped once.** `migrate` refuses it until then, and
   so `api` and `mqtt-handler` do not start. See [Existing installations](#existing-installations).
 - **`POSTGRES_PASSWORD` only applies to a fresh volume.** See [Fresh volumes](#fresh-volumes).
-- **`ruolo` is `'user'`, `permessi` is `('read','write','admin')`.** Test fakes accept
+- **`utenti.ruolo` is `'user'`, `utenti_apiari.ruolo` is `('viewer','collaborator','manager')`.** Test fakes accept
   anything; the real database does not.
 - **Nothing is hard-deleted.** Users, hives and nodes have an `attivo`/`attiva` flag,
   and readings are kept when their hive is retired. `ON DELETE CASCADE` is a safety

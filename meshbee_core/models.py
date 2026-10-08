@@ -60,17 +60,17 @@ from meshbee_core.limits import (
     LATITUDINE_MIN,
     LONGITUDINE_MAX,
     LONGITUDINE_MIN,
-    PERMESSI,
     PESO_MIN,
     RUOLI,
+    RUOLI_APIARIO,
     TEMPERATURA_MAX,
     TEMPERATURA_MIN,
     TIPI_ATTIVITA,
     UMIDITA_MAX,
     UMIDITA_MIN,
-    # Re-exported: the value sets are part of this module's public surface.
-    Permesso,
     Ruolo,
+    # Re-exported: the value sets are part of this module's public surface.
+    RuoloApiario,
     TipoAttivita,
 )
 
@@ -100,6 +100,42 @@ def one_of(column: str, values: Iterable[str]) -> str:
 def default(value: str) -> dict:
     """A string server default, quoted for SQL."""
     return {"server_default": text(f"'{value}'")}
+
+
+def latitudine_column(description: str = "Latitudine in formato DD, es: 45.464200"):
+    """A nullable decimal-degree latitude column, bounded by `limits.py`."""
+    return Field(
+        None,
+        ge=LATITUDINE_MIN,
+        le=LATITUDINE_MAX,
+        sa_type=Numeric(9, 6),
+        description=description,
+    )
+
+
+def longitudine_column(description: str = "Longitudine in formato DD, es: 9.190000"):
+    """A nullable decimal-degree longitude column, bounded by `limits.py`."""
+    return Field(
+        None,
+        ge=LONGITUDINE_MIN,
+        le=LONGITUDINE_MAX,
+        sa_type=Numeric(9, 6),
+        description=description,
+    )
+
+
+def coordinate_checks(prefix: str = "") -> tuple[CheckConstraint, CheckConstraint]:
+    """The CHECKs matching `latitudine_column` and `longitudine_column`."""
+    return (
+        CheckConstraint(
+            in_range("latitudine", LATITUDINE_MIN, LATITUDINE_MAX),
+            name=f"{prefix}valid_latitudine",
+        ),
+        CheckConstraint(
+            in_range("longitudine", LONGITUDINE_MIN, LONGITUDINE_MAX),
+            name=f"{prefix}valid_longitudine",
+        ),
+    )
 
 
 # ============================================
@@ -287,15 +323,115 @@ class NodoResponse(NodoBase):
 
     data_registrazione: datetime = Field(sa_column_kwargs=NOW)
     ultimo_messaggio: datetime | None = None
+    # Null until an admin assigns the node; its hives follow its owner.
+    id_proprietario: int | None = Field(
+        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+    )
     attivo: bool = Field(sa_column_kwargs=TRUE)
     configurazione: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
 
 
+class NodoProprietarioUpdate(BaseModel):
+    """Assign a node to a user, transfer it, or (null) unassign it."""
+
+    id_utente: int | None
+
+
 class Nodo(NodoResponse, table=True):
     __tablename__ = "nodi"
     __table_args__ = ({"comment": "Dispositivi IoT che trasmettono dati"},)
+
+
+# ============================================
+# Apiari
+# ============================================
+
+
+class ApiarioBase(SQLModel):
+    """
+    An apiary: the place a group of hives stands in, owned by one user.
+
+    A hive is in exactly one apiary (`arnie.id_apiario`) and belongs to that
+    apiary's owner. Sharing is granted per apiary (`utenti_apiari`).
+    """
+
+    nome_apiario: str = Field(sa_type=String(100))
+    descrizione: str | None = Field(None, sa_type=Text)
+    posizione: str | None = Field(None, sa_type=String(255))
+    latitudine: Decimal | None = latitudine_column()
+    longitudine: Decimal | None = longitudine_column()
+
+
+class ApiarioCreate(ApiarioBase):
+    """New apiary, owned by the caller."""
+
+    metadati: dict[str, Any] | None = None
+
+
+class ApiarioAdminCreate(ApiarioCreate):
+    """New apiary created by an admin on behalf of a user."""
+
+    id_utente_proprietario: int
+
+
+class ApiarioUpdate(BaseModel):
+    """
+    Partial apiary update: an omitted or null field keeps its stored value.
+
+    Neither the owner nor `predefinito` can change: the hives in an apiary
+    belong to its owner, and every user keeps exactly one default.
+    """
+
+    nome_apiario: str | None = None
+    descrizione: str | None = None
+    posizione: str | None = None
+    latitudine: Decimal | None = Field(
+        None,
+        ge=LATITUDINE_MIN,
+        le=LATITUDINE_MAX,
+        description="Latitudine in formato DD",
+    )
+    longitudine: Decimal | None = Field(
+        None,
+        ge=LONGITUDINE_MIN,
+        le=LONGITUDINE_MAX,
+        description="Longitudine in formato DD",
+    )
+    metadati: dict[str, Any] | None = None
+
+
+class ApiarioResponse(ApiarioBase):
+    """An apiary as the API returns it."""
+
+    id_apiario: int = Field(primary_key=True)
+    id_utente_proprietario: int = Field(
+        foreign_key="utenti.id_utente", ondelete="CASCADE"
+    )
+    # The apiary a user starts with, where the hives of their newly assigned
+    # nodes land. It cannot be deleted.
+    predefinito: bool = Field(sa_column_kwargs=FALSE)
+    data_creazione: datetime = Field(sa_column_kwargs=NOW)
+    metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ApiarioConAccesso(ApiarioResponse):
+    """An apiary with what the caller may do on it."""
+
+    # "owner", or the role the owner granted the caller; null for an admin
+    # looking at someone else's apiary.
+    accesso: str | None = None
+
+
+class Apiario(ApiarioResponse, table=True):
+    __tablename__ = "apiari"
+    __table_args__ = (
+        *coordinate_checks("apiari_"),
+        {"comment": "Apiari: luoghi che raggruppano le arnie di un proprietario"},
+    )
 
 
 # ============================================
@@ -311,20 +447,11 @@ class ArniaBase(SQLModel):
     nome_arnia: str | None = Field(None, sa_type=String(100))
     descrizione: str | None = Field(None, sa_type=Text)
     posizione: str | None = Field(None, sa_type=String(255))
-    latitudine: Decimal | None = Field(
-        None,
-        ge=LATITUDINE_MIN,
-        le=LATITUDINE_MAX,
-        sa_type=Numeric(9, 6),
-        description="Latitudine in formato DD, es: 45.464200",
-    )
-    longitudine: Decimal | None = Field(
-        None,
-        ge=LONGITUDINE_MIN,
-        le=LONGITUDINE_MAX,
-        sa_type=Numeric(9, 6),
-        description="Longitudine in formato DD, es: 9.190000",
-    )
+    latitudine: Decimal | None = latitudine_column()
+    longitudine: Decimal | None = longitudine_column()
+    # The hive's owner is this apiary's owner. Null while its node is
+    # unassigned; on creation, the node owner's default apiary.
+    id_apiario: int | None = Field(None, foreign_key="apiari.id_apiario")
 
 
 class ArniaCreate(ArniaBase):
@@ -373,21 +500,24 @@ class Arnia(ArniaResponse, table=True):
         UniqueConstraint(
             "id_nodo", "id_sensore_fisico", name="arnie_id_nodo_id_sensore_fisico_key"
         ),
-        CheckConstraint(
-            in_range("latitudine", LATITUDINE_MIN, LATITUDINE_MAX),
-            name="valid_latitudine",
-        ),
-        CheckConstraint(
-            in_range("longitudine", LONGITUDINE_MIN, LONGITUDINE_MAX),
-            name="valid_longitudine",
-        ),
+        *coordinate_checks(),
         {"comment": "Arnie monitorate con sensori"},
     )
+
+
+class ArniaApiarioUpdate(BaseModel):
+    """Move a hive into another apiary of its owner."""
+
+    id_apiario: int
 
 
 class ArniaConStato(ArniaResponse):
     """Arnia con ultime letture e coordinate"""
 
+    nome_apiario: str | None = None
+    # "owner", or the role granted to the caller on the hive's apiary; null
+    # when the caller has neither (an admin browsing every hive).
+    accesso: str | None = None
     ultima_temperatura: Decimal | None = None
     ultima_umidita: Decimal | None = None
     ultimo_peso: Decimal | None = None
@@ -588,46 +718,65 @@ class AttivitaQueryParams(BaseModel):
 
 
 # ============================================
-# Associazione utente-arnia
+# Condivisione degli apiari
 # ============================================
 
 
-class UtenteArniaCreate(BaseModel):
-    """Associazione utente-arnia"""
+class CondivisioneCreate(BaseModel):
+    """Share an apiary with a user, found by email."""
 
-    id_utente: int
-    id_arnia: int
-    permessi: Permesso = "read"
+    email: str
+    ruolo: RuoloApiario = "viewer"
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email_case(cls, v):
+        return normalize_email(v)
 
 
-class UtenteArniaResponse(SQLModel):
-    """Risposta associazione"""
+class CondivisioneUpdate(BaseModel):
+    """Change the role of an existing share."""
 
-    id: int = Field(primary_key=True)
+    ruolo: RuoloApiario
+
+
+class CondivisioneBase(SQLModel):
     id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
-    id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
-    data_associazione: datetime = Field(sa_column_kwargs=NOW)
-    data_disassociazione: datetime | None = None
-    permessi: str = Field(sa_type=String(20), sa_column_kwargs=default("read"))
-    attivo: bool = Field(sa_column_kwargs=TRUE)
-
-    model_config = ConfigDict(from_attributes=True)
+    id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
+    ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
+    data_condivisione: datetime = Field(sa_column_kwargs=NOW)
 
 
-class UtenteArnia(UtenteArniaResponse, table=True):
-    __tablename__ = "utenti_arnie"
+class CondivisioneResponse(CondivisioneBase):
+    """
+    A share, with who it is for — identified only by the email the owner typed.
+
+    No name or other profile field: any user can share their own apiary with
+    any email, so this response must not tell them more about the account
+    behind it than they already knew.
+    """
+
+    email: str
+
+
+class UtenteApiario(CondivisioneBase, table=True):
+    """
+    A role granted on an apiary by its owner. Revoking deletes the row: a share
+    has no history worth keeping, unlike readings or activities.
+    """
+
+    __tablename__ = "utenti_apiari"
     __table_args__ = (
         UniqueConstraint(
-            "id_utente", "id_arnia", name="utenti_arnie_id_utente_id_arnia_key"
+            "id_utente", "id_apiario", name="utenti_apiari_id_utente_id_apiario_key"
         ),
         CheckConstraint(
-            one_of("permessi", PERMESSI), name="utenti_arnie_permessi_check"
+            one_of("ruolo", RUOLI_APIARIO), name="utenti_apiari_ruolo_check"
         ),
-        CheckConstraint(
-            "data_disassociazione IS NULL OR data_disassociazione >= data_associazione",
-            name="valid_association_dates",
-        ),
+        {"comment": "Apiari condivisi dal proprietario con altri utenti"},
     )
+
+    id: int | None = Field(default=None, primary_key=True)
 
 
 # ============================================
@@ -679,11 +828,20 @@ INDEXES = (
     Index("idx_utenti_attivo", Utente.attivo),
     Index("idx_nodi_attivo", Nodo.attivo),
     Index("idx_nodi_ultimo_messaggio", Nodo.ultimo_messaggio),
+    Index("idx_nodi_proprietario", Nodo.id_proprietario),
     Index("idx_arnie_nodo", Arnia.id_nodo),
     Index("idx_arnie_attiva", Arnia.attiva),
-    Index("idx_utenti_arnie_utente", UtenteArnia.id_utente),
-    Index("idx_utenti_arnie_arnia", UtenteArnia.id_arnia),
-    Index("idx_utenti_arnie_attivo", UtenteArnia.attivo),
+    Index("idx_arnie_apiario", Arnia.id_apiario),
+    Index("idx_apiari_proprietario", Apiario.id_utente_proprietario),
+    # One default apiary per user.
+    Index(
+        "uq_apiari_predefinito",
+        Apiario.id_utente_proprietario,
+        unique=True,
+        postgresql_where=Apiario.predefinito,
+    ),
+    Index("idx_utenti_apiari_utente", UtenteApiario.id_utente),
+    Index("idx_utenti_apiari_apiario", UtenteApiario.id_apiario),
     Index("idx_letture_arnia", Lettura.id_arnia),
     Index("idx_letture_timestamp", Lettura.timestamp.desc()),
     Index("idx_letture_arnia_timestamp", Lettura.id_arnia, Lettura.timestamp.desc()),

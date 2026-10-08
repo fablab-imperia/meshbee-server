@@ -2,8 +2,8 @@
 """
 Seed iniziale del database.
 
-Crea gli account di default, un apiario di esempio se non esiste ancora
-nessuna arnia, li associa alle arnie e inserisce un log attività di esempio. Gira a ogni `docker-compose up` (il servizio `seed`
+Crea gli account di default e, se non esiste ancora nessuna arnia, un nodo di
+esempio dell'account di test con le sue arnie e un log attività di esempio. Gira a ogni `docker-compose up` (il servizio `seed`
 esce con 0 e non riparte), quindi ogni passo è **idempotente**: se qualcosa
 esiste già viene lasciato com'è, password comprese.
 
@@ -19,7 +19,6 @@ from pydantic import Field, SecretStr, ValidationError
 from meshbee_core.config import CoreSettings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool
 from meshbee_core.models import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
-from meshbee_core.services import accessi as accessi_service
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import attivita as attivita_service
 from meshbee_core.services import letture as letture_service
@@ -143,9 +142,11 @@ def create_users(users) -> dict:
     return user_ids
 
 
-def add_sample_apiary() -> None:
+def add_sample_apiary(id_proprietario: int) -> list[int]:
     """
-    Give an install with no hives at all one node, two arnie and a few readings.
+    Give an install with no hives at all one node, owned by `id_proprietario`,
+    with two arnie in their default apiary and a few readings. Returns the new
+    arnie, or none when the step is skipped.
 
     Keyed on "no arnie", not on the sample node: once anyone has registered a
     hive — sample or real — the seed stays out of the way, and deleting the
@@ -156,12 +157,15 @@ def add_sample_apiary() -> None:
     with get_session() as session:
         if arnie_service.list_ids(session):
             logger.info("  Arnie già presenti, skip")
-            return
+            return []
 
         nodi_service.create_nodo(session, SAMPLE_NODO)
+        nodi_service.assign_proprietario(session, SAMPLE_NODO.id_nodo, id_proprietario)
         now = datetime.now()
+        created_ids = []
         for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE, strict=True):
             created = arnie_service.create_arnia(session, arnia)
+            created_ids.append(created["id_arnia"])
             for hours_ago, temperatura, umidita, peso in readings:
                 letture_service.record_reading(
                     session,
@@ -176,25 +180,7 @@ def add_sample_apiary() -> None:
                 )
 
     logger.info(f"  ✓ Nodo {SAMPLE_NODO.id_nodo} con {len(SAMPLE_ARNIE)} arnie creato")
-
-
-def associate_test_user(id_utente: int) -> list:
-    """Give the test account access to every arnia already registered."""
-    logger.info("\n=== Associazione utente-arnie ===")
-
-    with get_session() as session:
-        arnie = arnie_service.list_ids(session)
-
-    if not arnie:
-        logger.info("  Nessuna arnia trovata, skip")
-        return arnie
-
-    for id_arnia in arnie:
-        with get_session() as session:
-            accessi_service.grant_if_absent(session, id_utente, id_arnia, "admin")
-
-    logger.info(f"  ✓ Utente {id_utente} associato a {len(arnie)} arnie")
-    return arnie
+    return created_ids
 
 
 def add_sample_activity(id_utente: int, id_arnia: int) -> None:
@@ -239,8 +225,9 @@ def seed() -> None:
         # The remaining steps are conveniences, not prerequisites: a failure
         # there is reported but must not leave the stack without its accounts.
         try:
-            add_sample_apiary()
-            arnie = associate_test_user(user_ids[TEST_EMAIL])
+            # The demo account owns the sample hives, and only those: nothing
+            # else is shared with it, so a live install's hives stay private.
+            arnie = add_sample_apiary(user_ids[TEST_EMAIL])
             if arnie:
                 add_sample_activity(user_ids[TEST_EMAIL], arnie[0])
         except Exception as e:

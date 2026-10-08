@@ -45,6 +45,9 @@ def make_utente(db):
 
     Defaults produce a valid active user; `ruolo` accepts only 'user' or 'admin'
     (CHECK constraint built from meshbee_core.limits).
+
+    Like `create_utente`, it also gives the user their default apiary, whose id
+    the returned row carries as `id_apiario_predefinito`.
     """
     counter = iter(range(1, 1000))
 
@@ -65,28 +68,74 @@ def make_utente(db):
                 attivo,
             ),
         )
-        return dict(db.fetchone())
+        utente = dict(db.fetchone())
+        db.execute(
+            """
+            INSERT INTO apiari (nome_apiario, id_utente_proprietario, predefinito)
+            VALUES ('Default', %s, true)
+            RETURNING id_apiario
+            """,
+            (utente["id_utente"],),
+        )
+        utente["id_apiario_predefinito"] = db.fetchone()["id_apiario"]
+        return utente
 
     return _make
 
 
 @pytest.fixture
 def make_arnia(db):
-    """Insert a `nodi` row (once) plus an `arnie` row, and return the arnia."""
+    """
+    Insert an `arnie` row (and its `nodi` row, once), and return the arnia.
+
+    With `apiario` (a `make_apiario` or `make_utente` row), the hive is in it,
+    and its node — one per owner unless named — belongs to that apiary's
+    owner, as the services keep it. Without, both are unassigned.
+    """
     counter = iter(range(1, 1000))
 
-    def _make(id_nodo="NODE-TEST"):
+    def _make(id_nodo=None, apiario=None):
+        id_apiario = owner = None
+        if apiario is not None:
+            id_apiario = apiario.get(
+                "id_apiario", apiario.get("id_apiario_predefinito")
+            )
+            owner = apiario.get("id_utente_proprietario", apiario.get("id_utente"))
+        id_nodo = id_nodo or (f"NODE-U{owner}" if owner else "NODE-TEST")
         db.execute(
-            "INSERT INTO nodi (id_nodo, nome_nodo) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-            (id_nodo, "Nodo di test"),
+            "INSERT INTO nodi (id_nodo, nome_nodo, id_proprietario) VALUES (%s, %s, %s)"
+            " ON CONFLICT DO NOTHING",
+            (id_nodo, "Nodo di test", owner),
         )
         db.execute(
             """
-            INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia)
-            VALUES (%s, %s, %s)
+            INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia, id_apiario)
+            VALUES (%s, %s, %s, %s)
             RETURNING *
             """,
-            (id_nodo, f"SENSOR{next(counter):02d}", "Arnia di test"),
+            (id_nodo, f"SENSOR{next(counter):02d}", "Arnia di test", id_apiario),
+        )
+        return dict(db.fetchone())
+
+    return _make
+
+
+@pytest.fixture
+def make_apiario(db):
+    """Insert a non-default apiary owned by a `make_utente` row, and return it."""
+    counter = iter(range(1, 1000))
+
+    def _make(proprietario, nome_apiario=None):
+        db.execute(
+            """
+            INSERT INTO apiari (nome_apiario, id_utente_proprietario)
+            VALUES (%s, %s)
+            RETURNING *
+            """,
+            (
+                nome_apiario or f"Apiario {next(counter):02d}",
+                proprietario["id_utente"],
+            ),
         )
         return dict(db.fetchone())
 
@@ -187,31 +236,37 @@ def as_user(client):
 
 
 @pytest.fixture
-def utente_con_arnia(make_utente, make_arnia, grant_access):
-    """A user, an arnia, and an active association at the given permission level."""
+def utente_con_arnia(make_utente, make_arnia, share):
+    """
+    A user and an arnia they reach as `ruolo`: "owner" (it is in their default
+    apiary), or a role shared on its owner's default apiary.
+    """
 
-    def _make(permessi="read", ruolo="user"):
-        utente = make_utente(ruolo=ruolo)
-        arnia = make_arnia()
-        grant_access(utente["id_utente"], arnia["id_arnia"], permessi)
+    def _make(ruolo="owner", ruolo_utente="user"):
+        utente = make_utente(ruolo=ruolo_utente)
+        if ruolo == "owner":
+            return utente, make_arnia(apiario=utente)
+        owner = make_utente()
+        arnia = make_arnia(apiario=owner)
+        share(utente["id_utente"], arnia["id_apiario"], ruolo)
         return utente, arnia
 
     return _make
 
 
 @pytest.fixture
-def grant_access(db):
-    """Associate a user with an arnia at the given permission level."""
+def share(db):
+    """Share an apiary with a user as the given role."""
 
-    def _grant(id_utente, id_arnia, permessi="read", attivo=True):
+    def _share(id_utente, id_apiario, ruolo="viewer"):
         db.execute(
             """
-            INSERT INTO utenti_arnie (id_utente, id_arnia, permessi, attivo)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO utenti_apiari (id_utente, id_apiario, ruolo)
+            VALUES (%s, %s, %s)
             RETURNING *
             """,
-            (id_utente, id_arnia, permessi, attivo),
+            (id_utente, id_apiario, ruolo),
         )
         return dict(db.fetchone())
 
-    return _grant
+    return _share

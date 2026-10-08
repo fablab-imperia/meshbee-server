@@ -127,9 +127,11 @@ diff. `pytest` fails until you have.
 A node may start transmitting before anybody registers it, so the ingest path creates
 what it needs instead of refusing the reading (`meshbee_core/services/ingest.py`):
 
-1. The node is registered if it is not already known (`Nodo <id_nodo>`).
+1. The node is registered if it is not already known (`Nodo <id_nodo>`), **unassigned**:
+   nobody owns it until an admin assigns it, and until then only admins see it.
 2. With an `id_sensore`: the matching hive is used, or **a new one is created**
-   (`Arnia <id_nodo>-<id_sensore>`).
+   (`Arnia <id_nodo>-<id_sensore>`) — in the node owner's `Default` apiary, or
+   unassigned like its node.
 3. Without an `id_sensore`: the node's **first** hive is used.
 4. If the node has no hive at all and sent no `id_sensore`, the reading is dropped with
    `NotFound` — raising rather than returning quietly, because the caller's session

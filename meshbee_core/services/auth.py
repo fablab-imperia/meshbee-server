@@ -1,4 +1,4 @@
-"""Authentication and arnia-level authorization.
+"""Authentication, and authorization on apiaries and their hives.
 
 Token handling is *not* here: a JWT is an HTTP transport concern and lives in
 the API entry point. What lives here is who a password belongs to and what a
@@ -9,12 +9,23 @@ but neither is it an HTTP concept.
 from typing import Any
 
 from meshbee_core.repository import accessi, utenti
+from meshbee_core.repository.accessi import OWNER
 from meshbee_core.security import verify_password
 
-# Livelli di permesso (admin > write > read).
-# Keys must match the Permesso literal, and therefore the CHECK constraint on
-# utenti_arnie.permessi — tests/integration/core/test_schemas.py asserts it.
-PERMISSION_LEVELS = {"read": 1, "write": 2, "admin": 3}
+# What each role shared on an apiary allows, on the apiary and its hives. The
+# owner may do everything, so any action listed in no role is owner-only.
+# Keys must match the RuoloApiario literal, and therefore the CHECK constraint
+# on utenti_apiari.ruolo — tests/integration/core/test_schemas.py asserts it.
+_VIEWER = {"apiario.read", "arnia.read"}
+_COLLABORATOR = _VIEWER | {"attivita.write"}
+_MANAGER = _COLLABORATOR | {"apiario.update", "arnia.update"}
+ROLE_ACTIONS = {
+    "viewer": _VIEWER,
+    "collaborator": _COLLABORATOR,
+    "manager": _MANAGER,
+}
+OWNER_ONLY = {"apiario.delete", "apiario.share", "arnia.move", "arnia.retire"}
+ACTIONS = _MANAGER | OWNER_ONLY
 
 
 def authenticate(session, email: str, password: str) -> dict[str, Any] | None:
@@ -51,31 +62,52 @@ def get_utente_by_email(session, email: str) -> dict[str, Any] | None:
     return dict(user)
 
 
-def has_arnia_access(
-    session, id_utente: int, id_arnia: int, required_permission: str = "read"
-) -> bool:
+def allows(accesso: str | None, action: str) -> bool:
     """
-    Whether a user may act on an arnia at the given level.
+    Whether an access ("owner", a shared role, or None) allows an action.
 
     Raises:
-        ValueError: Se required_permission non è un permesso conosciuto
+        ValueError: if the action is unknown.
     """
-    # Fail closed and loudly on an unknown requirement. Defaulting it to level 0
-    # would make `user_level >= 0` true for everyone, silently granting access.
-    if required_permission not in PERMISSION_LEVELS:
-        raise ValueError(f"Permesso richiesto sconosciuto: {required_permission!r}")
-
-    # Un admin ha accesso a tutte le arnie, associazione o meno.
-    user = utenti.get_ruolo(session, id_utente)
-    if user and user["ruolo"] == "admin":
+    # Fail closed and loudly on an unknown action: a typo must never read as
+    # "nobody listed it, so everybody may".
+    if action not in ACTIONS:
+        raise ValueError(f"Azione sconosciuta: {action!r}")
+    if accesso == OWNER:
         return True
+    return action in ROLE_ACTIONS.get(accesso, ())
 
-    result = accessi.get_permesso(session, id_utente, id_arnia)
-    if not result:
-        return False
 
-    # `permessi` is constrained by a CHECK (built from limits.PERMESSI) to exactly these keys,
-    # so index directly instead of masking an unexpected value.
-    return (
-        PERMISSION_LEVELS[result["permessi"]] >= PERMISSION_LEVELS[required_permission]
-    )
+def is_admin(session, id_utente: int) -> bool:
+    user = utenti.get_ruolo(session, id_utente)
+    return bool(user and user["ruolo"] == "admin")
+
+
+def can_on_arnia(session, id_utente: int, id_arnia: int, action: str) -> bool:
+    """
+    Whether a user may perform an action on a hive, through its apiary.
+
+    An admin may do everything; an unassigned hive is reachable only by admins.
+
+    Raises:
+        ValueError: if the action is unknown.
+    """
+    if action not in ACTIONS:
+        raise ValueError(f"Azione sconosciuta: {action!r}")
+    if is_admin(session, id_utente):
+        return True
+    return allows(accessi.accesso_su_arnia(session, id_utente, id_arnia), action)
+
+
+def can_on_apiario(session, id_utente: int, id_apiario: int, action: str) -> bool:
+    """
+    Whether a user may perform an action on an apiary. An admin may do everything.
+
+    Raises:
+        ValueError: if the action is unknown.
+    """
+    if action not in ACTIONS:
+        raise ValueError(f"Azione sconosciuta: {action!r}")
+    if is_admin(session, id_utente):
+        return True
+    return allows(accessi.accesso_su_apiario(session, id_utente, id_apiario), action)

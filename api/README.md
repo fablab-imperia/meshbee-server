@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 37 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 51 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -25,12 +25,14 @@ here.
 
 ## Endpoints
 
-37 operations. `Auth` says what a request must carry:
+51 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
 - **admin** — the above *and* `ruolo = 'admin'` (`get_current_admin_user`).
-- **user + `read`/`write`** — the above *and* that permission on the specific arnia.
+- **user + viewer / collaborator / manager / owner** — the above *and* at least that
+  access to the hive's apiary (or the apiary itself): owning it, or a role its owner
+  shared. See [Authentication and authorization](#authentication-and-authorization).
   Admins pass this check unconditionally.
 
 ### Autenticazione
@@ -42,23 +44,34 @@ here.
 
 ### Utente
 
-Everything under `/api/user/arnie/{id_arnia}` is gated on that arnia.
+Everything under `/api/user/arnie/{id_arnia}` and `/api/user/apiari/{id_apiario}` is gated on
+the caller's access to that hive's apiary, or that apiary.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/user/arnie` | user | Hives visible to the caller, each with its latest reading. |
-| GET | `/api/user/arnie/{id_arnia}` | user + `read` | One hive with its latest reading. |
-| PUT | `/api/user/arnie/{id_arnia}` | user + `write` | Rename/move a hive. **Cannot** change `attiva`. |
-| GET | `/api/user/arnie/{id_arnia}/letture` | user + `read` | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
-| GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + `read` | `{timestamp, temperatura}` only — sized for charts. |
-| GET | `/api/user/arnie/{id_arnia}/letture/umidita` | user + `read` | `{timestamp, umidita}` only. |
-| GET | `/api/user/arnie/{id_arnia}/letture/peso` | user + `read` | `{timestamp, peso}` only. |
-| GET | `/api/user/arnie/{id_arnia}/letture/batteria` | user + `read` | `{timestamp, batteria}` only — node battery voltage. |
-| GET | `/api/user/arnie/{id_arnia}/attivita` | user + `read` | Activity log. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
-| POST | `/api/user/arnie/{id_arnia}/attivita` | user + `write` | Record an activity. |
-| PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + `write` | Edit an activity — **only your own**. |
-| DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + `write` | Delete an activity — **only your own**. |
+| GET | `/api/user/arnie` | user | Hives in the apiaries the caller owns or has been shared, each with its latest reading, its apiary and `accesso` (the caller's access). Optional `id_apiario` narrows it to one apiary. |
+| GET | `/api/user/arnie/{id_arnia}` | user + viewer | One hive with its latest reading. |
+| PUT | `/api/user/arnie/{id_arnia}` | user + manager | Rename/reposition a hive. `attiva` (retiring it) is applied only for the owner. |
+| PUT | `/api/user/arnie/{id_arnia}/apiario` | user + owner | Move the hive into another apiary of its owner. Who can see it follows the apiary. |
+| GET | `/api/user/arnie/{id_arnia}/letture` | user + viewer | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
+| GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + viewer | `{timestamp, temperatura}` only — sized for charts. |
+| GET | `/api/user/arnie/{id_arnia}/letture/umidita` | user + viewer | `{timestamp, umidita}` only. |
+| GET | `/api/user/arnie/{id_arnia}/letture/peso` | user + viewer | `{timestamp, peso}` only. |
+| GET | `/api/user/arnie/{id_arnia}/letture/batteria` | user + viewer | `{timestamp, batteria}` only — node battery voltage. |
+| GET | `/api/user/arnie/{id_arnia}/attivita` | user + viewer | Activity log. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
+| POST | `/api/user/arnie/{id_arnia}/attivita` | user + collaborator | Record an activity. |
+| PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + collaborator | Edit an activity — **only your own**. |
+| DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + collaborator | Delete an activity — **only your own**. |
 | PUT | `/api/user/password` | user | Change your own password. Requires `current_password`. |
+| GET | `/api/user/apiari` | user | The apiaries the caller owns (the default one first), then those shared with them, each with `accesso`. |
+| POST | `/api/user/apiari` | user | Create an apiary owned by the caller. |
+| GET | `/api/user/apiari/{id_apiario}` | user + viewer | One apiary. |
+| PUT | `/api/user/apiari/{id_apiario}` | user + manager | Edit it — the default one included. |
+| DELETE | `/api/user/apiari/{id_apiario}` | user + owner | Delete it, with its shares. **409** for the default one, and while active hives are still in it. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Who it is shared with, and as what. |
+| POST | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Share it with a user, by `email`, as `viewer` (default), `collaborator` or `manager`. Sharing again changes the role. |
+| PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Change that user's role. |
+| DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Stop sharing it with that user. |
 
 The four series endpoints exist because a chart needs two columns out of a row of
 nine; they drop rows where the field is NULL. The list of fields they accept is a
@@ -73,18 +86,22 @@ whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 | PUT | `/api/admin/utenti/{id_utente}` | admin | Update an account. |
 | DELETE | `/api/admin/utenti/{id_utente}` | admin | Deactivate (soft delete). **You cannot deactivate yourself.** |
 | PUT | `/api/admin/utenti/{id_utente}/password` | admin | Reset someone's password — no `current_password` needed. |
-| POST | `/api/admin/utenti-arnie` | admin | Grant a user access to a hive at a permission level. |
-| DELETE | `/api/admin/utenti-arnie` | admin | Revoke it. **`id_utente` and `id_arnia` are query parameters**, not a body. |
 | GET | `/api/admin/nodi` | admin | All nodes. |
 | POST | `/api/admin/nodi` | admin | Register a node. |
 | GET | `/api/admin/nodi/{id_nodo}` | admin | One node. |
 | PUT | `/api/admin/nodi/{id_nodo}` | admin | Update a node (body is a full `NodoCreate`). |
 | DELETE | `/api/admin/nodi/{id_nodo}` | admin | Deactivate. Hives and readings are kept. |
-| GET | `/api/admin/arnie` | admin | All hives, retired ones included. |
-| POST | `/api/admin/arnie` | admin | Create a hive. |
+| PUT | `/api/admin/nodi/{id_nodo}/proprietario` | admin | Assign the node to a user (`id_utente`), transfer it, or unassign it (`null`). Its hives move to the new owner's default apiary. |
+| GET | `/api/admin/arnie` | admin | All hives, retired ones included. Optional `id_apiario`. |
+| POST | `/api/admin/arnie` | admin | Create a hive. It goes in the node owner's default apiary, or in `id_apiario` if that is the node owner's; a hive of an unassigned node is unassigned. |
 | GET | `/api/admin/arnie/{id_arnia}` | admin | One hive with its latest reading. |
 | PUT | `/api/admin/arnie/{id_arnia}` | admin | Update a hive — **including `attiva`**, unlike the user route. |
 | DELETE | `/api/admin/arnie/{id_arnia}` | admin | Deactivate. Historical readings are kept. |
+| GET | `/api/admin/apiari` | admin | Every user's apiaries. Optional `id_utente`. |
+| POST | `/api/admin/apiari` | admin | Create an apiary for the user named in `id_utente_proprietario`. |
+| GET | `/api/admin/apiari/{id_apiario}` | admin | Any user's apiary. |
+| PUT | `/api/admin/apiari/{id_apiario}` | admin | Edit any user's apiary. |
+| DELETE | `/api/admin/apiari/{id_apiario}` | admin | Delete any user's apiary, under the owner's rules (**409** as above). |
 | GET | `/api/admin/letture` | admin | All readings. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Insert a reading by hand — backfill and testing. |
 | GET | `/api/admin/attivita` | admin | All activities. `limit` 1–1000, default 100. |
@@ -121,17 +138,41 @@ The dependencies stack, each building on the previous one:
 | `get_current_user` | **401** + `WWW-Authenticate: Bearer` | No header, malformed token, bad signature, expired, `type != "access"`, or unknown email. |
 | `get_current_active_user` | **400** `Utente non attivo` | The account exists but `attivo` is false. |
 | `get_current_admin_user` | **403** `Permessi insufficienti - richiesto ruolo admin` | The account is not an admin. |
-| `check_user_arnia_access` | **403** | No association with that arnia at the required level. |
+| `check_user_arnia_access` | **403** | The caller's access to the hive's apiary does not allow the action. |
+| `check_user_apiario_access` | **403** | The caller's access to the apiary does not allow the action. |
 
 `HTTPBearer(auto_error=False)` is deliberate. Left at its default, FastAPI answers a
 *missing* header with a bare 403 and no `WWW-Authenticate`; disabling it lets the
 request reach `get_current_user`, which returns the correct **401**. The distinction
 the API keeps is: **401 means "who are you?", 403 means "I know who you are, and no"**.
 
-Per-arnia permissions are a ladder — `read` < `write` < `admin` — compared numerically
-in `meshbee_core/services/auth.py`. An account with `ruolo = 'admin'` bypasses the
-association table entirely. An unrecognised permission name raises rather than
-returning False, so a typo fails closed.
+**Access follows ownership (#36).** A node belongs to a user, assigned by an admin;
+its hives stand in that user's apiaries, and a hive's owner is its apiary's owner.
+Every account starts with a `Default` apiary, where the hives of its newly assigned
+nodes land. A node nobody has been assigned yet, and its hives, are reachable by
+admins only.
+
+The owner of an apiary may do everything on it and its hives, and is the **only one
+who can share it**. A share grants one of three roles on the whole apiary, hives
+added later included:
+
+| Action | viewer | collaborator | manager | owner |
+|---|---|---|---|---|
+| See the apiary, its hives, readings and activity log | ✓ | ✓ | ✓ | ✓ |
+| Log activities (and edit or delete one's own) | | ✓ | ✓ | ✓ |
+| Edit hive and apiary details | | | ✓ | ✓ |
+| Retire a hive, move it, delete the apiary, share it | | | | ✓ |
+
+The table lives once, as `ROLE_ACTIONS` in `meshbee_core/services/auth.py`; every
+route names the action it needs, and an account with `ruolo = 'admin'` passes every
+check. An unknown action raises rather than returning False, so a typo fails closed.
+`?id_apiario=` narrows the caller's hive list, it never widens it. Moving a hive into
+an apiary that is not its owner's gets the same **400** whether it exists or not, so
+the answer reveals nothing.
+
+A share response identifies the user only by the email the owner typed — no name.
+Known gap: sharing with an unregistered email answers **404**, so any user can still
+test which emails have an account ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
 
 Two things to know about tokens:
 
@@ -244,7 +285,8 @@ curl -s localhost:8000/api/user/arnie -H "Authorization: Bearer $TOKEN"
 Tests for this package live in `tests/unit/api/` and `tests/integration/api/` — see
 [`tests/README.md`](../tests/README.md). **A new endpoint must be added to the table in
 `tests/integration/api/test_main_authz.py`**: that one table sweeps every route for
-anonymous, non-admin and no-association access, and it is what catches a missing gate.
+anonymous and non-admin access, and checks every hive- and apiary-scoped route at each
+access level against its minimum. It is what catches a missing or wrong gate.
 
 ## Gotchas
 
@@ -255,8 +297,6 @@ anonymous, non-admin and no-association access, and it is what catches a missing
   this one container. That is why the build context is the repo root and not `api/`.
 - **The `seed` service runs from this same image**, with `python -m scripts.seed`.
 - **`/health` returning 200 says nothing.** Read `status` in the body.
-- **`DELETE /api/admin/utenti-arnie` takes query parameters.** A JSON body is ignored,
-  and the request then fails validation for the missing parameters.
 
 ## Related
 

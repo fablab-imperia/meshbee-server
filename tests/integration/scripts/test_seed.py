@@ -8,7 +8,7 @@ changed, and must not undo an access revocation. None of that was covered before
 import pytest
 from pydantic import ValidationError
 
-from meshbee_core.repository import accessi, utenti
+from meshbee_core.repository import utenti
 from meshbee_core.security import verify_password
 from scripts import seed as seed_script
 
@@ -159,75 +159,59 @@ def test_rerunning_does_not_reset_a_changed_password(session, db, run_seed):
 
 def test_an_empty_install_gets_the_sample_apiary(db, run_seed):
     """What init.sql used to insert: one node, two arnie, two readings each."""
-    seed_script.add_sample_apiary()
+    ids = seed_script.create_users(seed_script.default_users(run_seed))
+
+    created = seed_script.add_sample_apiary(ids[seed_script.TEST_EMAIL])
 
     db.execute("SELECT id_nodo FROM nodi")
     assert [row["id_nodo"] for row in db.fetchall()] == ["NODE001"]
-    db.execute("SELECT nome_arnia FROM arnie ORDER BY id_arnia")
-    assert [row["nome_arnia"] for row in db.fetchall()] == ["Arnia Alpha", "Arnia Beta"]
+    db.execute("SELECT id_arnia, nome_arnia FROM arnie ORDER BY id_arnia")
+    rows = db.fetchall()
+    assert [row["nome_arnia"] for row in rows] == ["Arnia Alpha", "Arnia Beta"]
+    assert created == [row["id_arnia"] for row in rows]
     db.execute("SELECT count(*) AS n FROM letture")
     assert db.fetchone()["n"] == 4
 
 
+def test_the_test_account_owns_the_sample_hives(db, run_seed):
+    """The sample node is assigned to it, so its hives land in its Default."""
+    ids = seed_script.create_users(seed_script.default_users(run_seed))
+    id_utente = ids[seed_script.TEST_EMAIL]
+
+    seed_script.add_sample_apiary(id_utente)
+
+    db.execute("SELECT id_proprietario FROM nodi WHERE id_nodo = 'NODE001'")
+    assert db.fetchone()["id_proprietario"] == id_utente
+    db.execute(
+        "SELECT DISTINCT ap.nome_apiario, ap.id_utente_proprietario FROM arnie a"
+        " JOIN apiari ap USING (id_apiario)"
+    )
+    assert [dict(row) for row in db.fetchall()] == [
+        {"nome_apiario": "Default", "id_utente_proprietario": id_utente}
+    ]
+
+
 def test_the_sample_apiary_is_not_added_twice(db, run_seed):
-    seed_script.add_sample_apiary()
-    seed_script.add_sample_apiary()
+    ids = seed_script.create_users(seed_script.default_users(run_seed))
+    seed_script.add_sample_apiary(ids[seed_script.TEST_EMAIL])
+
+    assert seed_script.add_sample_apiary(ids[seed_script.TEST_EMAIL]) == []
 
     db.execute("SELECT count(*) AS n FROM arnie")
     assert db.fetchone()["n"] == 2
 
 
 def test_an_install_with_its_own_hives_gets_no_sample_apiary(db, run_seed, make_arnia):
+    """And the demo account is given nothing of the hives already there."""
     make_arnia()
+    ids = seed_script.create_users(seed_script.default_users(run_seed))
 
-    seed_script.add_sample_apiary()
+    seed_script.add_sample_apiary(ids[seed_script.TEST_EMAIL])
 
     db.execute("SELECT count(*) AS n FROM nodi WHERE id_nodo = 'NODE001'")
     assert db.fetchone()["n"] == 0
-
-
-def test_the_test_account_is_associated_with_every_arnia(
-    session, db, run_seed, make_arnia
-):
-    """Whatever hives already exist, the demo account can see them."""
-    make_arnia()
-    make_arnia()
-    ids = seed_script.create_users(seed_script.default_users(run_seed))
-
-    arnie = seed_script.associate_test_user(ids[seed_script.TEST_EMAIL])
-
-    assert len(arnie) == 2
-    for id_arnia in arnie:
-        granted = accessi.get_permesso(session, ids[seed_script.TEST_EMAIL], id_arnia)
-        assert granted["permessi"] == "admin"
-
-
-def test_no_arnie_is_not_an_error(db, run_seed):
-    """A brand-new install has no hives yet; the seed still completes."""
-    ids = seed_script.create_users(seed_script.default_users(run_seed))
-
-    assert seed_script.associate_test_user(ids[seed_script.TEST_EMAIL]) == []
-
-
-def test_rerunning_does_not_revive_a_revoked_association(
-    session, db, run_seed, make_arnia
-):
-    """
-    The reason this uses insert-if-absent rather than the reviving upsert.
-
-    `accessi.upsert` sets `attivo = true` and clears the revocation date, so
-    seeding with it would hand the demo account its access back on every
-    `docker-compose up` — a silent authorization change.
-    """
-    arnia = make_arnia()
-    ids = seed_script.create_users(seed_script.default_users(run_seed))
-    id_utente = ids[seed_script.TEST_EMAIL]
-    seed_script.associate_test_user(id_utente)
-    accessi.deactivate(session, id_utente, arnia["id_arnia"])
-
-    seed_script.associate_test_user(id_utente)
-
-    assert accessi.get_permesso(session, id_utente, arnia["id_arnia"]) is None
+    db.execute("SELECT count(*) AS n FROM utenti_apiari")
+    assert db.fetchone()["n"] == 0
 
 
 def test_a_sample_activity_is_added_to_the_first_arnia(db, run_seed, make_arnia):

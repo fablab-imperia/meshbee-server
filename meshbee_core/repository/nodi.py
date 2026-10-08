@@ -110,3 +110,14 @@ def touch_ultimo_messaggio(session: Session, id_nodo: str) -> None:
         .where(Nodo.id_nodo == id_nodo)
         .values(ultimo_messaggio=func.now())
     )
+
+
+def set_proprietario(
+    session: Session, id_nodo: str, id_utente: int | None
+) -> dict[str, Any] | None:
+    nodo = session.get(Nodo, id_nodo)
+    if nodo is None:
+        return None
+    nodo.id_proprietario = id_utente
+    session.flush()
+    return as_dict(nodo)

@@ -6,6 +6,7 @@ from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
+from meshbee_core.services import apiari
 
 
 def list_utenti(session) -> list[dict[str, Any]]:
@@ -20,16 +21,17 @@ def create_utente(session, user) -> dict[str, Any]:
     if utenti.find_id_by_email(session, user.email):
         raise Conflict("Email già registrata")
 
-    return dict(
-        utenti.insert(
-            session,
-            email=user.email,
-            password_hash=get_password_hash(user.password),
-            nome=user.nome,
-            cognome=user.cognome,
-            ruolo=user.ruolo,
-        )
+    created = utenti.insert(
+        session,
+        email=user.email,
+        password_hash=get_password_hash(user.password),
+        nome=user.nome,
+        cognome=user.cognome,
+        ruolo=user.ruolo,
     )
+    # Every account starts with the apiary its hives will land in.
+    apiari.ensure_predefinito(session, created["id_utente"])
+    return dict(created)
 
 
 def ensure_utente(session, user) -> tuple[dict[str, Any], bool]:

@@ -31,7 +31,9 @@ ID_MAX_LENGTH = 50
 # Value sets. The Literal is what pydantic and the OpenAPI schema use; the tuple
 # is what the CHECK constraint is built from. Both come from one declaration.
 Ruolo = Literal["user", "admin"]
-Permesso = Literal["read", "write", "admin"]
+# What an apiary's owner can grant another user on it (#36). The owner is not
+# a role: owning an apiary allows everything on it.
+RuoloApiario = Literal["viewer", "collaborator", "manager"]
 TipoAttivita = Literal[
     "ispezione",
     "trattamento",
@@ -44,5 +46,5 @@ TipoAttivita = Literal[
 ]
 
 RUOLI = get_args(Ruolo)
-PERMESSI = get_args(Permesso)
+RUOLI_APIARIO = get_args(RuoloApiario)
 TIPI_ATTIVITA = get_args(TipoAttivita)

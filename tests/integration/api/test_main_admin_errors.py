@@ -105,25 +105,20 @@ def test_creating_an_arnia_on_an_unknown_nodo_is_not_found(admin_client):
     assert "NON-ESISTE" in response.json()["detail"]
 
 
-def test_associating_an_unknown_user_is_not_found(admin_client, make_arnia):
-    """The FK to utenti fails."""
+def test_assigning_a_node_to_an_unknown_user_is_not_found(admin_client, make_arnia):
     arnia = make_arnia()
 
-    response = admin_client.post(
-        "/api/admin/utenti-arnie",
-        json={"id_utente": 999999, "id_arnia": arnia["id_arnia"], "permessi": "read"},
+    response = admin_client.put(
+        f"/api/admin/nodi/{arnia['id_nodo']}/proprietario", json={"id_utente": 999999}
     )
 
     assert response.status_code == 404
 
 
-def test_associating_an_unknown_arnia_is_not_found(admin_client, make_utente):
-    """The FK to arnie fails."""
-    utente = make_utente()
-
-    response = admin_client.post(
-        "/api/admin/utenti-arnie",
-        json={"id_utente": utente["id_utente"], "id_arnia": 999999, "permessi": "read"},
+def test_assigning_an_unknown_node_is_not_found(admin_client, make_utente):
+    response = admin_client.put(
+        "/api/admin/nodi/NON-ESISTE/proprietario",
+        json={"id_utente": make_utente()["id_utente"]},
     )
 
     assert response.status_code == 404
@@ -143,17 +138,13 @@ def test_inserting_a_reading_for_an_unknown_arnia_is_not_found(admin_client):
 # ============================================
 
 
-def test_a_valid_association_still_succeeds(admin_client, make_utente, make_arnia):
+def test_a_valid_node_assignment_still_succeeds(admin_client, make_utente, make_arnia):
     """The new except clauses do not shadow the normal path."""
     utente, arnia = make_utente(), make_arnia()
 
-    response = admin_client.post(
-        "/api/admin/utenti-arnie",
-        json={
-            "id_utente": utente["id_utente"],
-            "id_arnia": arnia["id_arnia"],
-            "permessi": "write",
-        },
+    response = admin_client.put(
+        f"/api/admin/nodi/{arnia['id_nodo']}/proprietario",
+        json={"id_utente": utente["id_utente"]},
     )
 
     assert response.status_code == 200

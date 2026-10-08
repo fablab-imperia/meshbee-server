@@ -42,7 +42,8 @@ Cosa fa:
 - **Riceve** le letture via MQTT, registrando al volo nodi e arnie sconosciuti.
 - **Archivia** in PostgreSQL, con i limiti delle misure verificati due volte —
   nell'applicazione e nello schema.
-- **Espone** un'API REST con autenticazione JWT, permessi per singola arnia ed endpoint
+- **Espone** un'API REST con autenticazione JWT, proprietà delle arnie con ruoli condivisi
+  per apiario, ed endpoint
   storici dimensionati per i grafici.
 - **Registra** il lavoro dell'apicoltore: ispezioni, trattamenti, raccolte.
 - Gira interamente in Docker Compose.

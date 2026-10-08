@@ -7,31 +7,33 @@ import pytest
 # ============================================
 
 
-def test_listing_returns_only_the_arnie_the_user_is_associated_with(
-    as_user, utente_con_arnia, make_arnia
+def test_listing_returns_only_the_arnie_the_user_can_reach(
+    as_user, utente_con_arnia, make_arnia, make_utente
 ):
-    """The JOIN on utenti_arnie scopes the list; another arnia stays invisible."""
-    utente, mine = utente_con_arnia("read")
-    make_arnia()  # belongs to nobody
+    """Owned or shared through their apiary; anyone else's stays invisible."""
+    utente, shared = utente_con_arnia("viewer")
+    owned = make_arnia(apiario=utente)
+    make_arnia()  # unassigned
+    make_arnia(apiario=make_utente())  # someone else's, not shared
 
     body = as_user(utente).get("/api/user/arnie").json()
 
-    assert [a["id_arnia"] for a in body] == [mine["id_arnia"]]
+    assert {(a["id_arnia"], a["accesso"]) for a in body} == {
+        (shared["id_arnia"], "viewer"),
+        (owned["id_arnia"], "owner"),
+    }
 
 
-def test_listing_excludes_revoked_associations(
-    as_user, make_utente, make_arnia, grant_access
-):
-    """`ua.attivo = true` in the JOIN: a revoked association hides the arnia."""
-    utente, arnia = make_utente(), make_arnia()
-    grant_access(utente["id_utente"], arnia["id_arnia"], "read", attivo=False)
+def test_revoking_a_share_hides_its_hives(as_user, utente_con_arnia, db):
+    utente, _ = utente_con_arnia("manager")
+    db.execute("DELETE FROM utenti_apiari WHERE id_utente = %s", (utente["id_utente"],))
 
     assert as_user(utente).get("/api/user/arnie").json() == []
 
 
 def test_listing_excludes_deactivated_arnie(as_user, utente_con_arnia, db):
     """`vs.attiva = true`: an arnia taken out of service drops off the list."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
     db.execute(
         "UPDATE arnie SET attiva = false WHERE id_arnia = %s", (arnia["id_arnia"],)
     )
@@ -50,7 +52,7 @@ def test_admins_see_every_active_arnia(as_user, make_utente, make_arnia):
 
 def test_listing_carries_the_latest_readings(as_user, utente_con_arnia, make_lettura):
     """The hive list surfaces the most recent values alongside the arnia."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
     make_lettura(
         arnia, temperatura="35.5", umidita="60.0", peso="42.250", batteria="3.85"
     )
@@ -79,7 +81,7 @@ def test_listing_is_empty_for_a_user_with_no_arnie(as_user, make_utente):
 
 def test_detail_returns_the_arnia(as_user, utente_con_arnia):
     """A read association is enough to fetch the detail view."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
 
     response = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}")
 
@@ -105,8 +107,8 @@ def test_detail_of_a_missing_arnia_is_404_for_an_admin(as_user, make_utente):
 
 
 def test_update_changes_the_named_fields(as_user, utente_con_arnia):
-    """A write association can rename and reposition the arnia."""
-    utente, arnia = utente_con_arnia("write")
+    """A manager can rename and reposition the arnia."""
+    utente, arnia = utente_con_arnia("manager")
 
     response = as_user(utente).put(
         f"/api/user/arnie/{arnia['id_arnia']}",
@@ -120,7 +122,7 @@ def test_update_changes_the_named_fields(as_user, utente_con_arnia):
 
 def test_update_persists(as_user, utente_con_arnia, db):
     """The UPDATE is really written, not just echoed back."""
-    utente, arnia = utente_con_arnia("write")
+    utente, arnia = utente_con_arnia("manager")
 
     as_user(utente).put(
         f"/api/user/arnie/{arnia['id_arnia']}", json={"nome_arnia": "Arnia Gamma"}
@@ -132,7 +134,7 @@ def test_update_persists(as_user, utente_con_arnia, db):
 
 def test_update_leaves_unmentioned_fields_alone(as_user, utente_con_arnia, db):
     """COALESCE means omitting a field keeps its stored value rather than nulling it."""
-    utente, arnia = utente_con_arnia("write")
+    utente, arnia = utente_con_arnia("manager")
     db.execute(
         "UPDATE arnie SET descrizione = %s WHERE id_arnia = %s",
         ("Regina ligustica", arnia["id_arnia"]),
@@ -147,7 +149,7 @@ def test_update_leaves_unmentioned_fields_alone(as_user, utente_con_arnia, db):
 
 def test_update_can_set_coordinates(as_user, utente_con_arnia):
     """Coordinates round-trip through the Decimal columns."""
-    utente, arnia = utente_con_arnia("write")
+    utente, arnia = utente_con_arnia("manager")
 
     response = as_user(utente).put(
         f"/api/user/arnie/{arnia['id_arnia']}",
@@ -169,21 +171,33 @@ def test_update_can_set_coordinates(as_user, utente_con_arnia):
 )
 def test_update_rejects_out_of_range_coordinates(as_user, utente_con_arnia, payload):
     """ArniaUpdate bounds are enforced at the edge, before the UPDATE runs."""
-    utente, arnia = utente_con_arnia("write")
+    utente, arnia = utente_con_arnia("manager")
 
     response = as_user(utente).put(f"/api/user/arnie/{arnia['id_arnia']}", json=payload)
 
     assert response.status_code == 422
 
 
-def test_update_cannot_deactivate_an_arnia(as_user, utente_con_arnia, db):
+def test_a_manager_cannot_retire_an_arnia(as_user, utente_con_arnia, db):
     """
-    `attiva` is in ArniaUpdate but is not in the endpoint's UPDATE statement,
-    so a user cannot retire an arnia — that stays an admin action, as documented.
+    Retiring is the owner's call: for a manager `attiva` is ignored, so the
+    edit goes through and the hive stays in service.
     """
-    utente, arnia = utente_con_arnia("write")
+    utente, arnia = utente_con_arnia("manager")
 
     as_user(utente).put(f"/api/user/arnie/{arnia['id_arnia']}", json={"attiva": False})
 
     db.execute("SELECT attiva FROM arnie WHERE id_arnia = %s", (arnia["id_arnia"],))
     assert db.fetchone()["attiva"] is True
+
+
+def test_the_owner_can_retire_their_arnia(as_user, utente_con_arnia, db):
+    utente, arnia = utente_con_arnia("owner")
+
+    response = as_user(utente).put(
+        f"/api/user/arnie/{arnia['id_arnia']}", json={"attiva": False}
+    )
+
+    assert response.status_code == 200
+    db.execute("SELECT attiva FROM arnie WHERE id_arnia = %s", (arnia["id_arnia"],))
+    assert db.fetchone()["attiva"] is False

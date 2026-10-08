@@ -221,23 +221,23 @@ def test_arnia_access_reports_a_database_outage_as_unavailable(fake_db):
     fake_db(auth, error=OUTAGE)
 
     with pytest.raises(HTTPException) as exc_info:
-        check_user_arnia_access(7, 99)
+        check_user_arnia_access(7, 99, "arnia.read")
 
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
-def test_an_unknown_required_permission_is_rejected(fake_db):
+def test_an_unknown_action_is_rejected(fake_db):
     """
-    Asking for a permission that does not exist raises instead of granting access.
+    Asking for an action that does not exist raises instead of granting access.
 
-    The previous `.get(required_permission, 0)` made the comparison
-    `user_level >= 0`, which is true for everyone — a typo at a call site would
-    have quietly opened the arnia to any associated user.
+    An unknown action is listed in no role, so a lookup that merely defaulted
+    would answer "owner only" — and an owner would get it without anyone
+    having decided so. A typo at a call site must fail loudly instead.
     """
-    session = fake_db(auth, rows=["user", {"permessi": "read"}])
+    session = fake_db(auth, rows=["user"])
 
-    with pytest.raises(ValueError, match="sconosciuto"):
-        check_user_arnia_access(7, 99, "superuser")
+    with pytest.raises(ValueError, match="sconosciuta"):
+        check_user_arnia_access(7, 99, "arnia.superuser")
 
     # Rejected before touching the database.
     assert session.queries == []

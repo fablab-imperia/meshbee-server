@@ -17,7 +17,13 @@ import psycopg2
 import pytest
 from pydantic import ValidationError
 
-from meshbee_core.models import ArniaBase, LetturaBase, Permesso, Ruolo, TipoAttivita
+from meshbee_core.models import (
+    ArniaBase,
+    LetturaBase,
+    Ruolo,
+    RuoloApiario,
+    TipoAttivita,
+)
 from mqtt_handler.contract import MqttPayload
 
 # The MQTT contract publishes the ranges as JSON Schema keywords, for the
@@ -159,7 +165,7 @@ def required_fields(model):
 
 ENUM_FIELDS = [
     (Ruolo, "utenti", "ruolo"),
-    (Permesso, "utenti_arnie", "permessi"),
+    (RuoloApiario, "utenti_apiari", "ruolo"),
     (TipoAttivita, "log_attivita", "tipo_attivita"),
 ]
 
@@ -194,18 +200,18 @@ def test_model_literals_match_the_schema_check(db, literal, table, column):
     assert set(get_args(literal)) == check_constraint_values(db, table, column)
 
 
-def test_auth_ranks_exactly_the_permissions_the_schema_allows(db):
+def test_auth_knows_exactly_the_roles_the_schema_allows(db):
     """
-    services.auth.PERMISSION_LEVELS, the Permesso literal and the CHECK all agree.
+    services.auth.ROLE_ACTIONS, the RuoloApiario literal and the CHECK all agree.
 
-    A level present in the schema but missing from the map would raise a KeyError
-    mid-request; one present only in the map would never be reachable.
+    A role present in the schema but missing from the map would grant nothing;
+    one present only in the map could never be shared.
     """
-    from meshbee_core.services.auth import PERMISSION_LEVELS
+    from meshbee_core.services.auth import ROLE_ACTIONS
 
-    schema_values = check_constraint_values(db, "utenti_arnie", "permessi")
+    schema_values = check_constraint_values(db, "utenti_apiari", "ruolo")
 
-    assert set(PERMISSION_LEVELS) == schema_values == set(get_args(Permesso))
+    assert set(ROLE_ACTIONS) == schema_values == set(get_args(RuoloApiario))
 
 
 def test_ruolo_values_accepted_by_the_schema(db, make_utente):
@@ -221,16 +227,13 @@ def test_ruolo_values_accepted_by_the_schema(db, make_utente):
         make_utente(ruolo="utente")
 
 
-def test_permessi_values_accepted_by_the_schema(
-    db, make_utente, make_arnia, grant_access
-):
+def test_apiary_roles_accepted_by_the_schema(db, make_utente, share):
     """
-    `utenti_arnie.permessi` is CHECK (permessi IN ('read','write','admin')).
+    `utenti_apiari.ruolo` is CHECK (ruolo IN ('viewer','collaborator','manager')).
 
-    These are exactly the keys of PERMISSION_LEVELS in services/auth.py, so the
-    "unknown permission" fallback there is unreachable through the schema.
+    "owner" in particular is not a role: owning is a column on the apiary.
     """
-    utente, arnia = make_utente(), make_arnia()
+    utente, owner = make_utente(), make_utente()
 
     with pytest.raises(psycopg2.errors.CheckViolation):
-        grant_access(utente["id_utente"], arnia["id_arnia"], "superuser")
+        share(utente["id_utente"], owner["id_apiario_predefinito"], "owner")

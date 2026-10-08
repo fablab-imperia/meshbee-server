@@ -17,7 +17,7 @@ SERIES = [
 @pytest.fixture
 def arnia_con_letture(utente_con_arnia, make_lettura):
     """A readable arnia with three readings, one per hour, oldest first."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
     letture = [
         make_lettura(
             arnia,
@@ -67,12 +67,11 @@ def test_letture_carry_every_measurement_column(as_user, arnia_con_letture):
 
 
 def test_letture_are_scoped_to_the_requested_arnia(
-    as_user, arnia_con_letture, make_arnia, make_lettura, grant_access
+    as_user, arnia_con_letture, make_arnia, make_lettura
 ):
     """Readings from another arnia never appear, even one the user can also read."""
     utente, arnia, _ = arnia_con_letture
-    other = make_arnia()
-    grant_access(utente["id_utente"], other["id_arnia"], "read")
+    other = make_arnia(apiario=utente)
     make_lettura(other, temperatura="99")
 
     body = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture").json()
@@ -114,7 +113,7 @@ def test_letture_respect_the_date_window(as_user, arnia_con_letture):
 
 def test_letture_default_to_the_last_year(as_user, utente_con_arnia, make_lettura):
     """With no window the endpoint looks back 365 days, so older rows drop out."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
     make_lettura(
         arnia, timestamp=datetime.now() - timedelta(days=400), temperatura="10"
     )
@@ -128,7 +127,7 @@ def test_letture_default_to_the_last_year(as_user, utente_con_arnia, make_lettur
 @pytest.mark.parametrize("limit", [0, 10001])
 def test_letture_reject_an_out_of_range_limit(as_user, utente_con_arnia, limit):
     """The Query bounds (1..10000) are enforced before the query runs."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
 
     response = as_user(utente).get(
         f"/api/user/arnie/{arnia['id_arnia']}/letture", params={"limit": limit}
@@ -139,7 +138,7 @@ def test_letture_reject_an_out_of_range_limit(as_user, utente_con_arnia, limit):
 
 def test_letture_of_an_arnia_without_readings_is_empty(as_user, utente_con_arnia):
     """No readings is an empty list, not a 404."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
 
     response = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}/letture")
 
@@ -157,7 +156,7 @@ def test_series_return_only_timestamp_and_the_measurement(
     as_user, utente_con_arnia, make_lettura, path, field, value
 ):
     """The chart endpoints are deliberately narrow: two columns, nothing else."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
     make_lettura(arnia, **{field: value})
 
     body = (
@@ -175,7 +174,7 @@ def test_series_skip_rows_where_the_measurement_is_null(
     as_user, utente_con_arnia, make_lettura, path, field, value
 ):
     """`AND <field> IS NOT NULL` keeps gaps out of the chart."""
-    utente, arnia = utente_con_arnia("read")
+    utente, arnia = utente_con_arnia("viewer")
     make_lettura(arnia, **{field: value})
     make_lettura(arnia)  # every measurement null
 
@@ -219,12 +218,11 @@ def test_series_respect_the_limit(as_user, arnia_con_letture, path):
 
 @pytest.mark.parametrize("path", ["temperatura", "umidita", "peso", "batteria"])
 def test_series_are_scoped_to_the_requested_arnia(
-    as_user, arnia_con_letture, make_arnia, make_lettura, grant_access, path
+    as_user, arnia_con_letture, make_arnia, make_lettura, path
 ):
     """A second readable arnia does not bleed into the series."""
     utente, arnia, letture = arnia_con_letture
-    other = make_arnia()
-    grant_access(utente["id_utente"], other["id_arnia"], "read")
+    other = make_arnia(apiario=utente)
     make_lettura(other, temperatura="99", umidita="99", peso="99", batteria="3")
 
     body = (

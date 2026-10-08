@@ -42,7 +42,8 @@ What it does:
 - **Ingests** readings over MQTT, provisioning unknown nodes and hives on the fly.
 - **Stores** them in PostgreSQL, with the measurement ranges enforced twice — in the
   application and in the schema.
-- **Serves** a REST API with JWT authentication, per-hive permissions and history
+- **Serves** a REST API with JWT authentication, hive ownership with roles shared per
+  apiary, and history
   endpoints sized for charts.
 - **Records** what the beekeeper did: inspections, treatments, harvests.
 - Runs entirely in Docker Compose.

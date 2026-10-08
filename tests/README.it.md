@@ -89,10 +89,13 @@ colonna tranne `id_lettura`. La sua fixture `deliver` racchiude ogni messaggio i
 SAVEPOINT, perché in produzione ogni messaggio ha la sua transazione e il test non deve
 lasciare che un messaggio veda il lavoro non committato di un altro.
 
-**`integration/api/test_main_authz.py` — il cancello.** Un'unica tabella passa in
-rassegna **tutti i 37 endpoint** per accesso anonimo, autenticato-ma-non-admin e
-autenticato-senza-associazione. **Aggiungi ogni endpoint nuovo a quella tabella.** È
-quello che becca una rotta che si è dimenticata il suo `Depends`.
+**`integration/api/test_main_authz.py` — il cancello.** Le sue tabelle elencano
+**tutti i 51 endpoint**: ogni endpoint protetto viene provato con accesso anonimo e
+autenticato-ma-non-admin, e ognuno legato a un'arnia o a un apiario porta il **minimo
+accesso** che può chiamarlo (`viewer` … `owner`) e viene chiamato a ogni livello,
+dall'assenza di accesso fino al proprietario. **Aggiungi ogni endpoint nuovo a quelle
+tabelle.** È quello che becca una rotta che si è dimenticata il suo `Depends`, o che
+controlla l'azione sbagliata.
 
 ## Fixture
 
@@ -147,8 +150,11 @@ richiesta, perché la sessione prosegue immutata nelle chiamate a service e repo
 
 ### Costruttori di dati
 
-`make_utente`, `make_arnia`, `grant_access`, `utente_con_arnia`, `make_lettura`,
-`make_attivita`.
+`make_utente` (con il suo apiario `Default`, `id_apiario_predefinito`),
+`make_apiario(owner)`, `make_arnia(apiario=...)` (un'arnia in quell'apiario, con il nodo
+del proprietario dell'apiario; non assegnata senza), `share(id_utente, id_apiario, ruolo)`,
+`utente_con_arnia(ruolo)` (un utente e un'arnia che raggiunge come `owner` o con un ruolo
+condiviso), `make_lettura`, `make_attivita`.
 
 ## Convenzioni
 
@@ -167,8 +173,8 @@ richiesta, perché la sessione prosegue immutata nelle chiamate a service e repo
 
 ## Trappole
 
-- **`utenti.ruolo` è `('user','admin')`** — non `'utente'` — e `utenti_arnie.permessi` è
-  `('read','write','admin')`. I fake accettano qualsiasi cosa; il database reale la
+- **`utenti.ruolo` è `('user','admin')`** — non `'utente'` — e `utenti_apiari.ruolo` è
+  `('viewer','collaborator','manager')`. I fake accettano qualsiasi cosa; il database reale la
   rifiuta, quindi un test unit può passare su dati che l'integrazione respinge.
 - **Credenziali mancanti danno 401 + `WWW-Authenticate`; autenticato-ma-vietato dà
   403.** Verificare quello sbagliato è il modo in cui una vera regressione di

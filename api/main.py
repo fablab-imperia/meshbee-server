@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.auth import (
     authenticate_user,
+    check_user_apiario_access,
     check_user_arnia_access,
     create_access_token,
     create_refresh_token,
@@ -28,6 +29,12 @@ from api.config import settings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.models import (
+    ApiarioAdminCreate,
+    ApiarioConAccesso,
+    ApiarioCreate,
+    ApiarioResponse,
+    ApiarioUpdate,
+    ArniaApiarioUpdate,
     ArniaConStato,
     ArniaCreate,
     ArniaResponse,
@@ -35,10 +42,14 @@ from meshbee_core.models import (
     AttivitaCreate,
     AttivitaResponse,
     AttivitaUpdate,
+    CondivisioneCreate,
+    CondivisioneResponse,
+    CondivisioneUpdate,
     LetturaCreate,
     LetturaResponse,
     MessageResponse,
     NodoCreate,
+    NodoProprietarioUpdate,
     NodoResponse,
     PasswordChange,
     SerieBatteriaResponse,
@@ -50,10 +61,12 @@ from meshbee_core.models import (
     UserLogin,
     UserResponse,
     UserUpdate,
-    UtenteArniaCreate,
 )
 from meshbee_core.services import (
     accessi as accessi_service,
+)
+from meshbee_core.services import (
+    apiari as apiari_service,
 )
 from meshbee_core.services import (
     arnie as arnie_service,
@@ -143,10 +156,30 @@ def db_operation(descrizione: str):
         raise HTTPException(status_code=500, detail="Errore interno del server") from e
 
 
-def require_arnia_access(current_user: dict, id_arnia: int, permesso: str, detail: str):
-    """Guard an arnia-scoped endpoint, answering 403 when the user is not allowed."""
-    if not check_user_arnia_access(current_user["id_utente"], id_arnia, permesso):
+def require_arnia_access(current_user: dict, id_arnia: int, action: str, detail: str):
+    """
+    Guard an arnia-scoped endpoint, answering 403 when the user may not
+    perform `action` (see `meshbee_core/services/auth.py`).
+    """
+    if not check_user_arnia_access(current_user["id_utente"], id_arnia, action):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+def require_apiario_access(current_user: dict, id_apiario: int, action: str):
+    """Guard an apiary-scoped endpoint, answering 403 when the user may not act."""
+    if not check_user_apiario_access(current_user["id_utente"], id_apiario, action):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permessi insufficienti su questo apiario",
+        )
+
+
+# Shared by every hive list that can be narrowed to one apiary.
+ID_APIARIO_FILTER = Query(None, description="Solo le arnie di questo apiario")
+
+
+def message_for_deleted_apiario(id_apiario: int) -> dict:
+    return {"message": f"Apiario {id_apiario} eliminato con successo"}
 
 
 # ============================================
@@ -198,7 +231,10 @@ def get_me(current_user: dict = Depends(get_current_active_user)):
 
 
 @app.get("/api/user/arnie", response_model=list[ArniaConStato], tags=["Utente"])
-def get_user_arnie(current_user: dict = Depends(get_current_active_user)):
+def get_user_arnie(
+    id_apiario: int | None = ID_APIARIO_FILTER,
+    current_user: dict = Depends(get_current_active_user),
+):
     """
     Ottieni lista delle arnie associate all'utente con lo stato attuale
 
@@ -206,7 +242,185 @@ def get_user_arnie(current_user: dict = Depends(get_current_active_user)):
         Lista di arnie con ultime letture
     """
     with db_operation("recupero arnie utente") as session:
-        return arnie_service.list_for_utente(session, current_user)
+        return arnie_service.list_for_utente(session, current_user, id_apiario)
+
+
+@app.get("/api/user/apiari", response_model=list[ApiarioConAccesso], tags=["Utente"])
+def get_user_apiari(current_user: dict = Depends(get_current_active_user)):
+    """
+    The apiaries the caller owns (the default one first), then those shared
+    with them; `accesso` says which. Their hives: `GET /api/user/arnie?id_apiario=...`.
+    """
+    with db_operation("recupero apiari utente") as session:
+        return apiari_service.list_for_utente(session, current_user["id_utente"])
+
+
+@app.post("/api/user/apiari", response_model=ApiarioResponse, tags=["Utente"])
+def create_user_apiario(
+    apiario: ApiarioCreate, current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Create an apiary owned by the caller.
+    """
+    with db_operation("creazione apiario") as session:
+        return apiari_service.create_apiario(
+            session, current_user["id_utente"], apiario
+        )
+
+
+@app.get(
+    "/api/user/apiari/{id_apiario}",
+    response_model=ApiarioConAccesso,
+    tags=["Utente"],
+)
+def get_apiario_user(
+    id_apiario: int, current_user: dict = Depends(get_current_active_user)
+):
+    """
+    One apiary the caller owns or has been shared.
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.read")
+
+    with db_operation("recupero apiario") as session:
+        return apiari_service.get_for_utente(
+            session, id_apiario, current_user["id_utente"]
+        )
+
+
+@app.put(
+    "/api/user/apiari/{id_apiario}", response_model=ApiarioResponse, tags=["Utente"]
+)
+def update_apiario_user(
+    id_apiario: int,
+    apiario: ApiarioUpdate,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Edit an apiary, the default one included (owner or manager).
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.update")
+
+    with db_operation("aggiornamento apiario") as session:
+        return apiari_service.update_apiario(session, id_apiario, apiario)
+
+
+@app.delete(
+    "/api/user/apiari/{id_apiario}", response_model=MessageResponse, tags=["Utente"]
+)
+def delete_apiario_user(
+    id_apiario: int, current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Delete an apiary (owner only).
+    Refused with 409 for the default one, and while hives are still in it.
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.delete")
+
+    with db_operation("eliminazione apiario") as session:
+        apiari_service.delete_apiario(session, id_apiario)
+        return message_for_deleted_apiario(id_apiario)
+
+
+@app.get(
+    "/api/user/apiari/{id_apiario}/condivisioni",
+    response_model=list[CondivisioneResponse],
+    tags=["Utente"],
+)
+def get_condivisioni(
+    id_apiario: int, current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Who the apiary is shared with, and as what (owner only).
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+
+    with db_operation("recupero condivisioni") as session:
+        return accessi_service.list_condivisioni(session, id_apiario)
+
+
+@app.post(
+    "/api/user/apiari/{id_apiario}/condivisioni",
+    response_model=CondivisioneResponse,
+    tags=["Utente"],
+)
+def share_apiario(
+    id_apiario: int,
+    condivisione: CondivisioneCreate,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Share the apiary with a user, by email, as viewer, collaborator or manager
+    (owner only). Sharing again with the same user changes their role.
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+
+    with db_operation("condivisione apiario") as session:
+        return accessi_service.share(session, id_apiario, condivisione)
+
+
+@app.put(
+    "/api/user/apiari/{id_apiario}/condivisioni/{id_utente}",
+    response_model=CondivisioneResponse,
+    tags=["Utente"],
+)
+def update_condivisione(
+    id_apiario: int,
+    id_utente: int,
+    body: CondivisioneUpdate,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Change the role of an existing share (owner only).
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+
+    with db_operation("aggiornamento condivisione") as session:
+        return accessi_service.change_ruolo(session, id_apiario, id_utente, body.ruolo)
+
+
+@app.delete(
+    "/api/user/apiari/{id_apiario}/condivisioni/{id_utente}",
+    response_model=MessageResponse,
+    tags=["Utente"],
+)
+def revoke_condivisione(
+    id_apiario: int,
+    id_utente: int,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Stop sharing the apiary with a user (owner only).
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+
+    with db_operation("revoca condivisione") as session:
+        accessi_service.revoke(session, id_apiario, id_utente)
+        return {"message": "Condivisione rimossa"}
+
+
+@app.put(
+    "/api/user/arnie/{id_arnia}/apiario",
+    response_model=ArniaResponse,
+    tags=["Utente"],
+)
+def move_arnia_user(
+    id_arnia: int,
+    body: ArniaApiarioUpdate,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Move a hive into another apiary of its owner (owner only).
+    Who can see it follows the apiary it lands in.
+    """
+    require_arnia_access(
+        current_user,
+        id_arnia,
+        "arnia.move",
+        "Solo il proprietario può spostare l'arnia",
+    )
+
+    with db_operation("spostamento arnia") as session:
+        return arnie_service.move_arnia(session, id_arnia, body.id_apiario)
 
 
 @app.get(
@@ -236,7 +450,7 @@ def get_user_letture(
         Lista di letture ordinate per timestamp (più recente prima)
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("recupero letture") as session:
@@ -274,7 +488,7 @@ def get_user_attivita(
         Lista di attività ordinate per timestamp (più recente prima)
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("recupero attività") as session:
@@ -304,7 +518,10 @@ def create_attivita(
         Attività creata
     """
     require_arnia_access(
-        current_user, id_arnia, "write", "Non hai permessi di scrittura su questa arnia"
+        current_user,
+        id_arnia,
+        "attivita.write",
+        "Non hai permessi di scrittura su questa arnia",
     )
 
     with db_operation("creazione attività") as session:
@@ -328,7 +545,10 @@ def update_user_attivita(
     Aggiorna un'attività di un'arnia (solo se appartiene all'utente)
     """
     require_arnia_access(
-        current_user, id_arnia, "write", "Non hai permessi di scrittura su questa arnia"
+        current_user,
+        id_arnia,
+        "attivita.write",
+        "Non hai permessi di scrittura su questa arnia",
     )
 
     with db_operation("aggiornamento attività") as session:
@@ -349,7 +569,10 @@ def delete_user_attivita(
     Elimina un'attività di un'arnia (solo se appartiene all'utente)
     """
     require_arnia_access(
-        current_user, id_arnia, "write", "Non hai permessi di scrittura su questa arnia"
+        current_user,
+        id_arnia,
+        "attivita.write",
+        "Non hai permessi di scrittura su questa arnia",
     )
 
     with db_operation("eliminazione attività") as session:
@@ -378,7 +601,7 @@ def get_serie_temperatura(
     Restituisce solo timestamp e temperatura, ottimizzato per grafici.
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("serie temperatura") as session:
@@ -406,7 +629,7 @@ def get_serie_umidita(
     Restituisce solo timestamp e umidita, ottimizzato per grafici.
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("serie umidita") as session:
@@ -434,7 +657,7 @@ def get_serie_peso(
     Restituisce solo timestamp e peso, ottimizzato per grafici.
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("serie peso") as session:
@@ -462,7 +685,7 @@ def get_serie_batteria(
     Returns only timestamp and batteria, shaped for charts.
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("serie batteria") as session:
@@ -536,7 +759,10 @@ def get_all_nodi(current_user: dict = Depends(get_current_admin_user)):
 
 
 @app.get("/api/admin/arnie", response_model=list[ArniaConStato], tags=["Admin"])
-def get_all_arnie(current_user: dict = Depends(get_current_admin_user)):
+def get_all_arnie(
+    id_apiario: int | None = ID_APIARIO_FILTER,
+    current_user: dict = Depends(get_current_admin_user),
+):
     """
     Ottieni lista di tutte le arnie con stato (solo admin)
 
@@ -544,7 +770,7 @@ def get_all_arnie(current_user: dict = Depends(get_current_admin_user)):
         Lista di tutte le arnie
     """
     with db_operation("recupero arnie") as session:
-        return arnie_service.list_all(session)
+        return arnie_service.list_all(session, id_apiario)
 
 
 @app.post("/api/admin/arnie", response_model=ArniaResponse, tags=["Admin"])
@@ -562,25 +788,6 @@ def create_arnia(
     """
     with db_operation("creazione arnia") as session:
         return arnie_service.create_arnia(session, arnia)
-
-
-@app.post("/api/admin/utenti-arnie", response_model=MessageResponse, tags=["Admin"])
-def associate_user_arnia(
-    associazione: UtenteArniaCreate,
-    current_user: dict = Depends(get_current_admin_user),
-):
-    """
-    Associa un utente a un'arnia (solo admin)
-
-    Args:
-        associazione: Dati dell'associazione
-
-    Returns:
-        Messaggio di conferma
-    """
-    with db_operation("associazione utente-arnia") as session:
-        accessi_service.grant(session, associazione)
-        return {"message": "Associazione creata con successo"}
 
 
 @app.get("/api/admin/letture", response_model=list[LetturaResponse], tags=["Admin"])
@@ -670,6 +877,24 @@ def delete_nodo(id_nodo: str, current_user: dict = Depends(get_current_admin_use
         return {"message": f"Nodo '{id_nodo}' disattivato con successo"}
 
 
+@app.put(
+    "/api/admin/nodi/{id_nodo}/proprietario",
+    response_model=NodoResponse,
+    tags=["Admin - Nodi"],
+)
+def assign_nodo(
+    id_nodo: str,
+    body: NodoProprietarioUpdate,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Assign a node to a user, transfer it, or unassign it with null (admin only).
+    Its hives move to the new owner's default apiary.
+    """
+    with db_operation("assegnazione nodo") as session:
+        return nodi_service.assign_proprietario(session, id_nodo, body.id_utente)
+
+
 # ============================================
 # ENDPOINT ADMIN - ARNIE (crud completo)
 # ============================================
@@ -718,20 +943,85 @@ def delete_arnia(id_arnia: int, current_user: dict = Depends(get_current_admin_u
         return {"message": f"Arnia {id_arnia} disattivata con successo"}
 
 
-@app.delete(
-    "/api/admin/utenti-arnie", response_model=MessageResponse, tags=["Admin - Utenti"]
+# ============================================
+# ENDPOINT ADMIN - APIARI
+# ============================================
+
+
+@app.get(
+    "/api/admin/apiari", response_model=list[ApiarioResponse], tags=["Admin - Apiari"]
 )
-def remove_user_arnia(
-    id_utente: int, id_arnia: int, current_user: dict = Depends(get_current_admin_user)
+def get_all_apiari(
+    id_utente: int | None = Query(None, description="Solo gli apiari di questo utente"),
+    current_user: dict = Depends(get_current_admin_user),
 ):
     """
-    Rimuove l'associazione tra un utente e un'arnia (solo admin).
+    Every user's apiaries, or one user's (admin only).
     """
-    with db_operation("rimozione associazione") as session:
-        accessi_service.revoke(session, id_utente, id_arnia)
-        return {
-            "message": f"Associazione utente {id_utente} - arnia {id_arnia} rimossa"
-        }
+    with db_operation("recupero apiari") as session:
+        return apiari_service.list_all(session, id_utente)
+
+
+@app.post("/api/admin/apiari", response_model=ApiarioResponse, tags=["Admin - Apiari"])
+def create_apiario(
+    apiario: ApiarioAdminCreate, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Create an apiary on behalf of a user (admin only).
+    """
+    with db_operation("creazione apiario") as session:
+        return apiari_service.create_apiario(
+            session, apiario.id_utente_proprietario, apiario
+        )
+
+
+@app.get(
+    "/api/admin/apiari/{id_apiario}",
+    response_model=ApiarioResponse,
+    tags=["Admin - Apiari"],
+)
+def get_apiario_admin(
+    id_apiario: int, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Any user's apiary (admin only).
+    """
+    with db_operation("recupero apiario") as session:
+        return apiari_service.get_apiario(session, id_apiario)
+
+
+@app.put(
+    "/api/admin/apiari/{id_apiario}",
+    response_model=ApiarioResponse,
+    tags=["Admin - Apiari"],
+)
+def update_apiario(
+    id_apiario: int,
+    apiario: ApiarioUpdate,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Edit any user's apiary (admin only).
+    """
+    with db_operation("aggiornamento apiario") as session:
+        return apiari_service.update_apiario(session, id_apiario, apiario)
+
+
+@app.delete(
+    "/api/admin/apiari/{id_apiario}",
+    response_model=MessageResponse,
+    tags=["Admin - Apiari"],
+)
+def delete_apiario(
+    id_apiario: int, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Delete any user's apiary (admin only), with the owner's rules: never the
+    default one, and not while hives are still in it (409).
+    """
+    with db_operation("eliminazione apiario") as session:
+        apiari_service.delete_apiario(session, id_apiario)
+        return message_for_deleted_apiario(id_apiario)
 
 
 @app.delete(
@@ -782,11 +1072,11 @@ def get_arnia_user(
     Dettagli di una singola arnia con ultimo stato.
     """
     require_arnia_access(
-        current_user, id_arnia, "read", "Non hai accesso a questa arnia"
+        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
     )
 
     with db_operation("recupero arnia") as session:
-        return arnie_service.get_arnia(session, id_arnia)
+        return arnie_service.get_arnia(session, id_arnia, current_user["id_utente"])
 
 
 @app.put("/api/user/arnie/{id_arnia}", response_model=ArniaResponse, tags=["Utente"])
@@ -801,11 +1091,18 @@ def update_arnia_user(
     Non è possibile modificare attiva (usa admin per quello).
     """
     require_arnia_access(
-        current_user, id_arnia, "write", "Permessi insufficienti su questa arnia"
+        current_user, id_arnia, "arnia.update", "Permessi insufficienti su questa arnia"
+    )
+    # Retiring or reviving a hive is the owner's call; for anyone else
+    # `attiva` is ignored, as it always was on this route.
+    allow_attiva = check_user_arnia_access(
+        current_user["id_utente"], id_arnia, "arnia.retire"
     )
 
     with db_operation("aggiornamento arnia") as session:
-        return arnie_service.update_arnia(session, id_arnia, arnia, allow_attiva=False)
+        return arnie_service.update_arnia(
+            session, id_arnia, arnia, allow_attiva=allow_attiva
+        )
 
 
 @app.put("/api/user/password", response_model=MessageResponse, tags=["Utente"])
