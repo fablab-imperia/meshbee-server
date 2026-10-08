@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meshbee Admin</title>
+    <link rel="stylesheet" href="vendor/pico-2.0.6.min.css" />
+    <link rel="stylesheet" href="admin.css" />
+    <script src="admin.js"></script>
+    <script defer src="vendor/alpine-3.14.9.min.js"></script>
+  </head>
+  <body x-data="admin()" x-cloak>
+    <!-- Login -->
+    <main class="container login" x-show="!me">
+      <article>
+        <header><strong>Meshbee Admin</strong></header>
+        <form @submit.prevent="signIn()">
+          <label>
+            Email
+            <input type="email" x-model="login.email" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input type="password" x-model="login.password" autocomplete="current-password" required />
+          </label>
+          <p class="error" x-show="error" x-text="error"></p>
+          <button type="submit">Accedi</button>
+        </form>
+      </article>
+    </main>
+
+    <!-- Admin -->
+    <template x-if="me">
+      <div>
+        <header class="container-fluid">
+          <nav>
+            <ul>
+              <li><strong>Meshbee Admin</strong></li>
+            </ul>
+            <ul>
+              <template x-for="(r, name) in resources" :key="name">
+                <li>
+                  <a href="#" :aria-current="tab === name ? 'page' : null" @click.prevent="select(name)" x-text="r.label"></a>
+                </li>
+              </template>
+            </ul>
+            <ul>
+              <li><small x-text="me.email"></small></li>
+              <li><a href="/docs" target="_blank" rel="noopener">API</a></li>
+              <li><a href="#" @click.prevent="signOut()">Esci</a></li>
+            </ul>
+          </nav>
+        </header>
+
+        <main class="container-fluid">
+          <div class="toolbar">
+            <h2 x-text="resource.label"></h2>
+            <template x-for="f in resource.filters || []" :key="f.name">
+              <label x-show="filterShown(f)">
+                <span x-text="f.label"></span>
+                <template x-if="f.type === 'select'">
+                  <select x-model="filters[f.name]" @change="refresh()">
+                    <option value="">Tutti</option>
+                    <template x-for="o in options(f.options)" :key="o.value">
+                      <option :value="o.value" x-text="o.label"></option>
+                    </template>
+                  </select>
+                </template>
+                <template x-if="f.type !== 'select'">
+                  <input :type="f.type" x-model="filters[f.name]" @change="refresh()" />
+                </template>
+              </label>
+            </template>
+            <button class="secondary outline" @click="refresh()" :aria-busy="loading">Aggiorna</button>
+            <button x-show="resource.create" @click="openCreate()">Nuovo</button>
+          </div>
+
+          <p class="notice" x-show="notice" x-text="notice"></p>
+          <p class="error" x-show="error" x-text="error"></p>
+
+          <div class="overflow-auto">
+            <table class="striped">
+              <thead>
+                <tr>
+                  <template x-for="c in resource.columns" :key="c.name">
+                    <th x-text="c.label"></th>
+                  </template>
+                  <th x-show="resource.actions.length"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="row in rows" :key="row[resource.key]">
+                  <tr>
+                    <template x-for="c in resource.columns" :key="c.name">
+                      <td x-text="cell(row, c)"></td>
+                    </template>
+                    <td class="actions" x-show="resource.actions.length">
+                      <template x-for="a in actionsFor(row)" :key="a.label">
+                        <button class="outline" :class="a.method === 'DELETE' ? 'contrast' : 'secondary'" @click="run(a, row)" x-text="a.label"></button>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <p x-show="!loading && rows.length === 0"><em>Nessun elemento.</em></p>
+          </div>
+        </main>
+
+        <!-- Create / edit form -->
+        <dialog :open="!!dialog">
+          <template x-if="dialog">
+            <article>
+              <header>
+                <button aria-label="Chiudi" rel="prev" @click="dialog = null"></button>
+                <strong x-text="dialog.title"></strong>
+              </header>
+              <form @submit.prevent="submit()" id="dialog-form">
+                <p x-show="dialog.note"><small x-text="dialog.note"></small></p>
+                <template x-for="f in dialog.fields" :key="f.name">
+                  <div>
+                    <template x-if="f.type === 'checkbox'">
+                      <label><input type="checkbox" role="switch" x-model="dialog.values[f.name]" /> <span x-text="f.label"></span></label>
+                    </template>
+                    <template x-if="f.type !== 'checkbox'">
+                      <label>
+                        <span x-text="f.label"></span>
+                        <template x-if="f.type === 'select'">
+                          <select x-model="dialog.values[f.name]" :required="f.required">
+                            <option value="">—</option>
+                            <template x-for="o in options(f.options)" :key="o.value">
+                              <option :value="o.value" x-text="o.label" :selected="o.value === dialog.values[f.name]"></option>
+                            </template>
+                          </select>
+                        </template>
+                        <template x-if="f.type === 'textarea' || f.type === 'json'">
+                          <textarea x-model="dialog.values[f.name]" :class="f.type === 'json' && 'mono'" rows="3"></textarea>
+                        </template>
+                        <template x-if="!['select', 'textarea', 'json'].includes(f.type)">
+                          <input
+                            :type="f.type || 'text'"
+                            :step="f.type === 'number' ? 'any' : null"
+                            x-model="dialog.values[f.name]"
+                            :required="f.required"
+                            :readonly="f.readonly"
+                            :autocomplete="f.type === 'password' ? 'new-password' : 'off'"
+                          />
+                        </template>
+                      </label>
+                    </template>
+                  </div>
+                </template>
+                <p class="error" x-show="dialogError" x-text="dialogError"></p>
+              </form>
+              <footer>
+                <button class="secondary" @click="dialog = null">Annulla</button>
+                <button type="submit" form="dialog-form" x-text="dialog.fields.length ? 'Salva' : 'Conferma'"></button>
+              </footer>
+            </article>
+          </template>
+        </dialog>
+      </div>
+    </template>
+  </body>
+</html>

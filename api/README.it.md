@@ -17,6 +17,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 | `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 51 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
+| `admin/` | La pagina admin servita su `/admin/` — vedi [Pagina admin](#pagina-admin). |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
 | `Dockerfile` | Immagine del servizio `api` (e di `seed`). Il contesto di build è la root del repo. |
 | `requirements.txt` | Dipendenze di runtime. |
@@ -208,6 +209,44 @@ si incontrano:
 
 Il corpo del 500 resta volutamente vago: il testo dell'eccezione può nominare tabelle e
 colonne.
+
+## Pagina admin
+
+`/admin/` serve una piccola pagina per gli amministratori
+([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): elencare, creare,
+modificare e disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un
+nodo, reimpostare una password e consultare letture e attività. Swagger UI su `/docs`
+resta il ripiego completo.
+
+È **un client di questa API, non una seconda API**. `main.py` monta `admin/` con
+`StaticFiles`; la pagina fa il login con `/api/auth/login`, rifiuta un account non admin
+dopo `/api/auth/me` e da lì chiama le stesse rotte di qualsiasi altro client, con il
+bearer token. Quindi non aggiunge rotte (`openapi.json` e il controllo dell'authz non
+cambiano), né sessioni né logica: soft delete, hash delle password, trasferimento dei
+nodi e validazione avvengono nei service, e su un 4xx la pagina mostra il `detail`
+dell'API. Gli elenchi di valori (`ruolo`, `tipo_attivita`) vengono letti da
+`/openapi.json`, così restano dichiarati una sola volta in `meshbee_core/limits.py`.
+
+| File | Cos'è |
+|---|---|
+| `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
+| `admin.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe — e il componente che li usa. Una nuova operazione admin di solito è una voce lì. |
+| `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
+| `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file: niente build, niente CDN, funziona in una LAN senza internet. Per aggiornarli si sostituisce il file e i riferimenti in `index.html`. |
+
+Da sapere:
+
+- **Niente build e niente npm.** Si modificano i file; non serve nemmeno `--reload`,
+  vengono letti a ogni richiesta.
+- **I dati arrivano nel DOM solo tramite `x-text`**, che li fa escape. I nomi li scrivono
+  gli utenti; `x-html` o `innerHTML` permetterebbero di eseguire script con il token
+  dell'admin. `tests/unit/api/test_admin_page.py` fallisce con l'uno o l'altro.
+- **Il token sta in `sessionStorage`** (sparisce chiudendo la scheda). Non c'è refresh
+  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): quando scade, la
+  richiesta successiva riceve un 401 e la pagina chiede di nuovo il login.
+- Scegliendo un'arnia nelle schede letture o attività si passa alla rotta
+  `/api/user/arnie/{id_arnia}/…` dell'arnia — quella con i filtri per data, che gli
+  admin superano.
 
 ## Configurazione
 

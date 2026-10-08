@@ -104,7 +104,7 @@ Porte:
 
 | Porta | Servizio | Note |
 |---|---|---|
-| 8000 | `api` | HTTP. `/docs`, `/redoc`, `/openapi.json`. |
+| 8000 | `api` | HTTP. `/admin/`, `/docs`, `/redoc`, `/openapi.json`. |
 | 8443 | `caddy` | HTTPS. Solo dopo `make certs`. Si cambia con `HTTPS_PORT`. |
 | 1883 | `mosquitto` | MQTT. Autenticazione obbligatoria. |
 | 9001 | `mosquitto` | MQTT su WebSocket. Configurata ma non usata. |
@@ -171,6 +171,8 @@ docker-compose ps
 
 - HTTP: <http://localhost:8000/docs>
 - HTTPS: <https://localhost:8443/docs> (solo dopo `make certs`)
+- Pagina admin: <http://localhost:8000/admin/> — accedi con l'account admin
+  ([dettagli](api/README.it.md#pagina-admin))
 
 ```bash
 curl -s localhost:8000/health | python3 -m json.tool

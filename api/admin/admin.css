@@ -1,0 +1,54 @@
+/* Only what Pico does not already cover. */
+[x-cloak] {
+  display: none !important;
+}
+
+.login {
+  max-width: 28rem;
+  padding-top: 10vh;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar h2 {
+  margin: 0 auto 0 0;
+}
+
+.toolbar label,
+.toolbar button,
+.toolbar select,
+.toolbar input {
+  margin-bottom: 0;
+}
+
+.toolbar label {
+  font-size: 0.875rem;
+}
+
+td.actions {
+  white-space: nowrap;
+}
+
+td.actions button {
+  padding: 0.25rem 0.5rem;
+  margin: 0 0.25rem 0 0;
+  font-size: 0.8rem;
+}
+
+.error {
+  color: var(--pico-del-color);
+}
+
+.notice {
+  color: var(--pico-ins-color);
+}
+
+.mono {
+  font-family: var(--pico-font-family-monospace);
+}

@@ -18,6 +18,7 @@ here.
 | `main.py` | The application: lifespan, CORS, error translation and all 51 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
+| `admin/` | The admin page served at `/admin/` — see [Admin page](#admin-page). |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
 | `Dockerfile` | Image for the `api` service (and for `seed`). Build context is the repo root. |
 | `requirements.txt` | Runtime dependencies. |
@@ -204,6 +205,43 @@ meet:
 | anything else | 500 `Errore interno del server`, with the real error logged |
 
 The 500 body stays vague on purpose: the exception text can name tables and columns.
+
+## Admin page
+
+`/admin/` serves a small page for administrators
+([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): list, create, edit
+and deactivate users, nodes, hives and apiaries, assign a node's owner, reset a
+password, and browse readings and activities. Swagger UI at `/docs` remains the full
+fallback.
+
+It is **a client of this API, not a second one**. `main.py` mounts `admin/` with
+`StaticFiles`; the page logs in through `/api/auth/login`, refuses a non-admin account
+after `/api/auth/me`, and from then on calls the same routes as any other client with
+the bearer token. So it adds no route (`openapi.json` and the authz sweep are
+untouched), no session and no logic: soft deletes, password hashing, node transfers and
+validation all happen in the services, and the page shows the API's own `detail` on a
+4xx. Value lists (`ruolo`, `tipo_attivita`) are read from `/openapi.json`, so they stay
+declared once in `meshbee_core/limits.py`.
+
+| File | What it is |
+|---|---|
+| `index.html` | The markup, with [Alpine.js](https://alpinejs.dev) bindings. |
+| `admin.js` | `RESOURCES` — per tab: route, columns, form fields, row actions — and the component that drives them. A new admin operation is usually one entry there. |
+| `admin.css` | The little [Pico CSS](https://picocss.com) does not cover. |
+| `vendor/` | Alpine.js and Pico CSS, **vendored** with the version in the file name: no build step, no CDN, works on a LAN with no internet. To upgrade, replace the file and its references in `index.html`. |
+
+Things to know:
+
+- **No build step and no npm.** Edit the files; `--reload` is not even needed, they are
+  read on each request.
+- **Data reaches the DOM only through `x-text`**, which escapes it. Names are typed by
+  users; `x-html` or `innerHTML` would let one run script with the admin's token.
+  `tests/unit/api/test_admin_page.py` fails on either.
+- **The token lives in `sessionStorage`** (gone when the tab closes). There is no refresh
+  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): when it expires
+  the next request gets a 401 and the page asks for the login again.
+- Picking a hive on the readings or activities tab switches to the hive-scoped
+  `/api/user/arnie/{id_arnia}/…` route — the one with date filters, which admins pass.
 
 ## Configuration
 
