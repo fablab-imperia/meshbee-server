@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 51 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 53 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `admin/` | The admin page served at `/admin/` — see [Admin page](#admin-page). |
@@ -26,7 +26,7 @@ here.
 
 ## Endpoints
 
-51 operations. `Auth` says what a request must carry:
+53 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -105,6 +105,8 @@ whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 | DELETE | `/api/admin/apiari/{id_apiario}` | admin | Delete any user's apiary, under the owner's rules (**409** as above). |
 | GET | `/api/admin/letture` | admin | All readings. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Insert a reading by hand — backfill and testing. |
+| DELETE | `/api/admin/letture/{id_lettura}` | admin | Delete one reading (a real delete). **404** if unknown. |
+| POST | `/api/admin/letture/elimina` | admin | Delete readings in bulk: `{"id_letture": [...]}`, 1–10000 ids. Unknown ids are skipped; the message says how many went. Pick them with the hive and date filters of `GET /api/user/arnie/{id_arnia}/letture`. |
 | GET | `/api/admin/attivita` | admin | All activities. `limit` 1–1000, default 100. |
 
 `POST /api/admin/letture` and the MQTT path both end at the same INSERT, but they do
@@ -211,17 +213,20 @@ The 500 body stays vague on purpose: the exception text can name tables and colu
 `/admin/` serves a small page for administrators
 ([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): list, create, edit
 and deactivate users, nodes, hives and apiaries, assign a node's owner, reset a
-password, and browse readings and activities. Swagger UI at `/docs` remains the full
-fallback.
+password, browse readings and activities; manage who an apiary is shared with, insert a
+reading by hand, and delete readings one at a time or as a selection
+([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
+[#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI at
+`/docs` remains the full fallback.
 
 It is **a client of this API, not a second one**. `main.py` mounts `admin/` with
 `StaticFiles`; the page logs in through `/api/auth/login`, refuses a non-admin account
 after `/api/auth/me`, and from then on calls the same routes as any other client with
-the bearer token. So it adds no route (`openapi.json` and the authz sweep are
-untouched), no session and no logic: soft deletes, password hashing, node transfers and
-validation all happen in the services, and the page shows the API's own `detail` on a
-4xx. Value lists (`ruolo`, `tipo_attivita`) are read from `/openapi.json`, so they stay
-declared once in `meshbee_core/limits.py`.
+the bearer token. So the page itself adds no route, no session and no logic: soft
+deletes, password hashing, node transfers and validation all happen in the services, and
+the page shows the API's own `detail` on a 4xx. Value lists (`ruolo`, the apiary roles,
+`tipo_attivita`) are read from `/openapi.json`, so they stay declared once in
+`meshbee_core/limits.py`.
 
 | File | What it is |
 |---|---|
@@ -242,6 +247,10 @@ Things to know:
   the next request gets a 401 and the page asks for the login again.
 - Picking a hive on the readings or activities tab switches to the hive-scoped
   `/api/user/arnie/{id_arnia}/…` route — the one with date filters, which admins pass.
+  To delete a hive's readings over a period, filter by hive and dates, tick the header
+  checkbox and delete the selection.
+- An apiary's **Condivisioni** use the owner's `/api/user/apiari/{id_apiario}/condivisioni`
+  routes, which admins pass too: there are no admin twins of them.
 
 ## Configuration
 

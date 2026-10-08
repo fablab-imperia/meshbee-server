@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 51 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 53 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `admin/` | La pagina admin servita su `/admin/` — vedi [Pagina admin](#pagina-admin). |
@@ -25,7 +25,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-51 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+53 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -105,6 +105,8 @@ whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stri
 | DELETE | `/api/admin/apiari/{id_apiario}` | admin | Elimina l'apiario di un utente qualsiasi, con le regole del proprietario (**409** come sopra). |
 | GET | `/api/admin/letture` | admin | Tutte le letture. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Inserisce una lettura a mano — backfill e test. |
+| DELETE | `/api/admin/letture/{id_lettura}` | admin | Elimina una lettura (eliminazione vera). **404** se non esiste. |
+| POST | `/api/admin/letture/elimina` | admin | Elimina letture in blocco: `{"id_letture": [...]}`, da 1 a 10000 id. Gli id inesistenti vengono saltati; il messaggio dice quante ne sono state eliminate. Si scelgono con i filtri per arnia e data di `GET /api/user/arnie/{id_arnia}/letture`. |
 | GET | `/api/admin/attivita` | admin | Tutte le attività. `limit` 1–1000, default 100. |
 
 `POST /api/admin/letture` e il percorso MQTT finiscono nella stessa INSERT, ma **non**
@@ -215,17 +217,20 @@ colonne.
 `/admin/` serve una piccola pagina per gli amministratori
 ([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): elencare, creare,
 modificare e disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un
-nodo, reimpostare una password e consultare letture e attività. Swagger UI su `/docs`
-resta il ripiego completo.
+nodo, reimpostare una password, consultare letture e attività; gestire con chi è
+condiviso un apiario, inserire una lettura a mano ed eliminare letture una alla volta o
+come selezione ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
+[#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI su
+`/docs` resta il ripiego completo.
 
 È **un client di questa API, non una seconda API**. `main.py` monta `admin/` con
 `StaticFiles`; la pagina fa il login con `/api/auth/login`, rifiuta un account non admin
 dopo `/api/auth/me` e da lì chiama le stesse rotte di qualsiasi altro client, con il
-bearer token. Quindi non aggiunge rotte (`openapi.json` e il controllo dell'authz non
-cambiano), né sessioni né logica: soft delete, hash delle password, trasferimento dei
-nodi e validazione avvengono nei service, e su un 4xx la pagina mostra il `detail`
-dell'API. Gli elenchi di valori (`ruolo`, `tipo_attivita`) vengono letti da
-`/openapi.json`, così restano dichiarati una sola volta in `meshbee_core/limits.py`.
+bearer token. Quindi la pagina in sé non aggiunge rotte, né sessioni né logica: soft
+delete, hash delle password, trasferimento dei nodi e validazione avvengono nei service,
+e su un 4xx la pagina mostra il `detail` dell'API. Gli elenchi di valori (`ruolo`, i
+ruoli sugli apiari, `tipo_attivita`) vengono letti da `/openapi.json`, così restano
+dichiarati una sola volta in `meshbee_core/limits.py`.
 
 | File | Cos'è |
 |---|---|
@@ -246,7 +251,11 @@ Da sapere:
   richiesta successiva riceve un 401 e la pagina chiede di nuovo il login.
 - Scegliendo un'arnia nelle schede letture o attività si passa alla rotta
   `/api/user/arnie/{id_arnia}/…` dell'arnia — quella con i filtri per data, che gli
-  admin superano.
+  admin superano. Per eliminare le letture di un'arnia in un periodo si filtra per arnia
+  e date, si spunta la casella dell'intestazione e si elimina la selezione.
+- Le **Condivisioni** di un apiario usano le rotte del proprietario
+  `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse: non
+  esistono equivalenti admin.
 
 ## Configurazione
 

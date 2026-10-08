@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from meshbee_core.models import Lettura
 from meshbee_core.repository import as_dict, as_dicts, mapping
@@ -68,6 +68,12 @@ def list_all(session: Session, limit: int) -> list[dict[str, Any]]:
             select(Lettura).order_by(Lettura.timestamp.desc()).limit(limit)
         ).all()
     )
+
+
+def delete_by_ids(session: Session, ids: list[int]) -> int:
+    """Delete the readings with these ids; returns how many there were."""
+    result = session.exec(delete(Lettura).where(Lettura.id_lettura.in_(ids)))
+    return result.rowcount
 
 
 def series(

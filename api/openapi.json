@@ -1448,6 +1448,25 @@
         "title": "LetturaResponse",
         "type": "object"
       },
+      "LettureDelete": {
+        "description": "Readings to delete, by id.",
+        "properties": {
+          "id_letture": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Id Letture",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id_letture"
+        ],
+        "title": "LettureDelete",
+        "type": "object"
+      },
       "MessageResponse": {
         "description": "Messaggio generico",
         "properties": {
@@ -2711,6 +2730,101 @@
           }
         ],
         "summary": "Create Lettura Manuale",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      }
+    },
+    "/api/admin/letture/elimina": {
+      "post": {
+        "description": "Delete readings by id, in bulk (admin only): pick them with the hive and\ndate filters of `GET /api/user/arnie/{id_arnia}/letture`. Ids that do not\nexist are skipped; the message says how many were deleted.",
+        "operationId": "delete_letture_api_admin_letture_elimina_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LettureDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Letture",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      }
+    },
+    "/api/admin/letture/{id_lettura}": {
+      "delete": {
+        "description": "Delete one reading (admin only). Unlike nodes and hives, this is a real\ndelete: a wrong reading has no history worth keeping.",
+        "operationId": "delete_lettura_api_admin_letture__id_lettura__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_lettura",
+            "required": true,
+            "schema": {
+              "title": "Id Lettura",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Lettura",
         "tags": [
           "Admin - Nodi"
         ]

@@ -73,6 +73,7 @@
             </template>
             <button class="secondary outline" @click="refresh()" :aria-busy="loading">Aggiorna</button>
             <button x-show="resource.create" @click="openCreate()">Nuovo</button>
+            <button class="contrast" x-show="resource.bulkDelete && selected.length" @click="deleteSelected()" x-text="`Elimina selezionate (${selected.length})`"></button>
           </div>
 
           <p class="notice" x-show="notice" x-text="notice"></p>
@@ -82,6 +83,9 @@
             <table class="striped">
               <thead>
                 <tr>
+                  <th class="select" x-show="resource.bulkDelete">
+                    <input type="checkbox" aria-label="Seleziona tutte" :checked="allSelected" @change="toggleAll($event.target.checked)" />
+                  </th>
                   <template x-for="c in resource.columns" :key="c.name">
                     <th x-text="c.label"></th>
                   </template>
@@ -91,6 +95,9 @@
               <tbody>
                 <template x-for="row in rows" :key="row[resource.key]">
                   <tr>
+                    <td class="select" x-show="resource.bulkDelete">
+                      <input type="checkbox" aria-label="Seleziona" :checked="isSelected(row)" @change="toggle(row)" />
+                    </td>
                     <template x-for="c in resource.columns" :key="c.name">
                       <td x-text="cell(row, c)"></td>
                     </template>
@@ -109,7 +116,7 @@
 
         <!-- Create / edit form -->
         <dialog :open="!!dialog">
-          <template x-if="dialog">
+          <template x-if="dialog && dialog.kind !== 'shares'">
             <article>
               <header>
                 <button aria-label="Chiudi" rel="prev" @click="dialog = null"></button>
@@ -156,6 +163,58 @@
                 <button class="secondary" @click="dialog = null">Annulla</button>
                 <button type="submit" form="dialog-form" x-text="dialog.fields.length ? 'Salva' : 'Conferma'"></button>
               </footer>
+            </article>
+          </template>
+
+          <!-- Sharing an apiary -->
+          <template x-if="dialog && dialog.kind === 'shares'">
+            <article class="wide">
+              <header>
+                <button aria-label="Chiudi" rel="prev" @click="dialog = null"></button>
+                <strong x-text="dialog.title"></strong>
+              </header>
+              <table class="striped">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Ruolo</th>
+                    <th>Dal</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="s in shares.rows" :key="s.id_utente">
+                    <tr>
+                      <td x-text="s.email"></td>
+                      <td>
+                        <select aria-label="Ruolo" @change="changeShare(s, $event.target.value)">
+                          <template x-for="o in options('ruoliApiario')" :key="o.value">
+                            <option :value="o.value" x-text="o.label" :selected="o.value === s.ruolo"></option>
+                          </template>
+                        </select>
+                      </td>
+                      <td x-text="new Date(s.data_condivisione).toLocaleString('it-IT')"></td>
+                      <td class="actions">
+                        <button class="outline contrast" @click="revokeShare(s)">Rimuovi</button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <p x-show="shares.rows.length === 0"><em>Non condiviso con nessuno.</em></p>
+              <form @submit.prevent="addShare()">
+                <fieldset role="group">
+                  <input type="email" placeholder="Email" aria-label="Email" x-model="shares.form.email" required />
+                  <select aria-label="Ruolo" x-model="shares.form.ruolo">
+                    <template x-for="o in options('ruoliApiario')" :key="o.value">
+                      <option :value="o.value" x-text="o.label" :selected="o.value === shares.form.ruolo"></option>
+                    </template>
+                  </select>
+                  <button type="submit">Condividi</button>
+                </fieldset>
+              </form>
+              <p><small>Condividere di nuovo con lo stesso utente ne cambia il ruolo.</small></p>
+              <p class="error" x-show="dialogError" x-text="dialogError"></p>
             </article>
           </template>
         </dialog>

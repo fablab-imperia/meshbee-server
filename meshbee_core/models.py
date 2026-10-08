@@ -38,7 +38,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, conlist, field_validator
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -579,6 +579,17 @@ class LetturaCreate(LetturaBase):
     id_nodo: str
     timestamp: datetime | None = None
     dati_raw: dict[str, Any] | None = None
+
+
+# The most ids one bulk delete takes: the readings listings' own `limit` cap,
+# so every row a filtered listing shows can go in one request.
+LETTURE_DELETE_MAX = 10000
+
+
+class LettureDelete(BaseModel):
+    """Readings to delete, by id."""
+
+    id_letture: conlist(int, min_length=1, max_length=LETTURE_DELETE_MAX)
 
 
 class LetturaResponse(LetturaBase):
