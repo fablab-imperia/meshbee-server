@@ -38,7 +38,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, conlist, field_validator
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -579,6 +579,36 @@ class LetturaCreate(LetturaBase):
     id_nodo: str
     timestamp: datetime | None = None
     dati_raw: dict[str, Any] | None = None
+
+
+class LetturaUpdate(LetturaBase):
+    """
+    Correct a reading. Only the fields sent change; a measurement sent as null
+    is cleared. The hive and node are not editable: a reading belongs to what
+    sent it.
+    """
+
+    timestamp: datetime | None = None
+    dati_raw: dict[str, Any] | None = None
+
+    @field_validator("timestamp")
+    @classmethod
+    def timestamp_is_not_cleared(cls, v):
+        # Runs only when the field is sent: omitted keeps the stored value.
+        if v is None:
+            raise ValueError("Il timestamp non può essere nullo")
+        return v
+
+
+# The most ids one bulk delete takes: the readings listings' own `limit` cap,
+# so every row a filtered listing shows can go in one request.
+LETTURE_DELETE_MAX = 10000
+
+
+class LettureDelete(BaseModel):
+    """Readings to delete, by id."""
+
+    id_letture: conlist(int, min_length=1, max_length=LETTURE_DELETE_MAX)
 
 
 class LetturaResponse(LetturaBase):

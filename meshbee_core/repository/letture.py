@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from meshbee_core.models import Lettura
 from meshbee_core.repository import as_dict, as_dicts, mapping
@@ -68,6 +68,29 @@ def list_all(session: Session, limit: int) -> list[dict[str, Any]]:
             select(Lettura).order_by(Lettura.timestamp.desc()).limit(limit)
         ).all()
     )
+
+
+def get(session: Session, id_lettura: int) -> dict[str, Any] | None:
+    return as_dict(session.get(Lettura, id_lettura))
+
+
+def update(
+    session: Session, id_lettura: int, changes: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Set the given columns, None included; None if the reading does not exist."""
+    lettura = session.get(Lettura, id_lettura)
+    if lettura is None:
+        return None
+    for column, value in changes.items():
+        setattr(lettura, column, value)
+    session.flush()
+    return as_dict(lettura)
+
+
+def delete_by_ids(session: Session, ids: list[int]) -> int:
+    """Delete the readings with these ids; returns how many there were."""
+    result = session.exec(delete(Lettura).where(Lettura.id_lettura.in_(ids)))
+    return result.rowcount
 
 
 def series(

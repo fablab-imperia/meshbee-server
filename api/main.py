@@ -49,6 +49,8 @@ from meshbee_core.models import (
     CondivisioneUpdate,
     LetturaCreate,
     LetturaResponse,
+    LetturaUpdate,
+    LettureDelete,
     MessageResponse,
     NodoCreate,
     NodoProprietarioUpdate,
@@ -1130,6 +1132,59 @@ def create_lettura_manuale(
     """
     with db_operation("inserimento lettura") as session:
         return letture_service.record_reading(session, lettura)
+
+
+@app.patch(
+    "/api/admin/letture/{id_lettura}",
+    response_model=LetturaResponse,
+    tags=["Admin - Nodi"],
+)
+def update_lettura(
+    id_lettura: int,
+    changes: LetturaUpdate,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Correct a reading (admin only): only the fields sent change, and a
+    measurement sent as null is cleared. Hive and node stay as they are.
+    """
+    with db_operation("aggiornamento lettura") as session:
+        return letture_service.update_lettura(session, id_lettura, changes)
+
+
+@app.delete(
+    "/api/admin/letture/{id_lettura}",
+    response_model=MessageResponse,
+    tags=["Admin - Nodi"],
+)
+def delete_lettura(
+    id_lettura: int, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Delete one reading (admin only). Unlike nodes and hives, this is a real
+    delete: a wrong reading has no history worth keeping.
+    """
+    with db_operation("eliminazione lettura") as session:
+        letture_service.delete_lettura(session, id_lettura)
+        return {"message": f"Lettura {id_lettura} eliminata"}
+
+
+@app.post(
+    "/api/admin/letture/elimina",
+    response_model=MessageResponse,
+    tags=["Admin - Nodi"],
+)
+def delete_letture(
+    body: LettureDelete, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Delete readings by id, in bulk (admin only): pick them with the hive and
+    date filters of `GET /api/user/arnie/{id_arnia}/letture`. Ids that do not
+    exist are skipped; the message says how many were deleted.
+    """
+    with db_operation("eliminazione letture") as session:
+        count = letture_service.delete_letture(session, body.id_letture)
+        return {"message": f"{count} letture eliminate"}
 
 
 # ============================================

@@ -1,11 +1,11 @@
-"""Readings: recording them, and reading them back as lists or chart series."""
+"""Readings: recording, correcting and deleting them, and reading them back as lists or chart series."""
 
 from datetime import datetime, timedelta
 from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import InvalidData, NotFound
-from meshbee_core.models import LetturaCreate
+from meshbee_core.models import LetturaCreate, LetturaUpdate
 from meshbee_core.repository import letture
 
 # How far back a query reaches when the caller gives no start date.
@@ -75,6 +75,43 @@ def list_for_arnia(
 
 def list_all(session, limit: int) -> list[dict[str, Any]]:
     return [dict(row) for row in letture.list_all(session, limit)]
+
+
+def update_lettura(session, id_lettura: int, changes: LetturaUpdate) -> dict[str, Any]:
+    """
+    Apply the fields the caller sent; a measurement sent as null is cleared.
+
+    Raises:
+        NotFound: if the reading does not exist.
+    """
+    updates = changes.model_dump(exclude_unset=True)
+    if updates:
+        row = letture.update(session, id_lettura, updates)
+    else:
+        # Nothing to change: hand back the row as it stands.
+        row = letture.get(session, id_lettura)
+    if not row:
+        raise NotFound("Lettura non trovata")
+    return dict(row)
+
+
+def delete_lettura(session, id_lettura: int) -> None:
+    """
+    Raises:
+        NotFound: if the reading does not exist.
+    """
+    if not letture.delete_by_ids(session, [id_lettura]):
+        raise NotFound("Lettura non trovata")
+
+
+def delete_letture(session, ids: list[int]) -> int:
+    """
+    Delete readings by id; returns how many were deleted.
+
+    Ids that do not exist are skipped rather than refused: the caller picked
+    them from a listing, and a reading already gone is the outcome it wanted.
+    """
+    return letture.delete_by_ids(session, sorted(set(ids)))
 
 
 def get_series(

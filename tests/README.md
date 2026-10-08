@@ -87,7 +87,7 @@ Its `deliver` fixture wraps each message in a SAVEPOINT, because in production e
 message gets its own transaction and the test must not let one message see another's
 uncommitted work.
 
-**`integration/api/test_main_authz.py` — the gate.** Its tables list **all 51
+**`integration/api/test_main_authz.py` — the gate.** Its tables list **all 54
 endpoints**: every protected one is swept for anonymous and authenticated-but-not-admin
 access, and every hive- or apiary-scoped one carries the **least access** that may call
 it (`viewer` … `owner`) and is called at every level, from no access at all to owning.

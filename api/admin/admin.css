@@ -52,3 +52,25 @@ td.actions button {
 .mono {
   font-family: var(--pico-font-family-monospace);
 }
+
+th.select,
+td.select {
+  width: 1%;
+}
+
+th.select input,
+td.select input {
+  margin: 0;
+}
+
+/* The sharing panel holds a table, wider than a form. */
+dialog article.wide {
+  max-width: 48rem;
+  width: 100%;
+}
+
+dialog article.wide td select {
+  margin-bottom: 0;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}

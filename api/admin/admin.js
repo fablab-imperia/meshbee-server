@@ -10,6 +10,10 @@ const id = (value) => encodeURIComponent(value);
 
 // Columns: `fmt` names a formatter in `cell()`. Fields: `options` names a
 // list in `options()`; `readonly` fields are shown but not editable.
+// `createPath` is where the create form posts when `path` is a function;
+// `createDefaults` prefills it. `bulkDelete` makes rows selectable and names
+// the route that deletes a selection. An action with `panel` opens that panel
+// instead of a form; a `partial` action sends only the fields the admin changed.
 const RESOURCES = {
   utenti: {
     label: "Utenti",
@@ -223,6 +227,10 @@ const RESOURCES = {
         ],
       },
       {
+        label: "Condivisioni",
+        panel: "shares",
+      },
+      {
         label: "Elimina",
         method: "DELETE",
         path: (r) => `/api/admin/apiari/${id(r.id_apiario)}`,
@@ -232,11 +240,14 @@ const RESOURCES = {
     ],
   },
 
-  // Read-only. Picking a hive switches to its scoped route, the one that
-  // accepts a date range; admins pass its access check.
+  // Picking a hive switches to its scoped route, the one that accepts a date
+  // range; admins pass its access check. Filter, then delete the selection:
+  // that is how a hive's readings over a period go.
   letture: {
     label: "Letture",
     path: (f) => (f.id_arnia ? `/api/user/arnie/${id(f.id_arnia)}/letture` : "/api/admin/letture"),
+    createPath: "/api/admin/letture",
+    bulkDelete: { path: "/api/admin/letture/elimina", body: "id_letture" },
     key: "id_lettura",
     filters: [
       { name: "id_arnia", label: "Arnia", type: "select", options: "arnie" },
@@ -253,7 +264,47 @@ const RESOURCES = {
       { name: "peso", label: "kg" },
       { name: "batteria", label: "V" },
     ],
-    actions: [],
+    create: [
+      { name: "id_arnia", label: "Arnia", type: "select", options: "arnie", required: true },
+      { name: "id_nodo", label: "Nodo", type: "select", options: "nodi", required: true },
+      { name: "timestamp", label: "Ora (vuoto = adesso)", type: "datetime-local" },
+      { name: "temperatura", label: "Temperatura (°C)", type: "number" },
+      { name: "umidita", label: "Umidità (%)", type: "number" },
+      { name: "peso", label: "Peso (kg)", type: "number" },
+      { name: "batteria", label: "Batteria (V)", type: "number" },
+      { name: "dati_raw", label: "Dati grezzi (JSON)", type: "json" },
+    ],
+    // The hive picked in the filter, and its node.
+    createDefaults: (f, lookups) => {
+      const a = lookups.arnie.find((x) => String(x.id_arnia) === f.id_arnia);
+      return a ? { id_arnia: a.id_arnia, id_nodo: a.id_nodo } : {};
+    },
+    createNote: "Un'arnia inesistente risponde 404: a differenza di MQTT, qui non viene creata.",
+    actions: [
+      {
+        label: "Modifica",
+        method: "PATCH",
+        path: (r) => `/api/admin/letture/${id(r.id_lettura)}`,
+        // Partial: an untouched timestamp keeps its microseconds, which the
+        // datetime input cannot show. A measurement emptied is cleared.
+        partial: true,
+        fields: [
+          { name: "timestamp", label: "Ora", type: "datetime-local", required: true },
+          { name: "temperatura", label: "Temperatura (°C)", type: "number" },
+          { name: "umidita", label: "Umidità (%)", type: "number" },
+          { name: "peso", label: "Peso (kg)", type: "number" },
+          { name: "batteria", label: "Batteria (V)", type: "number" },
+          { name: "dati_raw", label: "Dati grezzi (JSON)", type: "json" },
+        ],
+        note: "Arnia e nodo non si modificano. Un valore svuotato viene cancellato.",
+      },
+      {
+        label: "Elimina",
+        method: "DELETE",
+        path: (r) => `/api/admin/letture/${id(r.id_lettura)}`,
+        confirm: (r) => `Eliminare la lettura delle ${new Date(r.timestamp).toLocaleString("it-IT")}? Non si può annullare.`,
+      },
+    ],
   },
 
   attivita: {
@@ -290,12 +341,17 @@ function admin() {
     loading: false,
     error: "",
     notice: "",
-    // The open form or confirmation: { title, method, path, fields, values, note }.
+    // The open form or confirmation: { title, method, path, fields, values, note, body },
+    // or a panel: { kind, title }.
     dialog: null,
     dialogError: "",
+    // Keys of the rows ticked for a bulk delete.
+    selected: [],
+    // The sharing panel's data: { apiario, rows, form: { email, ruolo } }.
+    shares: null,
     // Value lists read from the API's own OpenAPI document, so the enums are
     // declared once, in meshbee_core/limits.py.
-    enums: { ruoli: [], tipiAttivita: [] },
+    enums: { ruoli: [], ruoliApiario: [], tipiAttivita: [] },
     lookups: { utenti: [], apiari: [], arnie: [], nodi: [] },
 
     get resource() {
@@ -383,6 +439,7 @@ function admin() {
       const res = await fetch("/openapi.json");
       const schemas = (await res.json()).components.schemas;
       this.enums.ruoli = schemas.UserCreate.properties.ruolo.enum;
+      this.enums.ruoliApiario = schemas.CondivisioneCreate.properties.ruolo.enum;
       this.enums.tipiAttivita = schemas.AttivitaCreate.properties.tipo_attivita.enum;
     },
 
@@ -413,6 +470,7 @@ function admin() {
     async refresh() {
       this.loading = true;
       this.error = "";
+      this.selected = [];
       await this.loadLookups();
       const r = this.resource;
       const path = typeof r.path === "function" ? r.path(this.filters) : r.path;
@@ -438,10 +496,41 @@ function admin() {
 
     openCreate() {
       const r = this.resource;
-      this.openForm(`Nuovo: ${r.label}`, "POST", r.path, r.create, {});
+      const values = r.createDefaults ? r.createDefaults(this.filters, this.lookups) : {};
+      this.openForm(`Nuovo: ${r.label}`, "POST", r.createPath || r.path, r.create, values, r.createNote);
+    },
+
+    // Bulk selection, over the rows currently listed.
+    isSelected(row) {
+      return this.selected.includes(row[this.resource.key]);
+    },
+
+    toggle(row) {
+      const key = row[this.resource.key];
+      this.selected = this.isSelected(row) ? this.selected.filter((k) => k !== key) : [...this.selected, key];
+    },
+
+    get allSelected() {
+      return this.rows.length > 0 && this.selected.length === this.rows.length;
+    },
+
+    toggleAll(on) {
+      this.selected = on ? this.rows.map((row) => row[this.resource.key]) : [];
+    },
+
+    deleteSelected() {
+      const b = this.resource.bulkDelete;
+      const n = this.selected.length;
+      this.openForm("Elimina selezionate", "POST", b.path, [], {}, `Eliminare ${n} elementi? Non si può annullare.`, {
+        [b.body]: this.selected,
+      });
     },
 
     async run(action, row) {
+      if (action.panel === "shares") {
+        await this.openShares(row);
+        return;
+      }
       // A fieldless action (a delete) opens the same dialog, as a confirmation.
       if (!action.fields) {
         this.openForm(action.label, action.method, action.path(row), [], {}, action.confirm(row));
@@ -452,18 +541,22 @@ function admin() {
         for (const f of action.fields) values[f.name] = row[f.from || f.name];
       }
       this.openForm(`${action.label}: ${this.rowLabel(row)}`, action.method, action.path(row), action.fields, values, action.note);
+      this.dialog.partial = !!action.partial;
     },
 
-    openForm(title, method, path, fields, values, note = "") {
+    openForm(title, method, path, fields, values, note = "", body = undefined) {
       const form = {};
       for (const f of fields) {
         const v = values[f.name];
         if (f.type === "checkbox") form[f.name] = !!v;
         else if (f.type === "json") form[f.name] = v == null ? "" : JSON.stringify(v, null, 2);
+        // The input takes whole seconds at most: "2026-10-08T10:54:09".
+        else if (f.type === "datetime-local") form[f.name] = v == null ? "" : String(v).slice(0, 19);
         else form[f.name] = v == null ? "" : String(v);
       }
       this.dialogError = "";
-      this.dialog = { title, method, path, fields, values: form, note };
+      // `initial` is what a partial form compares against.
+      this.dialog = { title, method, path, fields, values: form, initial: { ...form }, note, body };
     },
 
     async submit() {
@@ -471,6 +564,7 @@ function admin() {
       const body = {};
       for (const f of d.fields) {
         const raw = d.values[f.name];
+        if (d.partial && raw === d.initial[f.name]) continue;
         if (f.type === "checkbox") body[f.name] = raw;
         else if (raw === "") body[f.name] = null;
         else if (f.type === "json") {
@@ -482,12 +576,51 @@ function admin() {
           }
         } else body[f.name] = raw;
       }
-      const payload = d.fields.length ? body : undefined;
+      const payload = d.fields.length ? body : d.body;
       const data = await this.api(d.method, d.path, payload, (m) => (this.dialogError = m));
       if (data) {
         this.dialog = null;
         await this.done(data.message || "Salvato");
       }
+    },
+
+    // Sharing an apiary. These are the owner's /api/user routes; admins pass
+    // the owner check, so there is no admin copy of them.
+    async openShares(apiario) {
+      this.shares = { apiario, rows: [], form: { email: "", ruolo: "viewer" } };
+      this.dialogError = "";
+      this.dialog = { kind: "shares", title: `Condivisioni: ${apiario.nome_apiario}` };
+      await this.loadShares();
+    },
+
+    sharesPath(suffix = "") {
+      return `/api/user/apiari/${id(this.shares.apiario.id_apiario)}/condivisioni${suffix}`;
+    },
+
+    async loadShares() {
+      const rows = await this.api("GET", this.sharesPath(), undefined, (m) => (this.dialogError = m));
+      if (rows) this.shares.rows = rows;
+    },
+
+    // Every change ends by reloading the list, so it shows what the API kept.
+    async shareCall(method, suffix, body) {
+      this.dialogError = "";
+      const data = await this.api(method, this.sharesPath(suffix), body, (m) => (this.dialogError = m));
+      await this.loadShares();
+      return data;
+    },
+
+    async addShare() {
+      if (await this.shareCall("POST", "", this.shares.form)) this.shares.form.email = "";
+    },
+
+    async changeShare(share, ruolo) {
+      await this.shareCall("PUT", `/${id(share.id_utente)}`, { ruolo });
+    },
+
+    async revokeShare(share) {
+      if (!confirm(`Smettere di condividere l'apiario con ${share.email}?`)) return;
+      await this.shareCall("DELETE", `/${id(share.id_utente)}`);
     },
 
     async done(message) {
@@ -500,6 +633,8 @@ function admin() {
       switch (name) {
         case "ruoli":
           return this.enums.ruoli.map((v) => ({ value: v, label: v }));
+        case "ruoliApiario":
+          return this.enums.ruoliApiario.map((v) => ({ value: v, label: v }));
         case "tipiAttivita":
           return this.enums.tipiAttivita.map((v) => ({ value: v, label: v }));
         case "utenti":
@@ -522,6 +657,7 @@ function admin() {
 
     rowLabel(row) {
       const r = this.resource;
+      if (r.key === "id_lettura") return `lettura ${row.id_lettura} delle ${this.cell(row, { name: "timestamp", fmt: "date" })}`;
       return row.email || row.nome_apiario || row.nome_arnia || row.nome_nodo || row[r.key];
     },
 

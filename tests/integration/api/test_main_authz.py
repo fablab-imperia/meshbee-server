@@ -41,6 +41,9 @@ ADMIN_ONLY = [
     ("delete", "/api/admin/arnie/1", None),
     ("get", "/api/admin/letture", None),
     ("post", "/api/admin/letture", {"id_arnia": 1, "id_nodo": "NODE-X"}),
+    ("patch", "/api/admin/letture/1", {}),
+    ("delete", "/api/admin/letture/1", None),
+    ("post", "/api/admin/letture/elimina", {"id_letture": [1]}),
     ("get", "/api/admin/attivita", None),
     ("get", "/api/admin/apiari", None),
     (
