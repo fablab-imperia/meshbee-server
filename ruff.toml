@@ -4,7 +4,7 @@
 #   docker-compose exec api ruff check .
 #   docker-compose exec api ruff format .
 line-length = 88
-target-version = "py311" # same as the python:3.11-slim images
+target-version = "py314" # same as the python:3.14-slim images
 
 [lint]
 select = ["E", "F", "W", "I", "UP", "B"]

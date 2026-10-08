@@ -9,7 +9,7 @@ name = "meshbee-core"
 # Bumped by release-please together with API_VERSION; don't edit by hand.
 version = "1.2.0"
 description = "Shared persistence and business logic for the Meshbee backend"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 
 # Only what meshbee_core itself imports. FastAPI/uvicorn/jose stay in
 # api/requirements.txt and paho-mqtt in mqtt_handler/requirements.txt: the
