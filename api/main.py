@@ -12,9 +12,11 @@ so FastAPI must run them in its threadpool rather than on the event loop.
 import logging
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from api.auth import (
     authenticate_user,
@@ -1169,6 +1171,19 @@ def health_check():
             "database": "disconnected",
             "timestamp": datetime.now().isoformat(),
         }
+
+
+# ============================================
+# ADMIN PAGE
+# ============================================
+
+# A static page that calls the admin routes above with the same bearer token
+# as any client — it adds no route, no session and no logic of its own.
+app.mount(
+    "/admin",
+    StaticFiles(directory=Path(__file__).parent / "admin", html=True),
+    name="admin",
+)
 
 
 if __name__ == "__main__":

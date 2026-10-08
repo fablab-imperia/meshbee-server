@@ -103,7 +103,7 @@ Ports:
 
 | Port | Service | Notes |
 |---|---|---|
-| 8000 | `api` | HTTP. `/docs`, `/redoc`, `/openapi.json`. |
+| 8000 | `api` | HTTP. `/admin/`, `/docs`, `/redoc`, `/openapi.json`. |
 | 8443 | `caddy` | HTTPS. Only if you ran `make certs`. Override with `HTTPS_PORT`. |
 | 1883 | `mosquitto` | MQTT. Authentication required. |
 | 9001 | `mosquitto` | MQTT over WebSockets. Configured but unused. |
@@ -170,6 +170,8 @@ docker-compose ps
 
 - HTTP: <http://localhost:8000/docs>
 - HTTPS: <https://localhost:8443/docs> (only after `make certs`)
+- Admin page: <http://localhost:8000/admin/> — log in with the admin account
+  ([details](api/README.md#admin-page))
 
 ```bash
 curl -s localhost:8000/health | python3 -m json.tool
