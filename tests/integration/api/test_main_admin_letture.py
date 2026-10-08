@@ -1,4 +1,4 @@
-"""Deleting readings: one by id, or a selection in bulk (#21)."""
+"""Correcting readings, and deleting them: one by id, or a selection in bulk (#21)."""
 
 import pytest
 
@@ -99,3 +99,75 @@ def test_deleting_readings_leaves_the_node_last_message_alone(
         "SELECT ultimo_messaggio FROM nodi WHERE id_nodo = %s", (arnia["id_nodo"],)
     )
     assert db.fetchone()["ultimo_messaggio"].isoformat() == "2026-01-01T10:00:00"
+
+
+# ============================================
+# Correcting a reading
+# ============================================
+
+
+def test_a_correction_changes_only_the_fields_sent(admin, make_arnia, make_lettura):
+    arnia = make_arnia()
+    lettura = make_lettura(
+        arnia, timestamp="2026-01-01T10:00:00", temperatura=20, umidita=50
+    )
+
+    response = admin.patch(
+        f"/api/admin/letture/{lettura['id_lettura']}", json={"temperatura": 21.5}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert float(body["temperatura"]) == 21.5
+    assert float(body["umidita"]) == 50
+    assert body["timestamp"] == "2026-01-01T10:00:00"
+    assert body["id_arnia"] == arnia["id_arnia"]
+
+
+def test_a_measurement_sent_as_null_is_cleared(admin, make_arnia, make_lettura):
+    lettura = make_lettura(make_arnia(), peso=40)
+
+    response = admin.patch(
+        f"/api/admin/letture/{lettura['id_lettura']}", json={"peso": None}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["peso"] is None
+
+
+def test_the_timestamp_can_be_moved_but_not_cleared(admin, make_arnia, make_lettura):
+    lettura = make_lettura(make_arnia(), timestamp="2026-01-01T10:00:00")
+    path = f"/api/admin/letture/{lettura['id_lettura']}"
+
+    moved = admin.patch(path, json={"timestamp": "2026-01-02T08:30:00"})
+    cleared = admin.patch(path, json={"timestamp": None})
+
+    assert moved.json()["timestamp"] == "2026-01-02T08:30:00"
+    assert cleared.status_code == 422
+
+
+def test_a_correction_out_of_range_is_refused(admin, make_arnia, make_lettura):
+    lettura = make_lettura(make_arnia(), umidita=50)
+
+    response = admin.patch(
+        f"/api/admin/letture/{lettura['id_lettura']}", json={"umidita": 150}
+    )
+
+    assert response.status_code == 422
+
+
+def test_an_empty_correction_returns_the_reading_unchanged(
+    admin, make_arnia, make_lettura
+):
+    lettura = make_lettura(make_arnia(), temperatura=20)
+
+    response = admin.patch(f"/api/admin/letture/{lettura['id_lettura']}", json={})
+
+    assert response.status_code == 200
+    assert response.json()["id_lettura"] == lettura["id_lettura"]
+    assert float(response.json()["temperatura"]) == 20
+
+
+@pytest.mark.parametrize("body", [{}, {"temperatura": 20}])
+def test_correcting_an_unknown_reading_is_not_found(admin, body):
+    assert admin.patch("/api/admin/letture/999999", json=body).status_code == 404

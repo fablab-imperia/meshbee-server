@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 53 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 54 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `admin/` | La pagina admin servita su `/admin/` — vedi [Pagina admin](#pagina-admin). |
@@ -25,7 +25,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-53 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+54 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -105,6 +105,7 @@ whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stri
 | DELETE | `/api/admin/apiari/{id_apiario}` | admin | Elimina l'apiario di un utente qualsiasi, con le regole del proprietario (**409** come sopra). |
 | GET | `/api/admin/letture` | admin | Tutte le letture. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Inserisce una lettura a mano — backfill e test. |
+| PATCH | `/api/admin/letture/{id_lettura}` | admin | Corregge una lettura: cambiano solo i campi inviati, una misura inviata come `null` viene cancellata, `timestamp` no. Arnia e nodo non si modificano. **404** se non esiste. |
 | DELETE | `/api/admin/letture/{id_lettura}` | admin | Elimina una lettura (eliminazione vera). **404** se non esiste. |
 | POST | `/api/admin/letture/elimina` | admin | Elimina letture in blocco: `{"id_letture": [...]}`, da 1 a 10000 id. Gli id inesistenti vengono saltati; il messaggio dice quante ne sono state eliminate. Si scelgono con i filtri per arnia e data di `GET /api/user/arnie/{id_arnia}/letture`. |
 | GET | `/api/admin/attivita` | admin | Tutte le attività. `limit` 1–1000, default 100. |
@@ -218,8 +219,9 @@ colonne.
 ([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): elencare, creare,
 modificare e disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un
 nodo, reimpostare una password, consultare letture e attività; gestire con chi è
-condiviso un apiario, inserire una lettura a mano ed eliminare letture una alla volta o
-come selezione ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
+condiviso un apiario, inserire una lettura a mano, correggerne una ed eliminare letture
+una alla volta o come selezione
+([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
 [#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI su
 `/docs` resta il ripiego completo.
 

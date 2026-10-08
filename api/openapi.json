@@ -1448,6 +1448,92 @@
         "title": "LetturaResponse",
         "type": "object"
       },
+      "LetturaUpdate": {
+        "description": "Correct a reading. Only the fields sent change; a measurement sent as null\nis cleared. The hive and node are not editable: a reading belongs to what\nsent it.",
+        "properties": {
+          "batteria": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batteria"
+          },
+          "dati_raw": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dati Raw"
+          },
+          "peso": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peso"
+          },
+          "temperatura": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperatura"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "umidita": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Umidita"
+          }
+        },
+        "title": "LetturaUpdate",
+        "type": "object"
+      },
       "LettureDelete": {
         "description": "Readings to delete, by id.",
         "properties": {
@@ -2825,6 +2911,62 @@
           }
         ],
         "summary": "Delete Lettura",
+        "tags": [
+          "Admin - Nodi"
+        ]
+      },
+      "patch": {
+        "description": "Correct a reading (admin only): only the fields sent change, and a\nmeasurement sent as null is cleared. Hive and node stay as they are.",
+        "operationId": "update_lettura_api_admin_letture__id_lettura__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_lettura",
+            "required": true,
+            "schema": {
+              "title": "Id Lettura",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LetturaUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetturaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Lettura",
         "tags": [
           "Admin - Nodi"
         ]

@@ -146,7 +146,7 @@
                         <template x-if="!['select', 'textarea', 'json'].includes(f.type)">
                           <input
                             :type="f.type || 'text'"
-                            :step="f.type === 'number' ? 'any' : null"
+                            :step="f.type === 'number' ? 'any' : f.type === 'datetime-local' ? '1' : null"
                             x-model="dialog.values[f.name]"
                             :required="f.required"
                             :readonly="f.readonly"

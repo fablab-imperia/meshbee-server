@@ -49,6 +49,7 @@ from meshbee_core.models import (
     CondivisioneUpdate,
     LetturaCreate,
     LetturaResponse,
+    LetturaUpdate,
     LettureDelete,
     MessageResponse,
     NodoCreate,
@@ -1131,6 +1132,24 @@ def create_lettura_manuale(
     """
     with db_operation("inserimento lettura") as session:
         return letture_service.record_reading(session, lettura)
+
+
+@app.patch(
+    "/api/admin/letture/{id_lettura}",
+    response_model=LetturaResponse,
+    tags=["Admin - Nodi"],
+)
+def update_lettura(
+    id_lettura: int,
+    changes: LetturaUpdate,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Correct a reading (admin only): only the fields sent change, and a
+    measurement sent as null is cleared. Hive and node stay as they are.
+    """
+    with db_operation("aggiornamento lettura") as session:
+        return letture_service.update_lettura(session, id_lettura, changes)
 
 
 @app.delete(

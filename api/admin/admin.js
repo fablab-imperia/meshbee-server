@@ -13,7 +13,7 @@ const id = (value) => encodeURIComponent(value);
 // `createPath` is where the create form posts when `path` is a function;
 // `createDefaults` prefills it. `bulkDelete` makes rows selectable and names
 // the route that deletes a selection. An action with `panel` opens that panel
-// instead of a form.
+// instead of a form; a `partial` action sends only the fields the admin changed.
 const RESOURCES = {
   utenti: {
     label: "Utenti",
@@ -282,6 +282,23 @@ const RESOURCES = {
     createNote: "Un'arnia inesistente risponde 404: a differenza di MQTT, qui non viene creata.",
     actions: [
       {
+        label: "Modifica",
+        method: "PATCH",
+        path: (r) => `/api/admin/letture/${id(r.id_lettura)}`,
+        // Partial: an untouched timestamp keeps its microseconds, which the
+        // datetime input cannot show. A measurement emptied is cleared.
+        partial: true,
+        fields: [
+          { name: "timestamp", label: "Ora", type: "datetime-local", required: true },
+          { name: "temperatura", label: "Temperatura (°C)", type: "number" },
+          { name: "umidita", label: "Umidità (%)", type: "number" },
+          { name: "peso", label: "Peso (kg)", type: "number" },
+          { name: "batteria", label: "Batteria (V)", type: "number" },
+          { name: "dati_raw", label: "Dati grezzi (JSON)", type: "json" },
+        ],
+        note: "Arnia e nodo non si modificano. Un valore svuotato viene cancellato.",
+      },
+      {
         label: "Elimina",
         method: "DELETE",
         path: (r) => `/api/admin/letture/${id(r.id_lettura)}`,
@@ -524,6 +541,7 @@ function admin() {
         for (const f of action.fields) values[f.name] = row[f.from || f.name];
       }
       this.openForm(`${action.label}: ${this.rowLabel(row)}`, action.method, action.path(row), action.fields, values, action.note);
+      this.dialog.partial = !!action.partial;
     },
 
     openForm(title, method, path, fields, values, note = "", body = undefined) {
@@ -532,10 +550,13 @@ function admin() {
         const v = values[f.name];
         if (f.type === "checkbox") form[f.name] = !!v;
         else if (f.type === "json") form[f.name] = v == null ? "" : JSON.stringify(v, null, 2);
+        // The input takes whole seconds at most: "2026-10-08T10:54:09".
+        else if (f.type === "datetime-local") form[f.name] = v == null ? "" : String(v).slice(0, 19);
         else form[f.name] = v == null ? "" : String(v);
       }
       this.dialogError = "";
-      this.dialog = { title, method, path, fields, values: form, note, body };
+      // `initial` is what a partial form compares against.
+      this.dialog = { title, method, path, fields, values: form, initial: { ...form }, note, body };
     },
 
     async submit() {
@@ -543,6 +564,7 @@ function admin() {
       const body = {};
       for (const f of d.fields) {
         const raw = d.values[f.name];
+        if (d.partial && raw === d.initial[f.name]) continue;
         if (f.type === "checkbox") body[f.name] = raw;
         else if (raw === "") body[f.name] = null;
         else if (f.type === "json") {
@@ -635,6 +657,7 @@ function admin() {
 
     rowLabel(row) {
       const r = this.resource;
+      if (r.key === "id_lettura") return `lettura ${row.id_lettura} delle ${this.cell(row, { name: "timestamp", fmt: "date" })}`;
       return row.email || row.nome_apiario || row.nome_arnia || row.nome_nodo || row[r.key];
     },
 

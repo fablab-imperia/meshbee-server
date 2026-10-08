@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 53 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 54 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `admin/` | The admin page served at `/admin/` — see [Admin page](#admin-page). |
@@ -26,7 +26,7 @@ here.
 
 ## Endpoints
 
-53 operations. `Auth` says what a request must carry:
+54 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -105,6 +105,7 @@ whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 | DELETE | `/api/admin/apiari/{id_apiario}` | admin | Delete any user's apiary, under the owner's rules (**409** as above). |
 | GET | `/api/admin/letture` | admin | All readings. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Insert a reading by hand — backfill and testing. |
+| PATCH | `/api/admin/letture/{id_lettura}` | admin | Correct a reading: only the fields sent change, a measurement sent as `null` is cleared, `timestamp` cannot be. Hive and node are not editable. **404** if unknown. |
 | DELETE | `/api/admin/letture/{id_lettura}` | admin | Delete one reading (a real delete). **404** if unknown. |
 | POST | `/api/admin/letture/elimina` | admin | Delete readings in bulk: `{"id_letture": [...]}`, 1–10000 ids. Unknown ids are skipped; the message says how many went. Pick them with the hive and date filters of `GET /api/user/arnie/{id_arnia}/letture`. |
 | GET | `/api/admin/attivita` | admin | All activities. `limit` 1–1000, default 100. |
@@ -214,7 +215,7 @@ The 500 body stays vague on purpose: the exception text can name tables and colu
 ([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): list, create, edit
 and deactivate users, nodes, hives and apiaries, assign a node's owner, reset a
 password, browse readings and activities; manage who an apiary is shared with, insert a
-reading by hand, and delete readings one at a time or as a selection
+reading by hand, correct one, and delete readings one at a time or as a selection
 ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
 [#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI at
 `/docs` remains the full fallback.
