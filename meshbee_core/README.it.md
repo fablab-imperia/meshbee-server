@@ -39,7 +39,8 @@ scripts/ ───────┘
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` è l'unica proiezione che include `password_hash`. |
 | `nodi.py` | `nodi`, compreso `register_if_absent` per il percorso di ingest. |
-| `arnie.py` | `arnie`, e `STATO`: ogni arnia con il nome del nodo e l'ultima lettura. `update` usa un sentinella `UNSET` così `attiva` viene toccata solo se passata esplicitamente. |
+| `arnie.py` | `arnie`, e `STATO`: ogni arnia con il nome del nodo, il suo apiario e l'ultima lettura. `update` usa un sentinella `UNSET` così `attiva` e `id_apiario` vengono toccate solo se passate esplicitamente. |
+| `apiari.py` | `apiari`, e quali di questi un utente vede attraverso le arnie a cui è associato. |
 | `letture.py` | `letture`. `insert` è l'unica INSERT a cui arrivano entrambi gli entry point; `series` mette in whitelist il nome della colonna. |
 | `attivita.py` | `log_attivita`, con update e delete limitati al proprietario. |
 | `accessi.py` | `utenti_arnie` — la tabella delle associazioni. |
@@ -48,9 +49,10 @@ scripts/ ───────┘
 
 | Modulo | Copre |
 |---|---|
-| `auth.py` | Autenticazione e la scala dei permessi `read < write < admin`. |
+| `auth.py` | Autenticazione, la scala dei permessi `read < write < admin` e la visibilità degli apiari. |
 | `utenti.py` | Ciclo di vita degli account, incluso il rifiuto di disattivare se stessi. |
-| `arnie.py` | Le arnie, e chi può vedere quali. |
+| `arnie.py` | Le arnie, chi può vedere quali, e in quale apiario un'arnia può essere spostata. |
+| `apiari.py` | Gli apiari; dismetterne uno è rifiutato finché contiene arnie attive. |
 | `letture.py` | Le letture, la finestra di default di un anno, la validazione dei limiti. |
 | `attivita.py` | Il log attività. |
 | `accessi.py` | Concessione e revoca dell'accesso a un'arnia. |

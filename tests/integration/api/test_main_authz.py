@@ -47,12 +47,18 @@ ADMIN_ONLY = [
     ("get", "/api/admin/letture", None),
     ("post", "/api/admin/letture", {"id_arnia": 1, "id_nodo": "NODE-X"}),
     ("get", "/api/admin/attivita", None),
+    ("get", "/api/admin/apiari", None),
+    ("post", "/api/admin/apiari", {"nome_apiario": "Apiario X"}),
+    ("get", "/api/admin/apiari/1", None),
+    ("put", "/api/admin/apiari/1", {}),
+    ("delete", "/api/admin/apiari/1", None),
 ]
 
 # Authenticated but not scoped to a single arnia.
 USER_GLOBAL = [
     ("get", "/api/auth/me", None),
     ("get", "/api/user/arnie", None),
+    ("get", "/api/user/apiari", None),
     (
         "put",
         "/api/user/password",
@@ -79,7 +85,17 @@ ARNIA_SCOPED = [
     ("delete", "/api/user/arnie/{}/attivita/1", None),
 ]
 
-PROTECTED = ADMIN_ONLY + USER_GLOBAL + [(m, p.format(1), b) for m, p, b in ARNIA_SCOPED]
+# Scoped to {id_apiario}: guarded by check_user_apiario_access, which admits a
+# user through a hive of theirs in the apiary. `{}` is substituted.
+APIARIO_SCOPED = [
+    ("get", "/api/user/apiari/{}", None),
+]
+
+PROTECTED = (
+    ADMIN_ONLY
+    + USER_GLOBAL
+    + [(m, p.format(1), b) for m, p, b in ARNIA_SCOPED + APIARIO_SCOPED]
+)
 
 
 def call(client, method, path, body):
@@ -202,6 +218,51 @@ def test_admins_reach_arnie_they_are_not_associated_with(
     arnia = make_arnia()
     response = as_user(make_utente(ruolo="admin")).get(
         f"/api/user/arnie/{arnia['id_arnia']}"
+    )
+
+    assert response.status_code == 200
+
+
+# ============================================
+# Per-apiario access
+# ============================================
+
+
+@pytest.mark.parametrize("method, path, body", APIARIO_SCOPED, ids=ids(APIARIO_SCOPED))
+def test_apiario_endpoints_reject_a_user_without_a_hive_there(
+    as_user, make_utente, make_apiario, make_arnia, method, path, body
+):
+    """An apiary is not readable just for existing, nor for holding someone else's hive."""
+    apiario = make_apiario()
+    make_arnia(apiario=apiario)
+
+    response = call(
+        as_user(make_utente()), method, path.format(apiario["id_apiario"]), body
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("method, path, body", APIARIO_SCOPED, ids=ids(APIARIO_SCOPED))
+def test_apiario_endpoints_admit_a_user_with_a_hive_there(
+    as_user, make_utente, make_apiario, make_arnia, grant_access, method, path, body
+):
+    """A read association with one hive in the apiary is what opens it."""
+    utente, apiario = make_utente(), make_apiario()
+    arnia = make_arnia(apiario=apiario)
+    grant_access(utente["id_utente"], arnia["id_arnia"], "read")
+
+    response = call(as_user(utente), method, path.format(apiario["id_apiario"]), body)
+
+    assert response.status_code != 403
+
+
+def test_admins_reach_apiari_they_have_no_hive_in(as_user, make_utente, make_apiario):
+    """check_user_apiario_access short-circuits for admins, like the arnia gate."""
+    apiario = make_apiario()
+
+    response = as_user(make_utente(ruolo="admin")).get(
+        f"/api/user/apiari/{apiario['id_apiario']}"
     )
 
     assert response.status_code == 200

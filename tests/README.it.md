@@ -90,8 +90,8 @@ SAVEPOINT, perché in produzione ogni messaggio ha la sua transazione e il test 
 lasciare che un messaggio veda il lavoro non committato di un altro.
 
 **`integration/api/test_main_authz.py` — il cancello.** Un'unica tabella passa in
-rassegna **tutti i 37 endpoint** per accesso anonimo, autenticato-ma-non-admin e
-autenticato-senza-associazione. **Aggiungi ogni endpoint nuovo a quella tabella.** È
+rassegna **tutti i 44 endpoint** per accesso anonimo, autenticato-ma-non-admin e
+autenticato-senza-associazione (con l'arnia, o con un'arnia dell'apiario). **Aggiungi ogni endpoint nuovo a quella tabella.** È
 quello che becca una rotta che si è dimenticata il suo `Depends`.
 
 ## Fixture
@@ -147,8 +147,8 @@ richiesta, perché la sessione prosegue immutata nelle chiamate a service e repo
 
 ### Costruttori di dati
 
-`make_utente`, `make_arnia`, `grant_access`, `utente_con_arnia`, `make_lettura`,
-`make_attivita`.
+`make_utente`, `make_apiario`, `make_arnia(apiario=...)`, `grant_access`,
+`utente_con_arnia`, `make_lettura`, `make_attivita`.
 
 ## Convenzioni
 

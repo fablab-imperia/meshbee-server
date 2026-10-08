@@ -263,3 +263,12 @@ def check_user_arnia_access(
             )
     except SQLAlchemyError as e:
         raise database_unavailable_error(e) from e
+
+
+def check_user_apiario_access(id_utente: int, id_apiario: int) -> bool:
+    """Whether a user may read an apiary (see `auth_service.has_apiario_access`)."""
+    try:
+        with get_session() as session:
+            return auth_service.has_apiario_access(session, id_utente, id_apiario)
+    except SQLAlchemyError as e:
+        raise database_unavailable_error(e) from e

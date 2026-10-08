@@ -8,7 +8,7 @@ but neither is it an HTTP concept.
 
 from typing import Any
 
-from meshbee_core.repository import accessi, utenti
+from meshbee_core.repository import accessi, apiari, utenti
 from meshbee_core.security import verify_password
 
 # Livelli di permesso (admin > write > read).
@@ -79,3 +79,14 @@ def has_arnia_access(
     return (
         PERMISSION_LEVELS[result["permessi"]] >= PERMISSION_LEVELS[required_permission]
     )
+
+
+def has_apiario_access(session, id_utente: int, id_apiario: int) -> bool:
+    """
+    Whether a user may read an apiary: an admin always, anyone else through a
+    hive in it they are associated with. There is no per-apiary grant.
+    """
+    user = utenti.get_ruolo(session, id_utente)
+    if user and user["ruolo"] == "admin":
+        return True
+    return apiari.is_visible_to(session, id_utente, id_apiario)

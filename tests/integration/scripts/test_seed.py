@@ -169,6 +169,19 @@ def test_an_empty_install_gets_the_sample_apiary(db, run_seed):
     assert db.fetchone()["n"] == 4
 
 
+def test_the_sample_hives_stand_in_the_sample_apiario(db, run_seed):
+    """A fresh install shows the app an apiary with something in it."""
+    seed_script.add_sample_apiary()
+
+    db.execute(
+        "SELECT a.nome_apiario, count(*) AS n FROM arnie h"
+        " JOIN apiari a USING (id_apiario) GROUP BY a.nome_apiario"
+    )
+    assert [dict(row) for row in db.fetchall()] == [
+        {"nome_apiario": "Apiario Collina", "n": 2}
+    ]
+
+
 def test_the_sample_apiary_is_not_added_twice(db, run_seed):
     seed_script.add_sample_apiary()
     seed_script.add_sample_apiary()

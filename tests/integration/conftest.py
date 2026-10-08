@@ -72,21 +72,53 @@ def make_utente(db):
 
 @pytest.fixture
 def make_arnia(db):
-    """Insert a `nodi` row (once) plus an `arnie` row, and return the arnia."""
+    """
+    Insert a `nodi` row (once) plus an `arnie` row, and return the arnia.
+
+    `apiario` is a row from `make_apiario`; by default the arnia is in none.
+    """
     counter = iter(range(1, 1000))
 
-    def _make(id_nodo="NODE-TEST"):
+    def _make(id_nodo="NODE-TEST", apiario=None):
         db.execute(
             "INSERT INTO nodi (id_nodo, nome_nodo) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             (id_nodo, "Nodo di test"),
         )
         db.execute(
             """
-            INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia)
+            INSERT INTO arnie (id_nodo, id_sensore_fisico, nome_arnia, id_apiario)
+            VALUES (%s, %s, %s, %s)
+            RETURNING *
+            """,
+            (
+                id_nodo,
+                f"SENSOR{next(counter):02d}",
+                "Arnia di test",
+                apiario["id_apiario"] if apiario else None,
+            ),
+        )
+        return dict(db.fetchone())
+
+    return _make
+
+
+@pytest.fixture
+def make_apiario(db):
+    """Insert an `apiari` row and return it."""
+    counter = iter(range(1, 1000))
+
+    def _make(nome_apiario=None, attivo=True, proprietario=None):
+        db.execute(
+            """
+            INSERT INTO apiari (nome_apiario, attivo, id_utente_proprietario)
             VALUES (%s, %s, %s)
             RETURNING *
             """,
-            (id_nodo, f"SENSOR{next(counter):02d}", "Arnia di test"),
+            (
+                nome_apiario or f"Apiario {next(counter):02d}",
+                attivo,
+                proprietario["id_utente"] if proprietario else None,
+            ),
         )
         return dict(db.fetchone())
 

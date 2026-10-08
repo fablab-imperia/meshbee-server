@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 37 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 44 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -24,13 +24,15 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-37 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+44 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
 - **admin** — quanto sopra *più* `ruolo = 'admin'` (`get_current_admin_user`).
 - **utente + `read`/`write`** — quanto sopra *più* quel permesso su quella specifica
   arnia. Gli admin passano il controllo comunque.
+- **utente + arnia lì** — quanto sopra *più* un'associazione attiva con un'arnia attiva
+  di quell'apiario. Gli admin passano il controllo comunque.
 
 ### Autenticazione
 
@@ -45,9 +47,9 @@ Tutto quello sotto `/api/user/arnie/{id_arnia}` è protetto su quell'arnia.
 
 | Metodo | Percorso | Auth | Scopo |
 |---|---|---|---|
-| GET | `/api/user/arnie` | utente | Le arnie visibili al chiamante, ciascuna con l'ultima lettura. |
+| GET | `/api/user/arnie` | utente | Le arnie visibili al chiamante, ciascuna con l'ultima lettura e il suo apiario. `id_apiario` opzionale la restringe a un apiario. |
 | GET | `/api/user/arnie/{id_arnia}` | utente + `read` | Una singola arnia con l'ultima lettura. |
-| PUT | `/api/user/arnie/{id_arnia}` | utente + `write` | Rinomina/sposta un'arnia. **Non** può cambiare `attiva`. |
+| PUT | `/api/user/arnie/{id_arnia}` | utente + `write` | Rinomina/sposta un'arnia. **Non** può cambiare `attiva`. `id_apiario` solo verso un apiario che il chiamante vede; `null` toglie l'arnia dall'apiario, ometterlo lo lascia. |
 | GET | `/api/user/arnie/{id_arnia}/letture` | utente + `read` | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + `read` | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | utente + `read` | Solo `{timestamp, umidita}`. |
@@ -58,6 +60,8 @@ Tutto quello sotto `/api/user/arnie/{id_arnia}` è protetto su quell'arnia.
 | PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + `write` | Modifica un'attività — **solo le proprie**. |
 | DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + `write` | Elimina un'attività — **solo le proprie**. |
 | PUT | `/api/user/password` | utente | Cambia la propria password. Richiede `current_password`. |
+| GET | `/api/user/apiari` | utente | Gli apiari attivi che contengono almeno un'arnia del chiamante (tutti, per un admin). |
+| GET | `/api/user/apiari/{id_apiario}` | utente + arnia lì | Un singolo apiario. |
 
 I quattro endpoint di serie esistono perché a un grafico servono due colonne su una riga di
 nove; scartano le righe in cui il campo è NULL. L'elenco dei campi accettati è una
@@ -79,11 +83,16 @@ whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stri
 | GET | `/api/admin/nodi/{id_nodo}` | admin | Un singolo nodo. |
 | PUT | `/api/admin/nodi/{id_nodo}` | admin | Aggiorna un nodo (il body è un `NodoCreate` completo). |
 | DELETE | `/api/admin/nodi/{id_nodo}` | admin | Disattiva. Arnie e letture restano. |
-| GET | `/api/admin/arnie` | admin | Tutte le arnie, comprese quelle dismesse. |
-| POST | `/api/admin/arnie` | admin | Crea un'arnia. |
+| GET | `/api/admin/arnie` | admin | Tutte le arnie, comprese quelle dismesse. `id_apiario` opzionale. |
+| POST | `/api/admin/arnie` | admin | Crea un'arnia, eventualmente in un apiario (`id_apiario`). |
 | GET | `/api/admin/arnie/{id_arnia}` | admin | Una singola arnia con l'ultima lettura. |
 | PUT | `/api/admin/arnie/{id_arnia}` | admin | Aggiorna un'arnia — **`attiva` compresa**, a differenza della rotta utente. |
 | DELETE | `/api/admin/arnie/{id_arnia}` | admin | Disattiva. Le letture storiche restano. |
+| GET | `/api/admin/apiari` | admin | Tutti gli apiari, compresi quelli dismessi. |
+| POST | `/api/admin/apiari` | admin | Crea un apiario. `id_utente_proprietario` è informativo e non dà alcun permesso. |
+| GET | `/api/admin/apiari/{id_apiario}` | admin | Un singolo apiario. |
+| PUT | `/api/admin/apiari/{id_apiario}` | admin | Aggiorna un apiario, `attivo` compreso. |
+| DELETE | `/api/admin/apiari/{id_apiario}` | admin | Disattiva. **409** finché contiene arnie attive. |
 | GET | `/api/admin/letture` | admin | Tutte le letture. `limit` 1–10000, default 1000. |
 | POST | `/api/admin/letture` | admin | Inserisce una lettura a mano — backfill e test. |
 | GET | `/api/admin/attivita` | admin | Tutte le attività. `limit` 1–1000, default 100. |
@@ -121,6 +130,7 @@ Le dipendenze si impilano, ciascuna sopra la precedente:
 | `get_current_active_user` | **400** `Utente non attivo` | L'account esiste ma `attivo` è falso. |
 | `get_current_admin_user` | **403** `Permessi insufficienti - richiesto ruolo admin` | L'account non è admin. |
 | `check_user_arnia_access` | **403** | Nessuna associazione con quell'arnia al livello richiesto. |
+| `check_user_apiario_access` | **403** | Nessuna associazione attiva con un'arnia attiva di quell'apiario. |
 
 `HTTPBearer(auto_error=False)` è voluto. Lasciato al default, FastAPI risponde a un
 header *mancante* con un 403 secco e senza `WWW-Authenticate`; disattivandolo la
@@ -133,6 +143,12 @@ numericamente in `meshbee_core/services/auth.py`. Un account con `ruolo = 'admin
 scavalca del tutto la tabella delle associazioni. Un nome di permesso non riconosciuto
 solleva un'eccezione invece di restituire False, così un errore di battitura fallisce in
 chiusura.
+
+**Gli apiari non hanno permessi propri.** Un utente vede un apiario perché è associato a
+un'arnia che ci sta, e al suo interno solo quelle arnie — `?id_apiario=` restringe
+l'elenco delle arnie del chiamante, non lo allarga mai. Un utente con `write` su
+un'arnia può spostarla solo in un apiario che vede già; uno nascosto o inesistente
+riceve lo stesso **400**, così la risposta non rivela nulla.
 
 Due cose da sapere sui token:
 

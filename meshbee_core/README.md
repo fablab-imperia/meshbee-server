@@ -39,7 +39,8 @@ scripts/ ───────┘
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` is the only projection that includes `password_hash`. |
 | `nodi.py` | `nodi`, including `register_if_absent` for the ingest path. |
-| `arnie.py` | `arnie`, and `STATO`: each hive with its node's name and latest reading. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
+| `arnie.py` | `arnie`, and `STATO`: each hive with its node's name, its apiary and latest reading. `update` uses an `UNSET` sentinel so `attiva` and `id_apiario` are only touched when explicitly passed. |
+| `apiari.py` | `apiari`, and which of them a user can see through the hives they are associated with. |
 | `letture.py` | `letture`. `insert` is the single INSERT both entry points reach; `series` whitelists the column name. |
 | `attivita.py` | `log_attivita`, with ownership-scoped update and delete. |
 | `accessi.py` | `utenti_arnie` — the association table. |
@@ -48,9 +49,10 @@ scripts/ ───────┘
 
 | Module | Covers |
 |---|---|
-| `auth.py` | Authentication and the `read < write < admin` permission ladder. |
+| `auth.py` | Authentication, the `read < write < admin` permission ladder, and apiary visibility. |
 | `utenti.py` | Account lifecycle, including the refusal to deactivate yourself. |
-| `arnie.py` | Hives, and who is allowed to see which. |
+| `arnie.py` | Hives, who is allowed to see which, and which apiary a hive may be moved into. |
+| `apiari.py` | Apiaries; retiring one is refused while active hives are still in it. |
 | `letture.py` | Readings, the default one-year window, range validation. |
 | `attivita.py` | The activity log. |
 | `accessi.py` | Granting and revoking access to a hive. |

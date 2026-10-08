@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.auth import (
     authenticate_user,
+    check_user_apiario_access,
     check_user_arnia_access,
     create_access_token,
     create_refresh_token,
@@ -28,6 +29,9 @@ from api.config import settings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.models import (
+    ApiarioCreate,
+    ApiarioResponse,
+    ApiarioUpdate,
     ArniaConStato,
     ArniaCreate,
     ArniaResponse,
@@ -54,6 +58,9 @@ from meshbee_core.models import (
 )
 from meshbee_core.services import (
     accessi as accessi_service,
+)
+from meshbee_core.services import (
+    apiari as apiari_service,
 )
 from meshbee_core.services import (
     arnie as arnie_service,
@@ -149,6 +156,19 @@ def require_arnia_access(current_user: dict, id_arnia: int, permesso: str, detai
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
+def require_apiario_access(current_user: dict, id_apiario: int):
+    """Guard an apiary-scoped endpoint, answering 403 when the user is not allowed."""
+    if not check_user_apiario_access(current_user["id_utente"], id_apiario):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Non hai accesso a questo apiario",
+        )
+
+
+# Shared by every hive list that can be narrowed to one apiary.
+ID_APIARIO_FILTER = Query(None, description="Solo le arnie di questo apiario")
+
+
 # ============================================
 # ENDPOINT AUTENTICAZIONE
 # ============================================
@@ -198,7 +218,10 @@ def get_me(current_user: dict = Depends(get_current_active_user)):
 
 
 @app.get("/api/user/arnie", response_model=list[ArniaConStato], tags=["Utente"])
-def get_user_arnie(current_user: dict = Depends(get_current_active_user)):
+def get_user_arnie(
+    id_apiario: int | None = ID_APIARIO_FILTER,
+    current_user: dict = Depends(get_current_active_user),
+):
     """
     Ottieni lista delle arnie associate all'utente con lo stato attuale
 
@@ -206,7 +229,32 @@ def get_user_arnie(current_user: dict = Depends(get_current_active_user)):
         Lista di arnie con ultime letture
     """
     with db_operation("recupero arnie utente") as session:
-        return arnie_service.list_for_utente(session, current_user)
+        return arnie_service.list_for_utente(session, current_user, id_apiario)
+
+
+@app.get("/api/user/apiari", response_model=list[ApiarioResponse], tags=["Utente"])
+def get_user_apiari(current_user: dict = Depends(get_current_active_user)):
+    """
+    Active apiaries holding at least one of the user's hives (every active one
+    for an admin). Their hives: `GET /api/user/arnie?id_apiario=...`.
+    """
+    with db_operation("recupero apiari utente") as session:
+        return apiari_service.list_for_utente(session, current_user)
+
+
+@app.get(
+    "/api/user/apiari/{id_apiario}", response_model=ApiarioResponse, tags=["Utente"]
+)
+def get_apiario_user(
+    id_apiario: int, current_user: dict = Depends(get_current_active_user)
+):
+    """
+    One apiary, if it holds a hive the user is associated with.
+    """
+    require_apiario_access(current_user, id_apiario)
+
+    with db_operation("recupero apiario") as session:
+        return apiari_service.get_apiario(session, id_apiario)
 
 
 @app.get(
@@ -536,7 +584,10 @@ def get_all_nodi(current_user: dict = Depends(get_current_admin_user)):
 
 
 @app.get("/api/admin/arnie", response_model=list[ArniaConStato], tags=["Admin"])
-def get_all_arnie(current_user: dict = Depends(get_current_admin_user)):
+def get_all_arnie(
+    id_apiario: int | None = ID_APIARIO_FILTER,
+    current_user: dict = Depends(get_current_admin_user),
+):
     """
     Ottieni lista di tutte le arnie con stato (solo admin)
 
@@ -544,7 +595,7 @@ def get_all_arnie(current_user: dict = Depends(get_current_admin_user)):
         Lista di tutte le arnie
     """
     with db_operation("recupero arnie") as session:
-        return arnie_service.list_all(session)
+        return arnie_service.list_all(session, id_apiario)
 
 
 @app.post("/api/admin/arnie", response_model=ArniaResponse, tags=["Admin"])
@@ -700,7 +751,9 @@ def update_arnia_admin(
     Aggiorna una arnia (solo admin).
     """
     with db_operation("aggiornamento arnia") as session:
-        return arnie_service.update_arnia(session, id_arnia, arnia, allow_attiva=True)
+        return arnie_service.update_arnia(
+            session, id_arnia, arnia, current_user, allow_attiva=True
+        )
 
 
 @app.delete(
@@ -716,6 +769,82 @@ def delete_arnia(id_arnia: int, current_user: dict = Depends(get_current_admin_u
     with db_operation("disattivazione arnia") as session:
         arnie_service.deactivate_arnia(session, id_arnia)
         return {"message": f"Arnia {id_arnia} disattivata con successo"}
+
+
+# ============================================
+# ENDPOINT ADMIN - APIARI
+# ============================================
+
+
+@app.get(
+    "/api/admin/apiari", response_model=list[ApiarioResponse], tags=["Admin - Apiari"]
+)
+def get_all_apiari(current_user: dict = Depends(get_current_admin_user)):
+    """
+    Every apiary, retired ones included (admin only).
+    """
+    with db_operation("recupero apiari") as session:
+        return apiari_service.list_all(session)
+
+
+@app.post("/api/admin/apiari", response_model=ApiarioResponse, tags=["Admin - Apiari"])
+def create_apiario(
+    apiario: ApiarioCreate, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Create an apiary (admin only). Hives join it through their `id_apiario`.
+    """
+    with db_operation("creazione apiario") as session:
+        return apiari_service.create_apiario(session, apiario)
+
+
+@app.get(
+    "/api/admin/apiari/{id_apiario}",
+    response_model=ApiarioResponse,
+    tags=["Admin - Apiari"],
+)
+def get_apiario_admin(
+    id_apiario: int, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    One apiary (admin only).
+    """
+    with db_operation("recupero apiario") as session:
+        return apiari_service.get_apiario(session, id_apiario)
+
+
+@app.put(
+    "/api/admin/apiari/{id_apiario}",
+    response_model=ApiarioResponse,
+    tags=["Admin - Apiari"],
+)
+def update_apiario(
+    id_apiario: int,
+    apiario: ApiarioUpdate,
+    current_user: dict = Depends(get_current_admin_user),
+):
+    """
+    Update an apiary (admin only). Retiring it is refused while it holds active hives.
+    """
+    with db_operation("aggiornamento apiario") as session:
+        return apiari_service.update_apiario(session, id_apiario, apiario)
+
+
+@app.delete(
+    "/api/admin/apiari/{id_apiario}",
+    response_model=MessageResponse,
+    tags=["Admin - Apiari"],
+)
+def delete_apiario(
+    id_apiario: int, current_user: dict = Depends(get_current_admin_user)
+):
+    """
+    Retire an apiary (soft delete, admin only).
+    Refused with 409 while active hives are still in it.
+    """
+    with db_operation("disattivazione apiario") as session:
+        apiari_service.deactivate_apiario(session, id_apiario)
+        return {"message": f"Apiario {id_apiario} disattivato con successo"}
 
 
 @app.delete(
@@ -805,7 +934,9 @@ def update_arnia_user(
     )
 
     with db_operation("aggiornamento arnia") as session:
-        return arnie_service.update_arnia(session, id_arnia, arnia, allow_attiva=False)
+        return arnie_service.update_arnia(
+            session, id_arnia, arnia, current_user, allow_attiva=False
+        )
 
 
 @app.put("/api/user/password", response_model=MessageResponse, tags=["Utente"])

@@ -102,6 +102,42 @@ def default(value: str) -> dict:
     return {"server_default": text(f"'{value}'")}
 
 
+def latitudine_column(description: str = "Latitudine in formato DD, es: 45.464200"):
+    """A nullable decimal-degree latitude column, bounded by `limits.py`."""
+    return Field(
+        None,
+        ge=LATITUDINE_MIN,
+        le=LATITUDINE_MAX,
+        sa_type=Numeric(9, 6),
+        description=description,
+    )
+
+
+def longitudine_column(description: str = "Longitudine in formato DD, es: 9.190000"):
+    """A nullable decimal-degree longitude column, bounded by `limits.py`."""
+    return Field(
+        None,
+        ge=LONGITUDINE_MIN,
+        le=LONGITUDINE_MAX,
+        sa_type=Numeric(9, 6),
+        description=description,
+    )
+
+
+def coordinate_checks(prefix: str = "") -> tuple[CheckConstraint, CheckConstraint]:
+    """The CHECKs matching `latitudine_column` and `longitudine_column`."""
+    return (
+        CheckConstraint(
+            in_range("latitudine", LATITUDINE_MIN, LATITUDINE_MAX),
+            name=f"{prefix}valid_latitudine",
+        ),
+        CheckConstraint(
+            in_range("longitudine", LONGITUDINE_MIN, LONGITUDINE_MAX),
+            name=f"{prefix}valid_longitudine",
+        ),
+    )
+
+
 # ============================================
 # Autenticazione
 # ============================================
@@ -299,6 +335,74 @@ class Nodo(NodoResponse, table=True):
 
 
 # ============================================
+# Apiari
+# ============================================
+
+
+class ApiarioBase(SQLModel):
+    """An apiary: the place a group of hives stands in."""
+
+    nome_apiario: str = Field(sa_type=String(100))
+    descrizione: str | None = Field(None, sa_type=Text)
+    posizione: str | None = Field(None, sa_type=String(255))
+    latitudine: Decimal | None = latitudine_column()
+    longitudine: Decimal | None = longitudine_column()
+    # Informational only: access to an apiary still comes from `utenti_arnie`.
+    id_utente_proprietario: int | None = Field(
+        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+    )
+
+
+class ApiarioCreate(ApiarioBase):
+    """New apiary."""
+
+    metadati: dict[str, Any] | None = None
+
+
+class ApiarioUpdate(BaseModel):
+    """Partial apiary update: an omitted or null field keeps its stored value."""
+
+    nome_apiario: str | None = None
+    descrizione: str | None = None
+    posizione: str | None = None
+    latitudine: Decimal | None = Field(
+        None,
+        ge=LATITUDINE_MIN,
+        le=LATITUDINE_MAX,
+        description="Latitudine in formato DD",
+    )
+    longitudine: Decimal | None = Field(
+        None,
+        ge=LONGITUDINE_MIN,
+        le=LONGITUDINE_MAX,
+        description="Longitudine in formato DD",
+    )
+    id_utente_proprietario: int | None = None
+    attivo: bool | None = None
+    metadati: dict[str, Any] | None = None
+
+
+class ApiarioResponse(ApiarioBase):
+    """An apiary as the API returns it."""
+
+    id_apiario: int = Field(primary_key=True)
+    data_creazione: datetime = Field(sa_column_kwargs=NOW)
+    data_disattivazione: datetime | None = None
+    attivo: bool = Field(sa_column_kwargs=TRUE)
+    metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Apiario(ApiarioResponse, table=True):
+    __tablename__ = "apiari"
+    __table_args__ = (
+        *coordinate_checks("apiari_"),
+        {"comment": "Apiari: luoghi fisici che raggruppano le arnie"},
+    )
+
+
+# ============================================
 # Arnie
 # ============================================
 
@@ -311,19 +415,11 @@ class ArniaBase(SQLModel):
     nome_arnia: str | None = Field(None, sa_type=String(100))
     descrizione: str | None = Field(None, sa_type=Text)
     posizione: str | None = Field(None, sa_type=String(255))
-    latitudine: Decimal | None = Field(
-        None,
-        ge=LATITUDINE_MIN,
-        le=LATITUDINE_MAX,
-        sa_type=Numeric(9, 6),
-        description="Latitudine in formato DD, es: 45.464200",
-    )
-    longitudine: Decimal | None = Field(
-        None,
-        ge=LONGITUDINE_MIN,
-        le=LONGITUDINE_MAX,
-        sa_type=Numeric(9, 6),
-        description="Longitudine in formato DD, es: 9.190000",
+    latitudine: Decimal | None = latitudine_column()
+    longitudine: Decimal | None = longitudine_column()
+    # Optional, so hives provisioned over MQTT and those predating apiaries fit.
+    id_apiario: int | None = Field(
+        None, foreign_key="apiari.id_apiario", ondelete="SET NULL"
     )
 
 
@@ -353,6 +449,9 @@ class ArniaUpdate(BaseModel):
     )
     attiva: bool | None = None
     metadati: dict[str, Any] | None = None
+    # Unlike the fields above, an explicit null here means "take the hive out
+    # of its apiary"; only leaving the field out keeps the stored value.
+    id_apiario: int | None = None
 
 
 class ArniaResponse(ArniaBase):
@@ -373,14 +472,7 @@ class Arnia(ArniaResponse, table=True):
         UniqueConstraint(
             "id_nodo", "id_sensore_fisico", name="arnie_id_nodo_id_sensore_fisico_key"
         ),
-        CheckConstraint(
-            in_range("latitudine", LATITUDINE_MIN, LATITUDINE_MAX),
-            name="valid_latitudine",
-        ),
-        CheckConstraint(
-            in_range("longitudine", LONGITUDINE_MIN, LONGITUDINE_MAX),
-            name="valid_longitudine",
-        ),
+        *coordinate_checks(),
         {"comment": "Arnie monitorate con sensori"},
     )
 
@@ -388,6 +480,7 @@ class Arnia(ArniaResponse, table=True):
 class ArniaConStato(ArniaResponse):
     """Arnia con ultime letture e coordinate"""
 
+    nome_apiario: str | None = None
     ultima_temperatura: Decimal | None = None
     ultima_umidita: Decimal | None = None
     ultimo_peso: Decimal | None = None
@@ -681,6 +774,9 @@ INDEXES = (
     Index("idx_nodi_ultimo_messaggio", Nodo.ultimo_messaggio),
     Index("idx_arnie_nodo", Arnia.id_nodo),
     Index("idx_arnie_attiva", Arnia.attiva),
+    Index("idx_arnie_apiario", Arnia.id_apiario),
+    Index("idx_apiari_attivo", Apiario.attivo),
+    Index("idx_apiari_proprietario", Apiario.id_utente_proprietario),
     Index("idx_utenti_arnie_utente", UtenteArnia.id_utente),
     Index("idx_utenti_arnie_arnia", UtenteArnia.id_arnia),
     Index("idx_utenti_arnie_attivo", UtenteArnia.attivo),

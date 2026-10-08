@@ -1,6 +1,307 @@
 {
   "components": {
     "schemas": {
+      "ApiarioCreate": {
+        "description": "New apiary.",
+        "properties": {
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_utente_proprietario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente Proprietario"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latitudine in formato DD, es: 45.464200",
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Longitudine in formato DD, es: 9.190000",
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_apiario": {
+            "title": "Nome Apiario",
+            "type": "string"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "required": [
+          "nome_apiario"
+        ],
+        "title": "ApiarioCreate",
+        "type": "object"
+      },
+      "ApiarioResponse": {
+        "description": "An apiary as the API returns it.",
+        "properties": {
+          "attivo": {
+            "title": "Attivo",
+            "type": "boolean"
+          },
+          "data_creazione": {
+            "format": "date-time",
+            "title": "Data Creazione",
+            "type": "string"
+          },
+          "data_disattivazione": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Disattivazione"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "id_utente_proprietario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente Proprietario"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latitudine in formato DD, es: 45.464200",
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Longitudine in formato DD, es: 9.190000",
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_apiario": {
+            "title": "Nome Apiario",
+            "type": "string"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "required": [
+          "nome_apiario",
+          "id_apiario",
+          "data_creazione",
+          "attivo"
+        ],
+        "title": "ApiarioResponse",
+        "type": "object"
+      },
+      "ApiarioUpdate": {
+        "description": "Partial apiary update: an omitted or null field keeps its stored value.",
+        "properties": {
+          "attivo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attivo"
+          },
+          "descrizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descrizione"
+          },
+          "id_utente_proprietario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente Proprietario"
+          },
+          "latitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latitudine in formato DD",
+            "title": "Latitudine"
+          },
+          "longitudine": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Longitudine in formato DD",
+            "title": "Longitudine"
+          },
+          "metadati": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadati"
+          },
+          "nome_apiario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Apiario"
+          },
+          "posizione": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posizione"
+          }
+        },
+        "title": "ApiarioUpdate",
+        "type": "object"
+      },
       "ArniaConStato": {
         "description": "Arnia con ultime letture e coordinate",
         "properties": {
@@ -35,6 +336,17 @@
               }
             ],
             "title": "Descrizione"
+          },
+          "id_apiario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Apiario"
           },
           "id_arnia": {
             "title": "Id Arnia",
@@ -82,6 +394,17 @@
               }
             ],
             "title": "Metadati"
+          },
+          "nome_apiario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Apiario"
           },
           "nome_arnia": {
             "anyOf": [
@@ -185,6 +508,17 @@
               }
             ],
             "title": "Descrizione"
+          },
+          "id_apiario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Apiario"
           },
           "id_nodo": {
             "title": "Id Nodo",
@@ -300,6 +634,17 @@
             ],
             "title": "Descrizione"
           },
+          "id_apiario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Apiario"
+          },
           "id_arnia": {
             "title": "Id Arnia",
             "type": "integer"
@@ -404,6 +749,17 @@
               }
             ],
             "title": "Descrizione"
+          },
+          "id_apiario": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Apiario"
           },
           "latitudine": {
             "anyOf": [
@@ -1464,10 +1820,256 @@
         ]
       }
     },
+    "/api/admin/apiari": {
+      "get": {
+        "description": "Every apiary, retired ones included (admin only).",
+        "operationId": "get_all_apiari_api_admin_apiari_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiarioResponse"
+                  },
+                  "title": "Response Get All Apiari Api Admin Apiari Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get All Apiari",
+        "tags": [
+          "Admin - Apiari"
+        ]
+      },
+      "post": {
+        "description": "Create an apiary (admin only). Hives join it through their `id_apiario`.",
+        "operationId": "create_apiario_api_admin_apiari_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiarioCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiarioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Apiario",
+        "tags": [
+          "Admin - Apiari"
+        ]
+      }
+    },
+    "/api/admin/apiari/{id_apiario}": {
+      "delete": {
+        "description": "Retire an apiary (soft delete, admin only).\nRefused with 409 while active hives are still in it.",
+        "operationId": "delete_apiario_api_admin_apiari__id_apiario__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Apiario",
+        "tags": [
+          "Admin - Apiari"
+        ]
+      },
+      "get": {
+        "description": "One apiary (admin only).",
+        "operationId": "get_apiario_admin_api_admin_apiari__id_apiario__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiarioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Apiario Admin",
+        "tags": [
+          "Admin - Apiari"
+        ]
+      },
+      "put": {
+        "description": "Update an apiary (admin only). Retiring it is refused while it holds active hives.",
+        "operationId": "update_apiario_api_admin_apiari__id_apiario__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiarioUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiarioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Apiario",
+        "tags": [
+          "Admin - Apiari"
+        ]
+      }
+    },
     "/api/admin/arnie": {
       "get": {
         "description": "Ottieni lista di tutte le arnie con stato (solo admin)\n\nReturns:\n    Lista di tutte le arnie",
         "operationId": "get_all_arnie_api_admin_arnie_get",
+        "parameters": [
+          {
+            "description": "Solo le arnie di questo apiario",
+            "in": "query",
+            "name": "id_apiario",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo le arnie di questo apiario",
+              "title": "Id Apiario"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1482,6 +2084,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -2480,10 +3092,109 @@
         ]
       }
     },
+    "/api/user/apiari": {
+      "get": {
+        "description": "Active apiaries holding at least one of the user's hives (every active one\nfor an admin). Their hives: `GET /api/user/arnie?id_apiario=...`.",
+        "operationId": "get_user_apiari_api_user_apiari_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiarioResponse"
+                  },
+                  "title": "Response Get User Apiari Api User Apiari Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User Apiari",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/apiari/{id_apiario}": {
+      "get": {
+        "description": "One apiary, if it holds a hive the user is associated with.",
+        "operationId": "get_apiario_user_api_user_apiari__id_apiario__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiarioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Apiario User",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
     "/api/user/arnie": {
       "get": {
         "description": "Ottieni lista delle arnie associate all'utente con lo stato attuale\n\nReturns:\n    Lista di arnie con ultime letture",
         "operationId": "get_user_arnie_api_user_arnie_get",
+        "parameters": [
+          {
+            "description": "Solo le arnie di questo apiario",
+            "in": "query",
+            "name": "id_apiario",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo le arnie di questo apiario",
+              "title": "Id Apiario"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2498,6 +3209,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
