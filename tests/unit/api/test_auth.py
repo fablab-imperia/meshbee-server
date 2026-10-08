@@ -1,6 +1,6 @@
 """Tests for authentication and JWT handling (api/auth.py)."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException, status
@@ -75,9 +75,10 @@ def test_access_token_honours_an_explicit_lifetime():
         create_access_token({"sub": "a@b.org"}, timedelta(minutes=15))
     )
 
-    expected = datetime.utcnow() + timedelta(minutes=15)
+    expected = datetime.now(UTC) + timedelta(minutes=15)
     assert (
-        abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+        abs((datetime.fromtimestamp(payload["exp"], UTC) - expected).total_seconds())
+        < 5
     )
 
 
@@ -87,9 +88,10 @@ def test_access_token_defaults_to_the_configured_lifetime(monkeypatch):
 
     payload = decode_token(create_access_token({"sub": "a@b.org"}))
 
-    expected = datetime.utcnow() + timedelta(minutes=90)
+    expected = datetime.now(UTC) + timedelta(minutes=90)
     assert (
-        abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+        abs((datetime.fromtimestamp(payload["exp"], UTC) - expected).total_seconds())
+        < 5
     )
 
 
@@ -99,9 +101,10 @@ def test_refresh_token_uses_the_configured_lifetime(monkeypatch):
 
     payload = decode_token(create_refresh_token({"sub": "a@b.org"}))
 
-    expected = datetime.utcnow() + timedelta(days=3)
+    expected = datetime.now(UTC) + timedelta(days=3)
     assert (
-        abs((datetime.utcfromtimestamp(payload["exp"]) - expected).total_seconds()) < 5
+        abs((datetime.fromtimestamp(payload["exp"], UTC) - expected).total_seconds())
+        < 5
     )
 
 

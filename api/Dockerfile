@@ -1,6 +1,6 @@
 # Build context is the repository root (see docker-compose.yml), not ./api:
 # the image needs meshbee_core, which both entry points import.
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
