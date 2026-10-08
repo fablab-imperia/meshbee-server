@@ -191,6 +191,14 @@ def test_sharing_by_email_opens_the_apiario_and_its_hives(
 
     assert response.status_code == 200
     assert response.json()["id_utente"] == guest["id_utente"]
+    # Nothing about the account beyond the email the owner already typed.
+    assert response.json().keys() == {
+        "id_utente",
+        "id_apiario",
+        "ruolo",
+        "data_condivisione",
+        "email",
+    }
     hives = as_user(guest).get("/api/user/arnie").json()
     assert [(a["id_arnia"], a["accesso"]) for a in hives] == [
         (arnia["id_arnia"], "viewer")

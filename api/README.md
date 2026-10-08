@@ -170,6 +170,10 @@ check. An unknown action raises rather than returning False, so a typo fails clo
 an apiary that is not its owner's gets the same **400** whether it exists or not, so
 the answer reveals nothing.
 
+A share response identifies the user only by the email the owner typed — no name.
+Known gap: sharing with an unregistered email answers **404**, so any user can still
+test which emails have an account ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
+
 Two things to know about tokens:
 
 - **The refresh token is minted but never redeemed.** There is no `/api/auth/refresh`

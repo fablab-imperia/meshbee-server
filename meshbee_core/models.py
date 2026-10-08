@@ -748,11 +748,15 @@ class CondivisioneBase(SQLModel):
 
 
 class CondivisioneResponse(CondivisioneBase):
-    """A share, with who it is for."""
+    """
+    A share, with who it is for — identified only by the email the owner typed.
+
+    No name or other profile field: any user can share their own apiary with
+    any email, so this response must not tell them more about the account
+    behind it than they already knew.
+    """
 
     email: str
-    nome: str
-    cognome: str
 
 
 class UtenteApiario(CondivisioneBase, table=True):

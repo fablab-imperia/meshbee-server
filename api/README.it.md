@@ -172,6 +172,11 @@ delle arnie del chiamante, non lo allarga mai. Spostare un'arnia in un apiario c
 è del suo proprietario riceve lo stesso **400** che esista o no, così la risposta non
 rivela nulla.
 
+Una condivisione identifica l'utente solo con l'email scritta dal proprietario — nessun
+nome. Limite noto: condividere con un'email non registrata risponde **404**, quindi
+qualsiasi utente può ancora verificare quali email hanno un account
+([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
+
 Due cose da sapere sui token:
 
 - **Il refresh token viene emesso ma non viene mai riscattato.** Non esiste una rotta

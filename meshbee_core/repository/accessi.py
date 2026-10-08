@@ -56,8 +56,6 @@ _CONDIVISIONE = select(
     UtenteApiario.ruolo,
     UtenteApiario.data_condivisione,
     Utente.email,
-    Utente.nome,
-    Utente.cognome,
 ).join(Utente, Utente.id_utente == UtenteApiario.id_utente)
 
 

@@ -1199,12 +1199,8 @@
         "type": "object"
       },
       "CondivisioneResponse": {
-        "description": "A share, with who it is for.",
+        "description": "A share, with who it is for — identified only by the email the owner typed.\n\nNo name or other profile field: any user can share their own apiary with\nany email, so this response must not tell them more about the account\nbehind it than they already knew.",
         "properties": {
-          "cognome": {
-            "title": "Cognome",
-            "type": "string"
-          },
           "data_condivisione": {
             "format": "date-time",
             "title": "Data Condivisione",
@@ -1222,10 +1218,6 @@
             "title": "Id Utente",
             "type": "integer"
           },
-          "nome": {
-            "title": "Nome",
-            "type": "string"
-          },
           "ruolo": {
             "title": "Ruolo",
             "type": "string"
@@ -1236,9 +1228,7 @@
           "id_apiario",
           "ruolo",
           "data_condivisione",
-          "email",
-          "nome",
-          "cognome"
+          "email"
         ],
         "title": "CondivisioneResponse",
         "type": "object"
