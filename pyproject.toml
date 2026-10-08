@@ -15,15 +15,15 @@ requires-python = ">=3.11"
 # api/requirements.txt and paho-mqtt in mqtt_handler/requirements.txt: the
 # library must not drag either entry point's framework into the other's image.
 dependencies = [
-    "psycopg2-binary==2.9.9",
-    # 0.0.30 is the newest SQLModel that accepts pydantic 2.5; later releases
-    # need pydantic >= 2.11. Pinned exactly: SQLModel is still 0.0.x.
-    "sqlmodel==0.0.30",
-    "SQLAlchemy==2.0.54",
+    "psycopg2-binary==2.9.13",
+    # Pinned exactly: SQLModel is still 0.0.x and caps the SQLAlchemy minor
+    # (0.0.48 is the first to accept 2.1). Bump the two together.
+    "sqlmodel==0.0.48",
+    "SQLAlchemy==2.1.4",
     "alembic==1.20.0",
-    "pydantic==2.5.3",
-    "pydantic-settings==2.1.0",
-    "bcrypt==4.0.1",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    "bcrypt==5.0.0",
 ]
 
 [tool.setuptools]

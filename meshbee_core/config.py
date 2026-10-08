@@ -39,8 +39,9 @@ class CoreSettings(BaseSettings):
         """Build the database URL.
 
         What `db.init_db_pool` hands to `create_engine()`, and what the
-        migrations connect with. `postgresql://` selects SQLAlchemy's default
-        driver for Postgres, psycopg2.
+        migrations connect with. The driver is named, `postgresql+psycopg2://`:
+        a bare `postgresql://` means psycopg (3) since SQLAlchemy 2.1, which is
+        not installed.
 
         `quote`, not `quote_plus`: the latter is form encoding and renders a
         space as `+`, which every DSN parser (urllib, SQLAlchemy's make_url,
@@ -50,7 +51,7 @@ class CoreSettings(BaseSettings):
         """
         user = quote(self.DB_USER, safe="")
         password = quote(self.DB_PASSWORD.get_secret_value(), safe="")
-        return f"postgresql://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"postgresql+psycopg2://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 @lru_cache

@@ -37,27 +37,29 @@ class BeehiveMQTTHandler:
 
     def __init__(self, settings):
         self.settings = settings
-        self.client = mqtt.Client(client_id=settings.MQTT_CLIENT_ID)
+        self.client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2, client_id=settings.MQTT_CLIENT_ID
+        )
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         self.client.on_disconnect = self.on_disconnect
         self.running = True
 
-    def on_connect(self, client, userdata, flags, rc):
+    def on_connect(self, client, userdata, flags, reason_code, properties):
         """Callback quando connesso al broker MQTT"""
-        if rc == 0:
+        if not reason_code.is_failure:
             logger.info(
                 f"Connesso al broker MQTT {self.settings.MQTT_BROKER}:{self.settings.MQTT_PORT}"
             )
             client.subscribe(self.settings.MQTT_TOPIC)
             logger.info(f"Sottoscritto al topic: {self.settings.MQTT_TOPIC}")
         else:
-            logger.error(f"Connessione fallita con codice: {rc}")
+            logger.error(f"Connessione fallita con codice: {reason_code}")
 
-    def on_disconnect(self, client, userdata, rc):
+    def on_disconnect(self, client, userdata, flags, reason_code, properties):
         """Callback quando disconnesso dal broker"""
-        if rc != 0:
-            logger.warning(f"Disconnessione inaspettata. Codice: {rc}")
+        if reason_code.is_failure:
+            logger.warning(f"Disconnessione inaspettata. Codice: {reason_code}")
 
     def on_message(self, client, userdata, msg):
         """

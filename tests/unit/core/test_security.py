@@ -37,16 +37,19 @@ def test_verify_password_returns_false_on_a_corrupt_hash():
     assert verify_password(PASSWORD, "not-a-bcrypt-hash") is False
 
 
-def test_passwords_are_truncated_at_72_bytes(password_hash):
+def test_a_password_over_72_bytes_is_refused_not_truncated():
     """
-    Documented bcrypt exposure: only the first 72 bytes are hashed.
+    bcrypt only hashes the first 72 bytes; since bcrypt 5 it raises instead.
 
-    get_password_hash stays permissive — the guard lives at the API edge, in
-    schemas.validate_password_length, so nothing longer can reach it through a
-    request. Pinned here so the day bcrypt starts raising instead of truncating,
-    the suite says so rather than a caller discovering it in production.
+    The guard for users lives at the API edge, in
+    models.validate_password_length, so nothing longer reaches this through a
+    request. Pinned here so a bcrypt that goes back to truncating silently is
+    noticed by the suite rather than in production.
     """
-    long_password = "x" * 100
-    hashed = get_password_hash(long_password)
+    with pytest.raises(ValueError):
+        get_password_hash("x" * 100)
 
-    assert verify_password("x" * 72, hashed) is True
+
+def test_verify_password_denies_a_password_over_72_bytes(password_hash):
+    """A login with an over-long password is a 401, not a 500."""
+    assert verify_password(PASSWORD + "x" * 100, password_hash) is False

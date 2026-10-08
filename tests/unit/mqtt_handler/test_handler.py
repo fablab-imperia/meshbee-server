@@ -121,3 +121,44 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
     assert "Salvata lettura per arnia 7" in caplog.text
     assert "34.5" in caplog.text
     assert "B: 4.01V" in caplog.text
+
+
+SETTINGS = SimpleNamespace(
+    MQTT_CLIENT_ID="test-handler",
+    MQTT_BROKER="broker",
+    MQTT_PORT=1883,
+    MQTT_TOPIC="beehive/+/data",
+)
+
+
+def connack(name):
+    from paho.mqtt.packettypes import PacketTypes
+    from paho.mqtt.reasoncodes import ReasonCode
+
+    return ReasonCode(PacketTypes.CONNACK, name)
+
+
+def test_the_handler_builds_a_paho_client():
+    """
+    paho-mqtt 2 refuses a Client without a callback API version.
+
+    Constructing it needs no broker, so this catches the crash-on-start that a
+    paho upgrade would otherwise only show in the running container.
+    """
+    handler = mqtt_handler.BeehiveMQTTHandler(SETTINGS)
+
+    assert handler.client.on_connect == handler.on_connect
+
+
+@pytest.mark.parametrize(
+    ("reason", "subscribed"),
+    [("Success", ["beehive/+/data"]), ("Not authorized", [])],
+)
+def test_on_connect_subscribes_only_on_success(reason, subscribed):
+    handler = mqtt_handler.BeehiveMQTTHandler(SETTINGS)
+    topics = []
+    client = SimpleNamespace(subscribe=topics.append)
+
+    handler.on_connect(client, None, None, connack(reason), None)
+
+    assert topics == subscribed

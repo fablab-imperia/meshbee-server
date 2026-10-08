@@ -26,7 +26,7 @@ TEST_DB_PARAMS = {
 }
 # The same connection as a SQLAlchemy URL, for Alembic.
 TEST_DB_URL = URL.create(
-    "postgresql",
+    "postgresql+psycopg2",
     username=TEST_DB_PARAMS["user"],
     password=TEST_DB_PARAMS["password"],
     host=TEST_DB_PARAMS["host"],

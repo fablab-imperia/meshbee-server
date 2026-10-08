@@ -63,7 +63,10 @@ def test_database_url_is_built_from_the_db_settings(build_core_settings):
         DB_PASSWORD="pw",
     )
 
-    assert settings.database_url == "postgresql://beehive_user:pw@db.local:6543/apiario"
+    assert (
+        settings.database_url
+        == "postgresql+psycopg2://beehive_user:pw@db.local:6543/apiario"
+    )
 
 
 def test_database_url_escapes_special_characters(build_core_settings):
@@ -77,7 +80,7 @@ def test_database_url_escapes_special_characters(build_core_settings):
     )
 
     assert settings.database_url == (
-        "postgresql://beehive%20user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
+        "postgresql+psycopg2://beehive%20user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
     )
 
 

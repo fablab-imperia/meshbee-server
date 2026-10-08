@@ -24,13 +24,18 @@ Bounds and value sets come from `limits.py`. Constraint and index names are
 spelled out so that they match the ones Postgres generated for the original
 `init.sql`; a live install must not see them renamed.
 
-Two quirks of the pinned versions shape the declarations:
+Three choices shape the declarations:
 
 - String lengths are `sa_type=String(n)`, not `max_length`, because
   `max_length` would also become an API validation rule and an OpenAPI
   `maxLength`. Over-long values are refused by the database instead.
-- Decimal precision is `sa_type=Numeric(p, s)`, not `max_digits`: pydantic 2.5
-  rejects `max_digits` on an Optional[Decimal].
+- Decimal precision is `sa_type=Numeric(p, s)`, not `max_digits`, for the
+  same reason: the precision is a column property the database enforces, not
+  an API validation rule.
+- Datetime columns are `sa_type=DateTime`, naive `TIMESTAMP`. SQLModel 0.0.48
+  maps a bare `datetime` to an aware `timestamptz` that refuses naive values,
+  and the schema has been naive since the baseline. Moving to `timestamptz`
+  is a schema change of its own.
 """
 
 from collections.abc import Iterable
@@ -42,6 +47,7 @@ from pydantic import BaseModel, ConfigDict, conlist, field_validator
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    DateTime,
     Index,
     Numeric,
     String,
@@ -148,15 +154,15 @@ def normalize_email(value: str) -> str:
     return value.strip().lower()
 
 
-# bcrypt hashes at most 72 bytes and silently ignores the rest, so a longer
-# password protects an account no better than its first 72 bytes.
+# bcrypt hashes at most 72 bytes. Older releases silently ignored the rest;
+# bcrypt 5 raises, which without this check would surface as a 500.
 BCRYPT_MAX_BYTES = 72
 PASSWORD_MIN_LENGTH = 8
 
 
 def validate_password_length(value: str) -> str:
     """
-    Reject a password bcrypt would silently truncate.
+    Reject a password longer than bcrypt can hash, as a 422.
 
     The limit is in bytes, not characters: accented or emoji characters take
     several bytes each, so a 72-character password can still overflow it.
@@ -258,10 +264,10 @@ class UserResponse(UserBase):
 
     id_utente: int = Field(primary_key=True)
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("user"))
-    data_creazione: datetime = Field(sa_column_kwargs=NOW)
-    data_attivazione: datetime | None = None
-    data_disattivazione: datetime | None = None
-    ultimo_accesso: datetime | None = None
+    data_creazione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+    data_attivazione: datetime | None = Field(None, sa_type=DateTime)
+    data_disattivazione: datetime | None = Field(None, sa_type=DateTime)
+    ultimo_accesso: datetime | None = Field(None, sa_type=DateTime)
     attivo: bool = Field(sa_column_kwargs=TRUE)
 
     model_config = ConfigDict(from_attributes=True)
@@ -321,8 +327,8 @@ class NodoCreate(NodoBase):
 class NodoResponse(NodoBase):
     """Risposta con dati nodo"""
 
-    data_registrazione: datetime = Field(sa_column_kwargs=NOW)
-    ultimo_messaggio: datetime | None = None
+    data_registrazione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+    ultimo_messaggio: datetime | None = Field(None, sa_type=DateTime)
     # Null until an admin assigns the node; its hives follow its owner.
     id_proprietario: int | None = Field(
         None, foreign_key="utenti.id_utente", ondelete="SET NULL"
@@ -412,7 +418,7 @@ class ApiarioResponse(ApiarioBase):
     # The apiary a user starts with, where the hives of their newly assigned
     # nodes land. It cannot be deleted.
     predefinito: bool = Field(sa_column_kwargs=FALSE)
-    data_creazione: datetime = Field(sa_column_kwargs=NOW)
+    data_creazione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
     metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
@@ -486,8 +492,8 @@ class ArniaResponse(ArniaBase):
     """Risposta con dati arnia"""
 
     id_arnia: int = Field(primary_key=True)
-    data_installazione: datetime = Field(sa_column_kwargs=NOW)
-    data_rimozione: datetime | None = None
+    data_installazione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+    data_rimozione: datetime | None = Field(None, sa_type=DateTime)
     attiva: bool = Field(sa_column_kwargs=TRUE)
     metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
@@ -617,7 +623,7 @@ class LetturaResponse(LetturaBase):
     id_lettura: int = Field(primary_key=True, sa_type=BigInteger)
     id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
     id_nodo: str = Field(sa_type=ID)
-    timestamp: datetime = Field(sa_column_kwargs=NOW)
+    timestamp: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
     dati_raw: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
@@ -724,7 +730,7 @@ class AttivitaResponse(AttivitaBase):
         None, foreign_key="utenti.id_utente", ondelete="SET NULL"
     )
     id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
-    timestamp: datetime = Field(sa_column_kwargs=NOW)
+    timestamp: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -774,7 +780,7 @@ class CondivisioneBase(SQLModel):
     id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
     id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
-    data_condivisione: datetime = Field(sa_column_kwargs=NOW)
+    data_condivisione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
 
 
 class CondivisioneResponse(CondivisioneBase):
@@ -824,8 +830,10 @@ class TokenSessione(SQLModel, table=True):
         default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
     )
     refresh_token: str = Field(sa_type=String(500), unique=True)
-    data_creazione: datetime | None = Field(default=None, sa_column_kwargs=NOW)
-    data_scadenza: datetime
+    data_creazione: datetime | None = Field(
+        sa_type=DateTime, default=None, sa_column_kwargs=NOW
+    )
+    data_scadenza: datetime = Field(sa_type=DateTime)
     revocato: bool | None = Field(default=None, sa_column_kwargs=FALSE)
     ip_address: str | None = Field(default=None, sa_type=String(45))
     user_agent: str | None = Field(default=None, sa_type=Text)
