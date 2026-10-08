@@ -5,9 +5,16 @@ column name into its statement — the two things most worth pinning against a
 real database.
 """
 
+from datetime import datetime
+
 import pytest
 
 from meshbee_core.repository import letture
+
+# A window wide enough for every fixture row. Datetimes, not strings: the API
+# hands the repository parsed values, and psycopg 3 binds a str as VARCHAR,
+# which Postgres will not compare with a timestamp.
+EVER = (datetime(2000, 1, 1), datetime(2100, 1, 1))
 
 
 def test_a_reading_is_stored_with_every_column_it_was_given(session, db, make_arnia):
@@ -85,9 +92,7 @@ def test_a_series_returns_only_the_timestamp_and_its_field(
     arnia = make_arnia()
     make_lettura(arnia, temperatura=20, umidita=50, peso=30, batteria=4)
 
-    rows = letture.series(
-        session, arnia["id_arnia"], field, "2000-01-01", "2100-01-01", 10
-    )
+    rows = letture.series(session, arnia["id_arnia"], field, *EVER, 10)
 
     assert [set(row) for row in rows] == [{"timestamp", field}]
 
@@ -107,9 +112,7 @@ def test_a_series_skips_rows_where_its_field_is_null(
     # Inside every measurement's range, batteria's 0..5 V included.
     make_lettura(arnia, **{field: 4})
 
-    rows = letture.series(
-        session, arnia["id_arnia"], field, "2000-01-01", "2100-01-01", 10
-    )
+    rows = letture.series(session, arnia["id_arnia"], field, *EVER, 10)
 
     assert len(rows) == 1
     assert float(rows[0][field]) == 4
@@ -125,9 +128,7 @@ def test_an_unknown_series_field_is_refused(session, db, make_arnia):
     arnia = make_arnia()
 
     with pytest.raises(ValueError, match="sconosciuto"):
-        letture.series(
-            session, arnia["id_arnia"], "password_hash", "2000-01-01", "2100-01-01", 10
-        )
+        letture.series(session, arnia["id_arnia"], "password_hash", *EVER, 10)
 
 
 def test_readings_come_back_newest_first(session, db, make_arnia, make_lettura):
@@ -136,9 +137,7 @@ def test_readings_come_back_newest_first(session, db, make_arnia, make_lettura):
     make_lettura(arnia, timestamp="2024-01-01 10:00", temperatura=1)
     make_lettura(arnia, timestamp="2024-06-01 10:00", temperatura=2)
 
-    rows = letture.list_by_arnia(
-        session, arnia["id_arnia"], "2000-01-01", "2100-01-01", 10
-    )
+    rows = letture.list_by_arnia(session, arnia["id_arnia"], *EVER, 10)
 
     assert [float(r["temperatura"]) for r in rows] == [2, 1]
 
@@ -149,8 +148,6 @@ def test_readings_are_scoped_to_their_arnia(session, db, make_arnia, make_lettur
     make_lettura(first, temperatura=1)
     make_lettura(second, temperatura=2)
 
-    rows = letture.list_by_arnia(
-        session, first["id_arnia"], "2000-01-01", "2100-01-01", 10
-    )
+    rows = letture.list_by_arnia(session, first["id_arnia"], *EVER, 10)
 
     assert [float(r["temperatura"]) for r in rows] == [1]

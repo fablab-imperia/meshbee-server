@@ -4,7 +4,7 @@ from sqlalchemy.exc import OperationalError
 
 from api import main
 
-# What psycopg2 says when the database refuses the connection — the kind of
+# What the driver says when the database refuses the connection — the kind of
 # text that must not reach an anonymous caller.
 REFUSAL = (
     'connection to server at "postgres" (172.18.0.2), port 5432 failed: '

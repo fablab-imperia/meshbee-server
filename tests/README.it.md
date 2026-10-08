@@ -126,7 +126,7 @@ verificherebbe l'ambiente di compose, non il codice**.
 - `db_connection` — livello integration: una connessione per test, dentro una
   transazione che viene poi annullata. Ci girano sopra due fixture, così ognuna vede le
   scritture dell'altra:
-  - `db` — un `RealDictCursor` grezzo. I test esprimono preparazione e aspettative in
+  - `db` — un cursore psycopg grezzo che restituisce dizionari. I test esprimono preparazione e aspettative in
     SQL, così il codice sotto test viene verificato contro il database, non contro se
     stesso.
   - `session` — una sessione su un SAVEPOINT, da passare a repository e service.

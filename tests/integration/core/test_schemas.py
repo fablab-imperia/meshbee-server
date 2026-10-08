@@ -13,7 +13,7 @@ import re
 from decimal import Decimal
 from typing import get_args
 
-import psycopg2
+import psycopg
 import pytest
 from pydantic import ValidationError
 
@@ -104,7 +104,7 @@ def test_model_and_schema_reject_the_same_value(db, arnia_row, model, field, val
     with pytest.raises(ValidationError):
         model(**{field: value, **required_fields(model)})
 
-    with pytest.raises(psycopg2.errors.CheckViolation):
+    with pytest.raises(psycopg.errors.CheckViolation):
         insert_value(db, arnia_row, table, column, value)
 
 
@@ -223,7 +223,7 @@ def test_ruolo_values_accepted_by_the_schema(db, make_utente):
     assert make_utente(ruolo="user")["ruolo"] == "user"
     assert make_utente(ruolo="admin")["ruolo"] == "admin"
 
-    with pytest.raises(psycopg2.errors.CheckViolation):
+    with pytest.raises(psycopg.errors.CheckViolation):
         make_utente(ruolo="utente")
 
 
@@ -235,5 +235,5 @@ def test_apiary_roles_accepted_by_the_schema(db, make_utente, share):
     """
     utente, owner = make_utente(), make_utente()
 
-    with pytest.raises(psycopg2.errors.CheckViolation):
+    with pytest.raises(psycopg.errors.CheckViolation):
         share(utente["id_utente"], owner["id_apiario_predefinito"], "owner")

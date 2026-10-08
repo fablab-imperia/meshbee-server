@@ -34,7 +34,7 @@ def test_the_shared_database_settings_are_inherited(build_settings):
     assert settings.DB_PORT == 5432
     assert settings.DB_NAME == "beehive_iot"
     assert settings.DB_USER == "beehive_user"
-    assert settings.database_url.startswith("postgresql+psycopg2://")
+    assert settings.database_url.startswith("postgresql+psycopg://")
 
 
 @pytest.mark.parametrize("missing_field", ["DB_PASSWORD", "JWT_SECRET_KEY"])

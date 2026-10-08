@@ -15,7 +15,7 @@ requires-python = ">=3.11"
 # api/requirements.txt and paho-mqtt in mqtt_handler/requirements.txt: the
 # library must not drag either entry point's framework into the other's image.
 dependencies = [
-    "psycopg2-binary==2.9.13",
+    "psycopg[binary]==3.3.6",
     # Pinned exactly: SQLModel is still 0.0.x and caps the SQLAlchemy minor
     # (0.0.48 is the first to accept 2.1). Bump the two together.
     "sqlmodel==0.0.48",
