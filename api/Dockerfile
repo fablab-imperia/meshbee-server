@@ -4,12 +4,9 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-# Installa dipendenze di sistema
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+# No system packages: every dependency ships a prebuilt wheel, and
+# psycopg[binary] bundles its own libpq. A pin that falls back to a source
+# build fails here instead of compiling silently.
 
 # Copia requirements e installa dipendenze Python
 COPY api/requirements.txt api/requirements-dev.txt ./
