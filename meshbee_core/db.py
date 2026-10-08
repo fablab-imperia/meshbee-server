@@ -25,7 +25,7 @@ from meshbee_core.config import CoreSettings
 logger = logging.getLogger(__name__)
 
 # SQLSTATE codes: standard SQL, not driver constants, so nothing here imports
-# psycopg2.
+# the driver.
 UNIQUE_VIOLATION = "23505"
 FOREIGN_KEY_VIOLATION = "23503"
 
@@ -98,7 +98,7 @@ def integrity_errors(*, unique: Exception = None, foreign_key: Exception = None)
         mapped = {
             UNIQUE_VIOLATION: unique,
             FOREIGN_KEY_VIOLATION: foreign_key,
-        }.get(getattr(exc.orig, "pgcode", None))
+        }.get(getattr(exc.orig, "sqlstate", None))
         if mapped is None:
             raise
         raise mapped from exc

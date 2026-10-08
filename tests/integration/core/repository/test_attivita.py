@@ -5,9 +5,16 @@ one column on the way past, which is the part worth pinning against a real
 database.
 """
 
+from datetime import datetime
+
 import pytest
 
 from meshbee_core.repository import attivita
+
+# A window wide enough for every fixture row. Datetimes, not strings: the API
+# hands the repository parsed values, and psycopg 3 binds a str as VARCHAR,
+# which Postgres will not compare with a timestamp.
+EVER = (datetime(2000, 1, 1), datetime(2100, 1, 1))
 
 
 def test_the_dati_column_is_stored_as_json(session, db, make_arnia, make_utente):
@@ -127,7 +134,7 @@ def test_the_type_filter_narrows_the_list(
     make_attivita(arnia, utente, tipo_attivita="raccolta_miele")
 
     rows = attivita.list_by_arnia(
-        session, arnia["id_arnia"], "2000-01-01", "2100-01-01", 10, "raccolta_miele"
+        session, arnia["id_arnia"], *EVER, 10, "raccolta_miele"
     )
 
     assert [r["tipo_attivita"] for r in rows] == ["raccolta_miele"]
@@ -141,8 +148,6 @@ def test_without_a_filter_every_type_is_returned(
     make_attivita(arnia, utente, tipo_attivita="ispezione")
     make_attivita(arnia, utente, tipo_attivita="raccolta_miele")
 
-    rows = attivita.list_by_arnia(
-        session, arnia["id_arnia"], "2000-01-01", "2100-01-01", 10
-    )
+    rows = attivita.list_by_arnia(session, arnia["id_arnia"], *EVER, 10)
 
     assert len(rows) == 2

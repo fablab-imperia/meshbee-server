@@ -13,7 +13,7 @@ here with both versions printed.
 
 import datetime
 
-import psycopg2
+import psycopg
 import pytest
 from sqlalchemy import create_engine
 
@@ -28,7 +28,7 @@ FROM_MIGRATIONS = "drift_migrations"
 @pytest.fixture
 def scratch_schemas():
     """Two empty schemas, dropped again whatever the test does."""
-    connection = psycopg2.connect(**TEST_DB_PARAMS)
+    connection = psycopg.connect(**TEST_DB_PARAMS)
     connection.autocommit = True
     cursor = connection.cursor()
     for schema in (FROM_MODELS, FROM_MIGRATIONS):

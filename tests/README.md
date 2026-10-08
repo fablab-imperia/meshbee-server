@@ -122,7 +122,7 @@ be testing compose's environment, not the code**.
 - `db_connection` — integration tier: one connection per test, inside a transaction
   that is rolled back afterwards. Two fixtures run on it, so each sees the other's
   writes:
-  - `db` — a raw `RealDictCursor`. Tests state their setup and expectations in SQL, so
+  - `db` — a raw psycopg cursor returning dict rows. Tests state their setup and expectations in SQL, so
     the code under test is checked against the database, not against itself.
   - `session` — a session on a SAVEPOINT, to pass to repository and service functions.
 - `use_db(module)` — integration tier, same seam as `fake_db`: every

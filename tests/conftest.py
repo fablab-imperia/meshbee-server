@@ -3,9 +3,9 @@
 import os
 from contextlib import contextmanager
 
-import psycopg2
+import psycopg
 import pytest
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.pool import NullPool
@@ -26,7 +26,7 @@ TEST_DB_PARAMS = {
 }
 # The same connection as a SQLAlchemy URL, for Alembic.
 TEST_DB_URL = URL.create(
-    "postgresql",
+    "postgresql+psycopg",
     username=TEST_DB_PARAMS["user"],
     password=TEST_DB_PARAMS["password"],
     host=TEST_DB_PARAMS["host"],
@@ -229,8 +229,8 @@ def test_schema():
     from meshbee_core.migrations import upgrade
 
     try:
-        connection = psycopg2.connect(**TEST_DB_PARAMS)
-    except psycopg2.OperationalError as exc:
+        connection = psycopg.connect(**TEST_DB_PARAMS)
+    except psycopg.OperationalError as exc:
         raise RuntimeError(
             f"Test database unreachable at {TEST_DB_PARAMS['host']}:{TEST_DB_PARAMS['port']} "
             f"({exc.__class__.__name__}). Start it with:\n"
@@ -274,14 +274,12 @@ def db_connection(test_engine):
 @pytest.fixture
 def db(db_connection):
     """
-    A raw RealDictCursor on the test transaction, for setup and assertions.
+    A raw dict-row cursor on the test transaction, for setup and assertions.
 
     Tests state their fixtures and expectations in SQL on purpose: it checks
     the code under test against the database, not against itself.
     """
-    cursor = db_connection.connection.dbapi_connection.cursor(
-        cursor_factory=RealDictCursor
-    )
+    cursor = db_connection.connection.dbapi_connection.cursor(row_factory=dict_row)
     try:
         yield cursor
     finally:

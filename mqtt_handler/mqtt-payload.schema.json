@@ -6,8 +6,8 @@
   "properties": {
     "bat": {
       "description": "Node battery voltage in V. Out of range drops the whole message.",
-      "maximum": 5.0,
-      "minimum": 0.0,
+      "maximum": 5,
+      "minimum": 0,
       "type": "number"
     },
     "dati_raw": {
@@ -27,13 +27,13 @@
     },
     "peso": {
       "description": "Hive weight in kg. Out of range drops the whole message.",
-      "minimum": 0.0,
+      "minimum": 0,
       "type": "number"
     },
     "temperatura": {
       "description": "Temperature in °C. Out of range drops the whole message.",
-      "maximum": 100.0,
-      "minimum": -50.0,
+      "maximum": 100,
+      "minimum": -50,
       "type": "number"
     },
     "timestamp": {
@@ -43,8 +43,8 @@
     },
     "umidita": {
       "description": "Relative humidity in %. Out of range drops the whole message.",
-      "maximum": 100.0,
-      "minimum": 0.0,
+      "maximum": 100,
+      "minimum": 0,
       "type": "number"
     }
   },

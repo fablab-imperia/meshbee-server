@@ -1,12 +1,10 @@
 # Only what the FastAPI entry point needs on top of the shared library.
-# psycopg2, pydantic, pydantic-settings and bcrypt come from meshbee-core
+# psycopg, pydantic, pydantic-settings and bcrypt come from meshbee-core
 # (pyproject.toml), which the Dockerfile installs editable.
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-jose[cryptography]==3.3.0
-python-multipart==0.0.6
-python-dotenv==1.0.0
-# Transitive (starlette), pinned: anyio 4.15 deprecates `anyio.abc.BlockingPortal`,
-# which starlette 0.35's TestClient still uses, so every test run warned. Lift it
-# together with a fastapi/starlette upgrade.
-anyio==4.14.2
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.32
+python-dotenv==1.2.4
+# Transitive (starlette), pinned so the test client's event loop is reproducible.
+anyio==4.15.1

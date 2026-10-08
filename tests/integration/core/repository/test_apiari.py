@@ -5,7 +5,7 @@ only through a share. The weight is on what a user's list contains, with what
 access, and on what counts as "still holding hives" when deleting.
 """
 
-import psycopg2
+import psycopg
 import pytest
 
 from meshbee_core.repository import apiari
@@ -53,7 +53,7 @@ def test_a_user_cannot_have_two_defaults(db, make_utente):
     """The partial unique index is what keeps "the default" well defined."""
     utente = make_utente()
 
-    with pytest.raises(psycopg2.errors.UniqueViolation):
+    with pytest.raises(psycopg.errors.UniqueViolation):
         db.execute(
             "INSERT INTO apiari (nome_apiario, id_utente_proprietario, predefinito)"
             " VALUES ('Second', %s, true)",

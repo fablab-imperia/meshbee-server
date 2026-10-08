@@ -22,9 +22,12 @@
           "latitudine": {
             "anyOf": [
               {
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -37,9 +40,12 @@
           "longitudine": {
             "anyOf": [
               {
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -52,6 +58,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -124,6 +131,7 @@
           "latitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -136,6 +144,7 @@
           "longitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -148,6 +157,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -203,9 +213,12 @@
           "latitudine": {
             "anyOf": [
               {
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -218,9 +231,12 @@
           "longitudine": {
             "anyOf": [
               {
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -233,6 +249,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -293,6 +310,7 @@
           "latitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -305,6 +323,7 @@
           "longitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -317,6 +336,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -372,9 +392,12 @@
           "latitudine": {
             "anyOf": [
               {
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -387,9 +410,12 @@
           "longitudine": {
             "anyOf": [
               {
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -402,6 +428,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -522,6 +549,7 @@
           "latitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -534,6 +562,7 @@
           "longitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -546,6 +575,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -590,6 +620,7 @@
           "ultima_batteria": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -601,6 +632,7 @@
           "ultima_temperatura": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -612,6 +644,7 @@
           "ultima_umidita": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -635,6 +668,7 @@
           "ultimo_peso": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -690,9 +724,12 @@
           "latitudine": {
             "anyOf": [
               {
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -705,9 +742,12 @@
           "longitudine": {
             "anyOf": [
               {
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -720,6 +760,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -819,6 +860,7 @@
           "latitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -831,6 +873,7 @@
           "longitudine": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -843,6 +886,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -912,9 +956,12 @@
           "latitudine": {
             "anyOf": [
               {
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -927,9 +974,12 @@
           "longitudine": {
             "anyOf": [
               {
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -942,6 +992,7 @@
           "metadati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -982,6 +1033,7 @@
           "dati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1045,6 +1097,7 @@
           "dati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1118,6 +1171,7 @@
           "dati": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1274,6 +1328,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1285,6 +1340,7 @@
           "dati_raw": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1307,6 +1363,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1321,6 +1378,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1347,6 +1405,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1369,6 +1428,7 @@
           "batteria": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1380,6 +1440,7 @@
           "dati_raw": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1403,6 +1464,7 @@
           "peso": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1414,6 +1476,7 @@
           "temperatura": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1430,6 +1493,7 @@
           "umidita": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1457,6 +1521,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1468,6 +1533,7 @@
           "dati_raw": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1482,6 +1548,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1496,6 +1563,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1522,6 +1590,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -1584,6 +1653,7 @@
           "configurazione": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1667,6 +1737,7 @@
           "configurazione": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1780,6 +1851,7 @@
         "description": "Battery voltage time series.",
         "properties": {
           "batteria": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Batteria",
             "type": "string"
           },
@@ -1800,6 +1872,7 @@
         "description": "Risposta serie storica peso",
         "properties": {
           "peso": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Peso",
             "type": "string"
           },
@@ -1820,6 +1893,7 @@
         "description": "Risposta serie storica temperatura",
         "properties": {
           "temperatura": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Temperatura",
             "type": "string"
           },
@@ -1845,6 +1919,7 @@
             "type": "string"
           },
           "umidita": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Umidita",
             "type": "string"
           }
@@ -2088,6 +2163,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [

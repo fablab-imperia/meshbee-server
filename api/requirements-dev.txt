@@ -1,13 +1,12 @@
 # Development / test dependencies.
 # Installed into the same image as the runtime deps (see Dockerfile): this is a
 # single-host hobby deployment, there is no separate production image to keep lean.
-pytest==7.4.4
-# Required by fastapi.testclient (starlette). Pinned <0.27: httpx 0.28 dropped the
-# `app=` shortcut that the starlette version shipped with fastapi 0.109 still uses.
-httpx==0.26.0
+pytest==9.1.1
+# Required by fastapi.testclient: starlette 1.x prefers httpx2 and deprecates httpx.
+httpx2==2.13.1
 # The suite runs in this one container and covers *both* entry points, so it
 # imports mqtt_handler — which imports paho. Keep the pin in step with
 # mqtt_handler/requirements.txt. Nothing in api/ imports it at runtime.
-paho-mqtt==1.6.1
+paho-mqtt==2.1.0
 # Lint and format; config in /ruff.toml. CI installs this same pin.
 ruff==0.16.10

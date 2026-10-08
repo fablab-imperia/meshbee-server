@@ -54,7 +54,7 @@ def test_the_db_password_is_not_exposed_by_repr(build_core_settings):
 
 
 def test_database_url_is_built_from_the_db_settings(build_core_settings):
-    """database_url assembles the psycopg2 DSN from the single DB_* settings."""
+    """database_url assembles the psycopg DSN from the single DB_* settings."""
     settings = build_core_settings(
         DB_HOST="db.local",
         DB_PORT=6543,
@@ -63,7 +63,10 @@ def test_database_url_is_built_from_the_db_settings(build_core_settings):
         DB_PASSWORD="pw",
     )
 
-    assert settings.database_url == "postgresql://beehive_user:pw@db.local:6543/apiario"
+    assert (
+        settings.database_url
+        == "postgresql+psycopg://beehive_user:pw@db.local:6543/apiario"
+    )
 
 
 def test_database_url_escapes_special_characters(build_core_settings):
@@ -77,7 +80,7 @@ def test_database_url_escapes_special_characters(build_core_settings):
     )
 
     assert settings.database_url == (
-        "postgresql://beehive%20user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
+        "postgresql+psycopg://beehive%20user:p%40ss%3Aw%2Frd%231@db.local:6543/apiario"
     )
 
 
