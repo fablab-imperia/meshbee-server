@@ -87,10 +87,12 @@ Its `deliver` fixture wraps each message in a SAVEPOINT, because in production e
 message gets its own transaction and the test must not let one message see another's
 uncommitted work.
 
-**`integration/api/test_main_authz.py` — the gate.** One table sweeps **all 49
-endpoints** for anonymous, authenticated-but-not-admin, and authenticated-without-the-
-association (or, for an apiary, not its owner). **Add every new endpoint to that
-table.** It is what catches a route that forgot its `Depends`.
+**`integration/api/test_main_authz.py` — the gate.** Its tables list **all 51
+endpoints**: every protected one is swept for anonymous and authenticated-but-not-admin
+access, and every hive- or apiary-scoped one carries the **least access** that may call
+it (`viewer` … `owner`) and is called at every level, from no access at all to owning.
+**Add every new endpoint to those tables.** It is what catches a route that forgot its
+`Depends`, or checks the wrong action.
 
 ## Fixtures
 
@@ -143,9 +145,11 @@ because the session flows on into the service and repository calls unchanged.
 
 ### Data builders
 
-`make_utente` (with its `Default` apiary, `id_apiario_predefinito`), `make_apiario`,
-`make_arnia`, `grant_access` (into the Default unless `id_apiario=`),
-`utente_con_arnia`, `make_lettura`, `make_attivita`.
+`make_utente` (with its `Default` apiary, `id_apiario_predefinito`),
+`make_apiario(owner)`, `make_arnia(apiario=...)` (a hive in that apiary, its node owned
+by the apiary's owner; unassigned without), `share(id_utente, id_apiario, ruolo)`,
+`utente_con_arnia(ruolo)` (a user and a hive they reach as `owner` or a shared role),
+`make_lettura`, `make_attivita`.
 
 ## Conventions
 
@@ -165,7 +169,7 @@ because the session flows on into the service and repository calls unchanged.
 ## Gotchas
 
 - **`utenti.ruolo` is `('user','admin')`** — not `'utente'` — and
-  `utenti_arnie.permessi` is `('read','write','admin')`. The fakes accept anything; the
+  `utenti_apiari.ruolo` is `('viewer','collaborator','manager')`. The fakes accept anything; the
   real database rejects it, so a unit test can pass on data that integration will
   refuse.
 - **Missing credentials give 401 + `WWW-Authenticate`; authenticated-but-forbidden

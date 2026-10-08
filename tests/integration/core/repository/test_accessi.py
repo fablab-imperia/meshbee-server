@@ -1,140 +1,90 @@
 """Tests for the accessi repository (meshbee_core/repository/accessi.py).
 
-The upsert revives and re-levels associations, which is easy to get subtly
-wrong: a revoked association that comes back at the wrong permission level is a
-silent authorization bug.
+What a user may do on an apiary or a hive comes down to two lookups: is the
+apiary theirs, and what role has its owner shared with them. These pin both
+against the real tables.
 """
 
 from meshbee_core.repository import accessi
 
 
-def test_a_grant_creates_an_active_association(session, db, make_utente, make_arnia):
-    utente, arnia = make_utente(), make_arnia()
-
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "read",
-        utente["id_apiario_predefinito"],
-    )
+def test_the_owner_of_an_apiario_is_reported_as_owner(session, make_utente):
+    utente = make_utente()
 
     assert (
-        accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
-            "permessi"
-        ]
-        == "read"
+        accessi.accesso_su_apiario(
+            session, utente["id_utente"], utente["id_apiario_predefinito"]
+        )
+        == "owner"
     )
 
 
-def test_granting_again_changes_the_permission_level(
-    session, db, make_utente, make_arnia
+def test_a_shared_role_is_reported_on_the_apiario_and_its_hives(
+    session, make_utente, make_arnia, share
 ):
-    """UNIQUE(id_utente, id_arnia) means the second grant must update, not fail."""
-    utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "read",
-        utente["id_apiario_predefinito"],
-    )
-
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "admin",
-        utente["id_apiario_predefinito"],
-    )
+    utente, owner = make_utente(), make_utente()
+    arnia = make_arnia(apiario=owner)
+    share(utente["id_utente"], arnia["id_apiario"], "collaborator")
 
     assert (
-        accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
-            "permessi"
-        ]
-        == "admin"
+        accessi.accesso_su_apiario(session, utente["id_utente"], arnia["id_apiario"])
+        == "collaborator"
+    )
+    assert (
+        accessi.accesso_su_arnia(session, utente["id_utente"], arnia["id_arnia"])
+        == "collaborator"
     )
 
 
-def test_a_revoked_association_is_invisible(session, db, make_utente, make_arnia):
-    """Revoking is a soft delete, so the lookup has to filter on attivo."""
-    utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "write",
-        utente["id_apiario_predefinito"],
-    )
-
-    accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"])
-
-    assert accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"]) is None
-
-
-def test_granting_again_revives_a_revoked_association(
-    session, db, make_utente, make_arnia
+def test_nothing_is_reported_without_ownership_or_a_share(
+    session, make_utente, make_arnia
 ):
-    """
-    Re-granting clears the revocation date as well as the flag.
-
-    Leaving data_disassociazione set would leave a row that reads as both active
-    and revoked.
-    """
-    utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "write",
-        utente["id_apiario_predefinito"],
-    )
-    accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"])
-
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "read",
-        utente["id_apiario_predefinito"],
-    )
+    utente = make_utente()
+    arnia = make_arnia(apiario=make_utente())
 
     assert (
-        accessi.get_permesso(session, utente["id_utente"], arnia["id_arnia"])[
-            "permessi"
-        ]
-        == "read"
+        accessi.accesso_su_arnia(session, utente["id_utente"], arnia["id_arnia"])
+        is None
     )
-    db.execute(
-        "SELECT data_disassociazione FROM utenti_arnie WHERE id_utente = %s AND id_arnia = %s",
-        (utente["id_utente"], arnia["id_arnia"]),
-    )
-    assert db.fetchone()["data_disassociazione"] is None
 
 
-def test_revoking_an_absent_association_reports_nothing(
-    session, db, make_utente, make_arnia
-):
-    """The service turns this into a 404 rather than a silent success."""
-    utente, arnia = make_utente(), make_arnia()
-
-    assert accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is None
-
-
-def test_revoking_twice_reports_nothing_the_second_time(
-    session, db, make_utente, make_arnia
-):
-    """`attivo = true` is in the WHERE clause, so the second call matches no row."""
-    utente, arnia = make_utente(), make_arnia()
-    accessi.upsert(
-        session,
-        utente["id_utente"],
-        arnia["id_arnia"],
-        "read",
-        utente["id_apiario_predefinito"],
-    )
+def test_an_unassigned_hive_gives_nobody_access(session, make_utente, make_arnia):
+    """No apiary means no owner and no share: only the admin bypass reaches it."""
+    arnia = make_arnia()
 
     assert (
-        accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is not None
+        accessi.accesso_su_arnia(session, make_utente()["id_utente"], arnia["id_arnia"])
+        is None
     )
-    assert accessi.deactivate(session, utente["id_utente"], arnia["id_arnia"]) is None
+
+
+def test_sharing_again_changes_the_role(session, make_utente):
+    utente, owner = make_utente(), make_utente()
+    apiario = owner["id_apiario_predefinito"]
+
+    accessi.upsert(session, utente["id_utente"], apiario, "viewer")
+    accessi.upsert(session, utente["id_utente"], apiario, "manager")
+
+    shares = accessi.list_for_apiario(session, apiario)
+    assert [(s["id_utente"], s["ruolo"]) for s in shares] == [
+        (utente["id_utente"], "manager")
+    ]
+    assert shares[0]["email"] == utente["email"]
+
+
+def test_revoking_removes_the_share(session, make_utente, share):
+    utente, owner = make_utente(), make_utente()
+    share(utente["id_utente"], owner["id_apiario_predefinito"], "viewer")
+
+    assert accessi.delete_share(
+        session, utente["id_utente"], owner["id_apiario_predefinito"]
+    )
+    assert (
+        accessi.accesso_su_apiario(
+            session, utente["id_utente"], owner["id_apiario_predefinito"]
+        )
+        is None
+    )
+    assert not accessi.delete_share(
+        session, utente["id_utente"], owner["id_apiario_predefinito"]
+    )

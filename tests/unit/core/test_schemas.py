@@ -19,6 +19,7 @@ from meshbee_core.models import (
     ArniaUpdate,
     AttivitaCreate,
     AttivitaQueryParams,
+    CondivisioneCreate,
     LetturaBase,
     LettureQueryParams,
     PasswordChange,
@@ -27,7 +28,6 @@ from meshbee_core.models import (
     UserLogin,
     UserResponse,
     UserUpdate,
-    UtenteArniaCreate,
 )
 
 
@@ -326,9 +326,9 @@ def test_new_users_default_to_the_user_role():
     assert user.ruolo == "user"
 
 
-def test_new_associations_default_to_read_permission():
-    """Matches the `utenti_arnie.permessi` default: least privilege unless asked."""
-    assert UtenteArniaCreate(id_utente=1, id_arnia=1).permessi == "read"
+def test_new_shares_default_to_viewer():
+    """Matches the `utenti_apiari.ruolo` default: least privilege unless asked."""
+    assert CondivisioneCreate(email="a@b.org").ruolo == "viewer"
 
 
 # ============================================
@@ -361,20 +361,17 @@ def test_an_unknown_role_is_rejected_on_update():
         UserUpdate(ruolo="superadmin")
 
 
-@pytest.mark.parametrize("permesso", ["read", "write", "admin"])
-def test_valid_permissions_are_accepted(permesso):
-    """The three levels understood by check_user_arnia_access."""
-    assert (
-        UtenteArniaCreate(id_utente=1, id_arnia=1, permessi=permesso).permessi
-        == permesso
-    )
+@pytest.mark.parametrize("ruolo", ["viewer", "collaborator", "manager"])
+def test_valid_apiary_roles_are_accepted(ruolo):
+    """The three roles an owner can share."""
+    assert CondivisioneCreate(email="a@b.org", ruolo=ruolo).ruolo == ruolo
 
 
-@pytest.mark.parametrize("permesso", ["superuser", "readonly", "READ"])
-def test_an_unknown_permission_is_rejected(permesso):
-    """A level auth.py could not rank is refused before it reaches the database."""
+@pytest.mark.parametrize("ruolo", ["owner", "admin", "read", "VIEWER"])
+def test_an_unknown_apiary_role_is_rejected(ruolo):
+    """Ownership cannot be shared, and the old levels are gone."""
     with pytest.raises(ValidationError):
-        UtenteArniaCreate(id_utente=1, id_arnia=1, permessi=permesso)
+        CondivisioneCreate(email="a@b.org", ruolo=ruolo)
 
 
 @pytest.mark.parametrize(

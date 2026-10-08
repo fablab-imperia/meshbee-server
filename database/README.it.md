@@ -60,6 +60,7 @@ una fonte affidabile di INSERT falliti.
 | `ultimo_messaggio` | TIMESTAMP | Quando è stato **ricevuto** l'ultimo messaggio MQTT; la imposta `services/ingest.py` — vedi [Niente viste, niente trigger](#niente-viste-niente-trigger). |
 | `attivo` | BOOLEAN | Soft delete. |
 | `configurazione` | JSONB | Impostazioni specifiche del nodo. |
+| `id_proprietario` | INTEGER | FK → `utenti` ON DELETE SET NULL. Lo imposta un admin; null finché il nodo **non è assegnato**. Le sue arnie appartengono al suo proprietario. |
 
 **Non esiste una tabella `sensori`.** L'identità del sensore vive su
 `arnie.id_sensore_fisico`, e le letture hanno colonne fisse anziché righe generiche
@@ -78,36 +79,38 @@ modello alternativo, mai collegato ad `arnie` né letto da alcuna query.
 | `data_installazione`, `data_rimozione` | TIMESTAMP | |
 | `attiva` | BOOLEAN | Soft delete — le letture restano. |
 | `metadati` | JSONB | Razza e anno della regina, colore dell'arnia, quello che l'apicoltore vuole tracciare. |
+| `id_apiario` | INTEGER | FK → `apiari`. Il proprietario dell'arnia è il proprietario di questo apiario; null finché il suo nodo non è assegnato. Il service tiene le arnie di un nodo negli apiari del suo proprietario. |
 
-### `apiari` — come ogni utente raggruppa le sue arnie
+### `apiari` — dove stanno le arnie di un proprietario
 
 | Colonna | Tipo | Note |
 |---|---|---|
-| `id_apiario` | SERIAL | PK. **UNIQUE insieme a `id_utente_proprietario`**, come destinazione della FK composta qui sotto. |
-| `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. |
+| `id_apiario` | SERIAL | PK |
+| `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. Possiede l'apiario e ogni arnia che contiene. |
 | `nome_apiario` | VARCHAR(100) | NOT NULL |
 | `descrizione`, `posizione` | | Testo libero. |
 | `latitudine`, `longitudine` | DECIMAL(9,6) | Stessi limiti di un'arnia, CHECK con prefisso `apiari_`. Indipendenti dalle coordinate delle arnie. |
-| `predefinito` | BOOLEAN | Il `Default` dell'utente. **Uno per utente** (indice unico parziale `uq_apiari_predefinito`); il service non lo elimina mai. |
+| `predefinito` | BOOLEAN | Il `Default` dell'utente, dove finiscono le arnie dei nodi che gli vengono assegnati. **Uno per utente** (indice unico parziale `uq_apiari_predefinito`); il service non lo elimina mai. |
 | `data_creazione` | TIMESTAMP | |
 | `metadati` | JSONB | |
 
-Gli apiari sono **personali e non danno permessi**. Eliminarne uno è un DELETE vero,
-rifiutato dal service per quello predefinito e finché contiene arnie attive.
+Eliminare un apiario è un DELETE vero, che porta via anche le sue condivisioni; il
+service lo rifiuta per quello predefinito e finché contiene arnie attive.
 
-### `utenti_arnie` — chi può vedere quale arnia
+### `utenti_apiari` — con chi un proprietario condivide un apiario
 
 | Colonna | Tipo | Note |
 |---|---|---|
 | `id` | SERIAL | PK |
-| `id_utente`, `id_arnia` | INTEGER | FK, CASCADE. **UNIQUE insieme.** |
-| `data_associazione`, `data_disassociazione` | TIMESTAMP | CHECK: la fine non può precedere l'inizio. |
-| `permessi` | VARCHAR(20) | CHECK `('read','write','admin')`, default `read`. |
-| `attivo` | BOOLEAN | La revoca è un flag, così resta lo storico. |
-| `id_apiario` | INTEGER | NOT NULL. In quale degli apiari **di questo utente** sta l'arnia, solo per lui. FK composta `(id_apiario, id_utente)` → `apiari (id_apiario, id_utente_proprietario)`, così il database rifiuta l'apiario di un altro. |
+| `id_utente`, `id_apiario` | INTEGER | FK, CASCADE. **UNIQUE insieme.** |
+| `ruolo` | VARCHAR(20) | CHECK `('viewer','collaborator','manager')`, default `viewer`. |
+| `data_condivisione` | TIMESTAMP | |
 
-I permessi sono una scala: `read` < `write` < `admin`. Un account con `ruolo = 'admin'`
-scavalca del tutto questa tabella.
+Un ruolo vale per l'apiario e per ogni arnia che contiene. Il proprietario non è una riga
+qui: possedere l'apiario consente tutto. La revoca cancella la riga. Cosa consente ogni
+ruolo è `ROLE_ACTIONS` in `meshbee_core/services/auth.py`; un account con
+`ruolo = 'admin'` scavalca tutto. Questa tabella ha sostituito `utenti_arnie` (livelli
+`read`/`write`/`admin` per arnia) nella revisione `0005`.
 
 ### `letture` — la telemetria
 
@@ -154,7 +157,7 @@ qualcuna. Quello che stava qui ora sta in `meshbee_core`, dove è dichiarato una
 sola e testato come il resto del codice:
 
 - **L'elenco delle arnie con le ultime letture** era la vista `v_arnie_stato`. Ora è
-  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi` più un'unica sottoquery
+  `repository/arnie.py::STATO`: `arnie LEFT JOIN nodi LEFT JOIN apiari` più un'unica sottoquery
   `LATERAL` per l'ultima lettura, così ogni valore "ultimo" viene dalla stessa riga. È
   quello che restituisce `GET /api/user/arnie`.
 - **`nodi.ultimo_messaggio`** veniva impostata da `trigger_aggiorna_nodo` a ogni insert
@@ -231,7 +234,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0002` | NOT NULL sulle 16 colonne che l'API restituisce come obbligatorie. Prima riempie i NULL esistenti — i flag a **false**, `ruolo` a `user`, `permessi` a `read` con l'associazione disattivata, le date dalla migliore informazione presente nella riga — e **si ferma senza cambiare niente** se una chiave esterna è NULL (un'arnia senza nodo, una lettura senza arnia), perché quelle non si possono riempire. |
 | `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
 | `0004` | Eliminata l'estensione `uuid-ossp`, installata da `init.sql` e mai usata. Senza CASCADE: se qualcosa ne dipende, la migrazione si ferma invece di eliminarlo. |
-| `0005` | Aggiunti `apiari` e `utenti_arnie.id_apiario` (#2). Dà a ogni account esistente un apiario `Default` e ci mette tutte le sue associazioni — anche quelle revocate. |
+| `0005` | Proprietà e apiari (#2, #36): `apiari` con un `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, e `utenti_apiari` al posto di `utenti_arnie`. Il proprietario di un'arnia diventa la sua associazione attiva meglio piazzata (`admin` > `write` > `read`, la più vecchia prima); un nodo va al proprietario della maggior parte delle sue arnie, e tutte le sue arnie nel Default di quel proprietario; ogni altra associazione attiva diventa un ruolo su quel Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), che può allargare l'accesso ma non toglierlo mai. Le arnie che nessuno poteva vedere restano non assegnate. Il downgrade ricostruisce l'accesso per arnia. |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:
@@ -249,12 +252,14 @@ vanno dove si possono configurare per singola arnia, non scritte in un trigger.
 ## Dati di esempio
 
 Le revisioni non portano dati. Su un'installazione senza nessuna arnia,
-`scripts/seed.py` crea un nodo (`NODE001`, "Apiario Collina"), due arnie (`SENSOR01` /
-`SENSOR02`) con coordinate e metadati, e quattro letture — quanto basta perché l'app
+`scripts/seed.py` crea un nodo (`NODE001`, "Apiario Collina") **dell'account di test**,
+due arnie (`SENSOR01` / `SENSOR02`) nel suo apiario Default con coordinate e metadati, e
+quattro letture — quanto basta perché l'app
 abbia qualcosa da disegnare. Appena esiste un'arnia qualsiasi non li tocca più, quindi
 cancellare i dati di esempio non li fa ricomparire.
 
-Il seed crea anche gli account, le associazioni e un'attività di esempio. Vedi il
+Il seed crea anche gli account e un'attività di esempio; non condivide nulla, così le
+arnie di un'installazione reale non vengono mai aperte all'account di test. Vedi il
 [README](../README.it.md#installazione) principale.
 
 ## Sviluppo
@@ -295,7 +300,7 @@ ogni esecuzione. Vedi [`tests/`](../tests/README.it.md).
   `migrate` la rifiuta, e quindi `api` e `mqtt-handler` non partono. Vedi
   [Installazioni esistenti](#installazioni-esistenti).
 - **`POSTGRES_PASSWORD` vale solo su un volume nuovo.** Vedi [Volumi nuovi](#volumi-nuovi).
-- **`ruolo` è `'user'`, `permessi` è `('read','write','admin')`.** I fake dei test
+- **`utenti.ruolo` è `'user'`, `utenti_apiari.ruolo` è `('viewer','collaborator','manager')`.** I fake dei test
   accettano qualsiasi cosa; il database reale no.
 - **Niente viene cancellato davvero.** Utenti, arnie e nodi hanno un flag
   `attivo`/`attiva`, e le letture restano quando la loro arnia viene dismessa.

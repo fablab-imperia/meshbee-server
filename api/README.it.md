@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 49 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 51 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -24,15 +24,16 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-49 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+51 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
 - **admin** — quanto sopra *più* `ruolo = 'admin'` (`get_current_admin_user`).
-- **utente + `read`/`write`** — quanto sopra *più* quel permesso su quella specifica
-  arnia. Gli admin passano il controllo comunque.
-- **utente + proprietario** — quanto sopra *più* l'apiario è del chiamante. Gli admin
-  passano il controllo comunque.
+- **utente + viewer / collaborator / manager / owner** — quanto sopra *più* almeno
+  quell'accesso all'apiario dell'arnia (o all'apiario stesso): esserne proprietario, o
+  un ruolo condiviso dal proprietario. Vedi
+  [Autenticazione e autorizzazione](#autenticazione-e-autorizzazione). Gli admin passano
+  il controllo comunque.
 
 ### Autenticazione
 
@@ -43,29 +44,34 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ### Utente
 
-Tutto quello sotto `/api/user/arnie/{id_arnia}` è protetto su quell'arnia.
+Tutto quello sotto `/api/user/arnie/{id_arnia}` e `/api/user/apiari/{id_apiario}` è protetto
+sull'accesso del chiamante all'apiario di quell'arnia, o a quell'apiario.
 
 | Metodo | Percorso | Auth | Scopo |
 |---|---|---|---|
-| GET | `/api/user/arnie` | utente | Le arnie visibili al chiamante, ciascuna con l'ultima lettura e l'apiario in cui il chiamante l'ha messa. `id_apiario` opzionale la restringe a uno degli apiari del chiamante. |
-| GET | `/api/user/arnie/{id_arnia}` | utente + `read` | Una singola arnia con l'ultima lettura. |
-| PUT | `/api/user/arnie/{id_arnia}` | utente + `write` | Rinomina/sposta un'arnia. **Non** può cambiare `attiva`. |
-| PUT | `/api/user/arnie/{id_arnia}/apiario` | utente + `write` | Sposta l'arnia in un altro apiario del chiamante. Cambia solo la vista del chiamante. |
-| GET | `/api/user/arnie/{id_arnia}/letture` | utente + `read` | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
-| GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + `read` | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |
-| GET | `/api/user/arnie/{id_arnia}/letture/umidita` | utente + `read` | Solo `{timestamp, umidita}`. |
-| GET | `/api/user/arnie/{id_arnia}/letture/peso` | utente + `read` | Solo `{timestamp, peso}`. |
-| GET | `/api/user/arnie/{id_arnia}/letture/batteria` | utente + `read` | Solo `{timestamp, batteria}` — tensione della batteria del nodo. |
-| GET | `/api/user/arnie/{id_arnia}/attivita` | utente + `read` | Log attività. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
-| POST | `/api/user/arnie/{id_arnia}/attivita` | utente + `write` | Registra un'attività. |
-| PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + `write` | Modifica un'attività — **solo le proprie**. |
-| DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + `write` | Elimina un'attività — **solo le proprie**. |
+| GET | `/api/user/arnie` | utente | Le arnie degli apiari di cui il chiamante è proprietario o che gli sono condivisi, ciascuna con l'ultima lettura, il suo apiario e `accesso` (l'accesso del chiamante). `id_apiario` opzionale la restringe a un apiario. |
+| GET | `/api/user/arnie/{id_arnia}` | utente + viewer | Una singola arnia con l'ultima lettura. |
+| PUT | `/api/user/arnie/{id_arnia}` | utente + manager | Rinomina/riposiziona un'arnia. `attiva` (dismetterla) vale solo per il proprietario. |
+| PUT | `/api/user/arnie/{id_arnia}/apiario` | utente + owner | Sposta l'arnia in un altro apiario del suo proprietario. Chi può vederla segue l'apiario. |
+| GET | `/api/user/arnie/{id_arnia}/letture` | utente + viewer | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
+| GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + viewer | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |
+| GET | `/api/user/arnie/{id_arnia}/letture/umidita` | utente + viewer | Solo `{timestamp, umidita}`. |
+| GET | `/api/user/arnie/{id_arnia}/letture/peso` | utente + viewer | Solo `{timestamp, peso}`. |
+| GET | `/api/user/arnie/{id_arnia}/letture/batteria` | utente + viewer | Solo `{timestamp, batteria}` — tensione della batteria del nodo. |
+| GET | `/api/user/arnie/{id_arnia}/attivita` | utente + viewer | Log attività. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
+| POST | `/api/user/arnie/{id_arnia}/attivita` | utente + collaborator | Registra un'attività. |
+| PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + collaborator | Modifica un'attività — **solo le proprie**. |
+| DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + collaborator | Elimina un'attività — **solo le proprie**. |
 | PUT | `/api/user/password` | utente | Cambia la propria password. Richiede `current_password`. |
-| GET | `/api/user/apiari` | utente | Gli apiari del chiamante, prima quello predefinito. |
+| GET | `/api/user/apiari` | utente | Gli apiari di cui il chiamante è proprietario (prima quello predefinito), poi quelli condivisi con lui, ciascuno con `accesso`. |
 | POST | `/api/user/apiari` | utente | Crea un apiario del chiamante. |
-| GET | `/api/user/apiari/{id_apiario}` | utente + proprietario | Un singolo apiario. |
-| PUT | `/api/user/apiari/{id_apiario}` | utente + proprietario | Lo modifica — anche quello predefinito. |
-| DELETE | `/api/user/apiari/{id_apiario}` | utente + proprietario | Lo elimina. **409** per quello predefinito, e finché contiene arnie. |
+| GET | `/api/user/apiari/{id_apiario}` | utente + viewer | Un singolo apiario. |
+| PUT | `/api/user/apiari/{id_apiario}` | utente + manager | Lo modifica — anche quello predefinito. |
+| DELETE | `/api/user/apiari/{id_apiario}` | utente + owner | Lo elimina, con le sue condivisioni. **409** per quello predefinito, e finché contiene arnie attive. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo. |
+| POST | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Lo condivide con un utente, tramite `email`, come `viewer` (default), `collaborator` o `manager`. Condividerlo di nuovo cambia il ruolo. |
+| PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Cambia il ruolo di quell'utente. |
+| DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Smette di condividerlo con quell'utente. |
 
 I quattro endpoint di serie esistono perché a un grafico servono due colonne su una riga di
 nove; scartano le righe in cui il campo è NULL. L'elenco dei campi accettati è una
@@ -80,16 +86,14 @@ whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stri
 | PUT | `/api/admin/utenti/{id_utente}` | admin | Aggiorna un account. |
 | DELETE | `/api/admin/utenti/{id_utente}` | admin | Disattiva (soft delete). **Non puoi disattivare te stesso.** |
 | PUT | `/api/admin/utenti/{id_utente}/password` | admin | Reimposta la password di qualcuno — senza `current_password`. |
-| POST | `/api/admin/utenti-arnie` | admin | Dà a un utente accesso a un'arnia a un certo livello. |
-| DELETE | `/api/admin/utenti-arnie` | admin | Lo revoca. **`id_utente` e `id_arnia` sono query parameter**, non un body. |
-| PUT | `/api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario` | admin | Sposta l'arnia di un utente in un altro apiario **di quell'utente**. |
 | GET | `/api/admin/nodi` | admin | Tutti i nodi. |
 | POST | `/api/admin/nodi` | admin | Registra un nodo. |
 | GET | `/api/admin/nodi/{id_nodo}` | admin | Un singolo nodo. |
 | PUT | `/api/admin/nodi/{id_nodo}` | admin | Aggiorna un nodo (il body è un `NodoCreate` completo). |
 | DELETE | `/api/admin/nodi/{id_nodo}` | admin | Disattiva. Arnie e letture restano. |
-| GET | `/api/admin/arnie` | admin | Tutte le arnie, comprese quelle dismesse. `id_apiario` opzionale: le arnie che il suo proprietario ci ha messo. |
-| POST | `/api/admin/arnie` | admin | Crea un'arnia. |
+| PUT | `/api/admin/nodi/{id_nodo}/proprietario` | admin | Assegna il nodo a un utente (`id_utente`), lo trasferisce, o lo libera (`null`). Le sue arnie passano nell'apiario predefinito del nuovo proprietario. |
+| GET | `/api/admin/arnie` | admin | Tutte le arnie, comprese quelle dismesse. `id_apiario` opzionale. |
+| POST | `/api/admin/arnie` | admin | Crea un'arnia. Finisce nell'apiario predefinito del proprietario del nodo, o in `id_apiario` se è di quel proprietario; l'arnia di un nodo non assegnato non è assegnata. |
 | GET | `/api/admin/arnie/{id_arnia}` | admin | Una singola arnia con l'ultima lettura. |
 | PUT | `/api/admin/arnie/{id_arnia}` | admin | Aggiorna un'arnia — **`attiva` compresa**, a differenza della rotta utente. |
 | DELETE | `/api/admin/arnie/{id_arnia}` | admin | Disattiva. Le letture storiche restano. |
@@ -134,8 +138,8 @@ Le dipendenze si impilano, ciascuna sopra la precedente:
 | `get_current_user` | **401** + `WWW-Authenticate: Bearer` | Header assente, token malformato, firma errata, scaduto, `type != "access"`, o email sconosciuta. |
 | `get_current_active_user` | **400** `Utente non attivo` | L'account esiste ma `attivo` è falso. |
 | `get_current_admin_user` | **403** `Permessi insufficienti - richiesto ruolo admin` | L'account non è admin. |
-| `check_user_arnia_access` | **403** | Nessuna associazione con quell'arnia al livello richiesto. |
-| `check_user_apiario_access` | **403** | L'apiario non è del chiamante. |
+| `check_user_arnia_access` | **403** | L'accesso del chiamante all'apiario dell'arnia non consente l'azione. |
+| `check_user_apiario_access` | **403** | L'accesso del chiamante all'apiario non consente l'azione. |
 
 `HTTPBearer(auto_error=False)` è voluto. Lasciato al default, FastAPI risponde a un
 header *mancante* con un 403 secco e senza `WWW-Authenticate`; disattivandolo la
@@ -143,21 +147,30 @@ richiesta arriva a `get_current_user`, che restituisce il **401** corretto. La
 distinzione che l'API mantiene è: **401 significa "chi sei?", 403 significa "so chi sei,
 e no"**.
 
-I permessi per arnia sono una scala — `read` < `write` < `admin` — confrontata
-numericamente in `meshbee_core/services/auth.py`. Un account con `ruolo = 'admin'`
-scavalca del tutto la tabella delle associazioni. Un nome di permesso non riconosciuto
-solleva un'eccezione invece di restituire False, così un errore di battitura fallisce in
-chiusura.
+**L'accesso segue la proprietà (#36).** Un nodo appartiene a un utente, assegnato da
+un admin; le sue arnie stanno negli apiari di quell'utente, e il proprietario di
+un'arnia è il proprietario del suo apiario. Ogni account parte con un apiario
+`Default`, dove finiscono le arnie dei nodi che gli vengono assegnati. Un nodo non
+ancora assegnato, e le sue arnie, sono raggiungibili solo dagli admin.
 
-**Gli apiari sono personali e non danno permessi.** Ogni account parte con un apiario
-`Default` (`predefinito`), creato insieme all'account; le nuove associazioni finiscono
-lì, a meno che `POST /api/admin/utenti-arnie` indichi un altro apiario di
-quell'utente. L'apiario di un'arnia è salvato per utente, sull'associazione, quindi
-un'arnia condivisa da due utenti può stare in un apiario diverso per ciascuno, e
-spostarla cambia solo la vista di chi la sposta. L'accesso all'arnia viene sempre e
-solo da `utenti_arnie` — `?id_apiario=` restringe l'elenco delle arnie del chiamante,
-non lo allarga mai. Spostare in un apiario che non è del chiamante riceve lo stesso
-**400** che esista o no, così la risposta non rivela nulla.
+Il proprietario di un apiario può fare tutto sull'apiario e sulle sue arnie, ed è
+**l'unico che può condividerlo**. Una condivisione dà uno di tre ruoli sull'intero
+apiario, comprese le arnie aggiunte dopo:
+
+| Azione | viewer | collaborator | manager | owner |
+|---|---|---|---|---|
+| Vedere l'apiario, le sue arnie, letture e log attività | ✓ | ✓ | ✓ | ✓ |
+| Registrare attività (e modificare o eliminare le proprie) | | ✓ | ✓ | ✓ |
+| Modificare i dati di arnie e apiario | | | ✓ | ✓ |
+| Dismettere un'arnia, spostarla, eliminare l'apiario, condividerlo | | | | ✓ |
+
+La tabella sta in un solo posto, `ROLE_ACTIONS` in `meshbee_core/services/auth.py`;
+ogni rotta dichiara l'azione che le serve, e un account con `ruolo = 'admin'` passa
+ogni controllo. Un'azione sconosciuta solleva un'eccezione invece di restituire False,
+così un errore di battitura fallisce in chiusura. `?id_apiario=` restringe l'elenco
+delle arnie del chiamante, non lo allarga mai. Spostare un'arnia in un apiario che non
+è del suo proprietario riceve lo stesso **400** che esista o no, così la risposta non
+rivela nulla.
 
 Due cose da sapere sui token:
 
@@ -271,8 +284,9 @@ curl -s localhost:8000/api/user/arnie -H "Authorization: Bearer $TOKEN"
 I test di questo package stanno in `tests/unit/api/` e `tests/integration/api/` — vedi
 [`tests/README.it.md`](../tests/README.it.md). **Un endpoint nuovo va aggiunto alla
 tabella in `tests/integration/api/test_main_authz.py`**: quella tabella passa in rassegna
-ogni rotta per accesso anonimo, non-admin e senza associazione, ed è quello che becca un
-controllo dimenticato.
+ogni rotta per accesso anonimo e non-admin, e prova ogni rotta su arnia o apiario a
+ogni livello di accesso contro il suo minimo. È quello che becca un controllo
+dimenticato o sbagliato.
 
 ## Trappole
 
@@ -284,8 +298,6 @@ controllo dimenticato.
   non `api/`.
 - **Il servizio `seed` usa questa stessa immagine**, con `python -m scripts.seed`.
 - **Un `/health` che risponde 200 non dice niente.** Leggi `status` nel corpo.
-- **`DELETE /api/admin/utenti-arnie` prende query parameter.** Un body JSON viene
-  ignorato, e la richiesta fallisce poi la validazione per i parametri mancanti.
 
 ## Collegamenti
 

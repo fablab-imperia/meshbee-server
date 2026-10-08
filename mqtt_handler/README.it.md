@@ -130,9 +130,12 @@ Un nodo può iniziare a trasmettere prima che qualcuno lo registri, quindi il pe
 ingest crea quello che gli serve invece di rifiutare la lettura
 (`meshbee_core/services/ingest.py`):
 
-1. Il nodo viene registrato se non è già noto (`Nodo <id_nodo>`).
+1. Il nodo viene registrato se non è già noto (`Nodo <id_nodo>`), **non assegnato**:
+   nessuno lo possiede finché un admin non lo assegna, e fino ad allora lo vedono solo
+   gli admin.
 2. Con un `id_sensore`: viene usata l'arnia corrispondente, oppure **ne viene creata una
-   nuova** (`Arnia <id_nodo>-<id_sensore>`).
+   nuova** (`Arnia <id_nodo>-<id_sensore>`) — nell'apiario `Default` del proprietario del
+   nodo, o non assegnata come il suo nodo.
 3. Senza `id_sensore`: viene usata la **prima** arnia del nodo.
 4. Se il nodo non ha nessuna arnia e non ha mandato un `id_sensore`, la lettura viene
    scartata con `NotFound` — sollevando un'eccezione invece di uscire in silenzio,

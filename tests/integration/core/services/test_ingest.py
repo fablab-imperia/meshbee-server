@@ -1,6 +1,6 @@
 """Tests for the ingest service (meshbee_core/services/ingest.py).
 
-Only `ultimo_messaggio` is covered here — provisioning and the stored row are
+`ultimo_messaggio` and where a provisioned hive goes are covered here — the stored row is
 the subject of tests/integration/test_ingest_parity.py, through the real MQTT
 callback. These pin the two defects of the trigger this service replaced (#17):
 the value came from the node's clock, so it could go backwards.
@@ -96,3 +96,41 @@ def test_a_reading_entered_through_the_api_does_not_stamp_the_node(
     )
 
     assert ultimo_messaggio(db, "NODE-MANUAL")["ultimo_messaggio"] is None
+
+
+# ============================================
+# Where a provisioned hive goes (#36)
+# ============================================
+
+
+def apiario_of(db, id_nodo, id_sensore):
+    db.execute(
+        "SELECT id_apiario FROM arnie WHERE id_nodo = %s AND id_sensore_fisico = %s",
+        (id_nodo, id_sensore),
+    )
+    return db.fetchone()["id_apiario"]
+
+
+def test_a_hive_provisioned_for_an_owned_node_lands_in_the_owners_default(
+    session, db, make_utente, make_arnia
+):
+    """A new sensor on a beekeeper's node shows up in their Default, unannounced."""
+    utente = make_utente()
+    existing = make_arnia(apiario=utente)
+
+    ingest.record_node_reading(
+        session, {"id_nodo": existing["id_nodo"], "id_sensore": "S-NEW"}
+    )
+
+    assert (
+        apiario_of(db, existing["id_nodo"], "S-NEW") == utente["id_apiario_predefinito"]
+    )
+
+
+def test_an_unknown_node_and_its_hive_start_unassigned(session, db):
+    """Nobody owns a node no admin has assigned yet; only admins see its hives."""
+    ingest.record_node_reading(session, {"id_nodo": "NODE-NEW", "id_sensore": "S1"})
+
+    db.execute("SELECT id_proprietario FROM nodi WHERE id_nodo = 'NODE-NEW'")
+    assert db.fetchone()["id_proprietario"] is None
+    assert apiario_of(db, "NODE-NEW", "S1") is None

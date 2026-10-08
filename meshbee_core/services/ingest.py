@@ -12,6 +12,7 @@ from typing import Any
 
 from meshbee_core.errors import NotFound
 from meshbee_core.repository import arnie, nodi
+from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import letture
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,8 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
             id_nodo=id_nodo,
             id_sensore_fisico=id_sensore,
             nome_arnia=f"Arnia {id_nodo}-{id_sensore}",
+            # The node owner's default apiary, or none while it is unassigned.
+            id_apiario=arnie_service.placement(session, id_nodo, None),
         )
         logger.info(f"Creata nuova arnia: {created['id_arnia']}")
         return created["id_arnia"]

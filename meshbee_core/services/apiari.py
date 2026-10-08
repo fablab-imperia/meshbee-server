@@ -1,16 +1,16 @@
-"""Apiaries: each user's own grouping of the hives they can see.
+"""Apiaries: the places an owner's hives stand in.
 
-Every user has one default apiary, created with the account, which new grants
-land in and which cannot be deleted. Beyond it a user may create, edit and
-delete as many as they like; which apiary a hive is in is stored per user on
-the association (`utenti_arnie.id_apiario`), never on the hive.
+Every user has one default apiary, created with the account, where the hives
+of the nodes assigned to them land; it cannot be deleted. Beyond it an owner
+may create, edit and delete as many as they like, and share each one
+(`services/accessi.py`).
 """
 
 from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
-from meshbee_core.repository import accessi, apiari
+from meshbee_core.repository import apiari, arnie
 
 DEFAULT_NOME = "Default"
 
@@ -35,8 +35,11 @@ def ensure_predefinito(session, id_utente: int) -> dict[str, Any]:
 
 
 def list_for_utente(session, id_utente: int) -> list[dict[str, Any]]:
-    """The user's own apiaries, the default first."""
-    return apiari.list_all(session, id_utente)
+    """
+    The apiaries the user owns (the default first), then those shared with
+    them, each with `accesso`: "owner" or the role shared.
+    """
+    return apiari.list_for_utente(session, id_utente)
 
 
 def list_all(session, id_utente: int | None = None) -> list[dict[str, Any]]:
@@ -55,9 +58,23 @@ def get_apiario(session, id_apiario: int) -> dict[str, Any]:
     return row
 
 
+def get_for_utente(session, id_apiario: int, id_utente: int) -> dict[str, Any]:
+    """
+    One apiary with what `id_utente` may do on it (None for an admin who
+    neither owns it nor has it shared).
+
+    Raises:
+        NotFound: if the apiary does not exist.
+    """
+    row = apiari.get_for_utente(session, id_apiario, id_utente)
+    if not row:
+        raise NotFound("Apiario non trovato")
+    return row
+
+
 def owned_by(session, id_apiario: int, id_utente: int) -> dict[str, Any]:
     """
-    The apiary, if it is one of the user's own.
+    The apiary, if `id_utente` owns it.
 
     A missing apiary and someone else's get the same answer, so the check
     reveals nothing about other people's apiaries.
@@ -115,11 +132,11 @@ def update_apiario(session, id_apiario: int, apiario) -> dict[str, Any]:
 
 def delete_apiario(session, id_apiario: int) -> None:
     """
-    Delete an apiary its owner has emptied.
+    Delete an apiary its owner has emptied. Its shares go with it.
 
     Refused for the default apiary, and while active hives are still in it:
-    where each hive goes is the owner's decision. Revoked associations, which
-    the owner cannot see, are moved to their default apiary first.
+    where each hive goes is the owner's decision. Retired hives, which no list
+    shows, are moved to the owner's default apiary first.
 
     Raises:
         NotFound: if the apiary does not exist.
@@ -135,5 +152,5 @@ def delete_apiario(session, id_apiario: int) -> None:
         )
 
     predefinito = ensure_predefinito(session, apiario["id_utente_proprietario"])
-    accessi.move_all(session, id_apiario, predefinito["id_apiario"])
+    arnie.move_all(session, id_apiario, predefinito["id_apiario"])
     apiari.delete(session, id_apiario)

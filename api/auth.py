@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
 from meshbee_core.db import get_session
-from meshbee_core.models import Permesso, TokenData
+from meshbee_core.models import TokenData
 from meshbee_core.services import auth as auth_service
 
 logger = logging.getLogger(__name__)
@@ -239,36 +239,31 @@ async def get_current_admin_user(
     return current_user
 
 
-def check_user_arnia_access(
-    id_utente: int, id_arnia: int, required_permission: Permesso = "read"
-) -> bool:
+def check_user_arnia_access(id_utente: int, id_arnia: int, action: str) -> bool:
     """
-    Verifica se un utente ha accesso a un'arnia
-
-    Args:
-        id_utente: ID dell'utente
-        id_arnia: ID dell'arnia
-        required_permission: Permesso richiesto (read, write, admin)
-
-    Returns:
-        True se l'utente ha accesso, False altrimenti
+    Whether a user may perform an action on a hive
+    (see `auth_service.can_on_arnia` for the actions and who may do them).
 
     Raises:
-        ValueError: Se required_permission non è un permesso conosciuto
+        ValueError: if the action is unknown.
     """
     try:
         with get_session() as session:
-            return auth_service.has_arnia_access(
-                session, id_utente, id_arnia, required_permission
-            )
+            return auth_service.can_on_arnia(session, id_utente, id_arnia, action)
     except SQLAlchemyError as e:
         raise database_unavailable_error(e) from e
 
 
-def check_user_apiario_access(id_utente: int, id_apiario: int) -> bool:
-    """Whether a user may read an apiary (see `auth_service.has_apiario_access`)."""
+def check_user_apiario_access(id_utente: int, id_apiario: int, action: str) -> bool:
+    """
+    Whether a user may perform an action on an apiary
+    (see `auth_service.can_on_apiario`).
+
+    Raises:
+        ValueError: if the action is unknown.
+    """
     try:
         with get_session() as session:
-            return auth_service.has_apiario_access(session, id_utente, id_apiario)
+            return auth_service.can_on_apiario(session, id_utente, id_apiario, action)
     except SQLAlchemyError as e:
         raise database_unavailable_error(e) from e

@@ -42,7 +42,6 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
-    ForeignKeyConstraint,
     Index,
     Numeric,
     String,
@@ -61,17 +60,17 @@ from meshbee_core.limits import (
     LATITUDINE_MIN,
     LONGITUDINE_MAX,
     LONGITUDINE_MIN,
-    PERMESSI,
     PESO_MIN,
     RUOLI,
+    RUOLI_APIARIO,
     TEMPERATURA_MAX,
     TEMPERATURA_MIN,
     TIPI_ATTIVITA,
     UMIDITA_MAX,
     UMIDITA_MIN,
-    # Re-exported: the value sets are part of this module's public surface.
-    Permesso,
     Ruolo,
+    # Re-exported: the value sets are part of this module's public surface.
+    RuoloApiario,
     TipoAttivita,
 )
 
@@ -324,10 +323,20 @@ class NodoResponse(NodoBase):
 
     data_registrazione: datetime = Field(sa_column_kwargs=NOW)
     ultimo_messaggio: datetime | None = None
+    # Null until an admin assigns the node; its hives follow its owner.
+    id_proprietario: int | None = Field(
+        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+    )
     attivo: bool = Field(sa_column_kwargs=TRUE)
     configurazione: dict[str, Any] | None = Field(None, sa_type=JSONB)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NodoProprietarioUpdate(BaseModel):
+    """Assign a node to a user, transfer it, or (null) unassign it."""
+
+    id_utente: int | None
 
 
 class Nodo(NodoResponse, table=True):
@@ -342,11 +351,10 @@ class Nodo(NodoResponse, table=True):
 
 class ApiarioBase(SQLModel):
     """
-    An apiary: one user's grouping of the hives they can see.
+    An apiary: the place a group of hives stands in, owned by one user.
 
-    Apiaries are personal. Membership lives on the association
-    (`utenti_arnie.id_apiario`), so a hive shared by two users sits in an
-    apiary of each, and moving it never touches the other user's view.
+    A hive is in exactly one apiary (`arnie.id_apiario`) and belongs to that
+    apiary's owner. Sharing is granted per apiary (`utenti_apiari`).
     """
 
     nome_apiario: str = Field(sa_type=String(100))
@@ -401,8 +409,8 @@ class ApiarioResponse(ApiarioBase):
     id_utente_proprietario: int = Field(
         foreign_key="utenti.id_utente", ondelete="CASCADE"
     )
-    # The apiary a user starts with and new grants land in. It cannot be
-    # deleted, so every hive a user can see always has an apiary.
+    # The apiary a user starts with, where the hives of their newly assigned
+    # nodes land. It cannot be deleted.
     predefinito: bool = Field(sa_column_kwargs=FALSE)
     data_creazione: datetime = Field(sa_column_kwargs=NOW)
     metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
@@ -410,18 +418,19 @@ class ApiarioResponse(ApiarioBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ApiarioConAccesso(ApiarioResponse):
+    """An apiary with what the caller may do on it."""
+
+    # "owner", or the role the owner granted the caller; null for an admin
+    # looking at someone else's apiary.
+    accesso: str | None = None
+
+
 class Apiario(ApiarioResponse, table=True):
     __tablename__ = "apiari"
     __table_args__ = (
-        # Target of the composite foreign key from `utenti_arnie`, which is
-        # what keeps a hive out of an apiary its user does not own.
-        UniqueConstraint(
-            "id_apiario",
-            "id_utente_proprietario",
-            name="apiari_id_apiario_id_utente_proprietario_key",
-        ),
         *coordinate_checks("apiari_"),
-        {"comment": "Apiari: raggruppamenti personali delle arnie di un utente"},
+        {"comment": "Apiari: luoghi che raggruppano le arnie di un proprietario"},
     )
 
 
@@ -440,6 +449,9 @@ class ArniaBase(SQLModel):
     posizione: str | None = Field(None, sa_type=String(255))
     latitudine: Decimal | None = latitudine_column()
     longitudine: Decimal | None = longitudine_column()
+    # The hive's owner is this apiary's owner. Null while its node is
+    # unassigned; on creation, the node owner's default apiary.
+    id_apiario: int | None = Field(None, foreign_key="apiari.id_apiario")
 
 
 class ArniaCreate(ArniaBase):
@@ -494,7 +506,7 @@ class Arnia(ArniaResponse, table=True):
 
 
 class ArniaApiarioUpdate(BaseModel):
-    """Move a hive into another of the caller's apiaries."""
+    """Move a hive into another apiary of its owner."""
 
     id_apiario: int
 
@@ -502,11 +514,10 @@ class ArniaApiarioUpdate(BaseModel):
 class ArniaConStato(ArniaResponse):
     """Arnia con ultime letture e coordinate"""
 
-    # The caller's own apiary for this hive: apiaries are per user, so two
-    # users sharing a hive can see it in different ones. Null when the caller
-    # has no association with it (an admin browsing every hive).
-    id_apiario: int | None = None
     nome_apiario: str | None = None
+    # "owner", or the role granted to the caller on the hive's apiary; null
+    # when the caller has neither (an admin browsing every hive).
+    accesso: str | None = None
     ultima_temperatura: Decimal | None = None
     ultima_umidita: Decimal | None = None
     ultimo_peso: Decimal | None = None
@@ -707,58 +718,61 @@ class AttivitaQueryParams(BaseModel):
 
 
 # ============================================
-# Associazione utente-arnia
+# Condivisione degli apiari
 # ============================================
 
 
-class UtenteArniaCreate(BaseModel):
-    """Associazione utente-arnia"""
+class CondivisioneCreate(BaseModel):
+    """Share an apiary with a user, found by email."""
 
-    id_utente: int
-    id_arnia: int
-    permessi: Permesso = "read"
-    # One of that user's apiaries; their default when omitted. Ignored when
-    # the association already exists, so re-granting never moves a hive.
-    id_apiario: int | None = None
+    email: str
+    ruolo: RuoloApiario = "viewer"
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email_case(cls, v):
+        return normalize_email(v)
 
 
-class UtenteArniaResponse(SQLModel):
-    """Risposta associazione"""
+class CondivisioneUpdate(BaseModel):
+    """Change the role of an existing share."""
 
-    id: int = Field(primary_key=True)
+    ruolo: RuoloApiario
+
+
+class CondivisioneBase(SQLModel):
     id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
-    id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
-    data_associazione: datetime = Field(sa_column_kwargs=NOW)
-    data_disassociazione: datetime | None = None
-    permessi: str = Field(sa_type=String(20), sa_column_kwargs=default("read"))
-    attivo: bool = Field(sa_column_kwargs=TRUE)
-    # Which of the user's apiaries the hive is in, for that user only. The
-    # foreign key is the composite one in UtenteArnia's table args.
-    id_apiario: int
-
-    model_config = ConfigDict(from_attributes=True)
+    id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
+    ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
+    data_condivisione: datetime = Field(sa_column_kwargs=NOW)
 
 
-class UtenteArnia(UtenteArniaResponse, table=True):
-    __tablename__ = "utenti_arnie"
+class CondivisioneResponse(CondivisioneBase):
+    """A share, with who it is for."""
+
+    email: str
+    nome: str
+    cognome: str
+
+
+class UtenteApiario(CondivisioneBase, table=True):
+    """
+    A role granted on an apiary by its owner. Revoking deletes the row: a share
+    has no history worth keeping, unlike readings or activities.
+    """
+
+    __tablename__ = "utenti_apiari"
     __table_args__ = (
         UniqueConstraint(
-            "id_utente", "id_arnia", name="utenti_arnie_id_utente_id_arnia_key"
+            "id_utente", "id_apiario", name="utenti_apiari_id_utente_id_apiario_key"
         ),
         CheckConstraint(
-            one_of("permessi", PERMESSI), name="utenti_arnie_permessi_check"
+            one_of("ruolo", RUOLI_APIARIO), name="utenti_apiari_ruolo_check"
         ),
-        CheckConstraint(
-            "data_disassociazione IS NULL OR data_disassociazione >= data_associazione",
-            name="valid_association_dates",
-        ),
-        # Composite, so the apiary must belong to the association's own user.
-        ForeignKeyConstraint(
-            ["id_apiario", "id_utente"],
-            ["apiari.id_apiario", "apiari.id_utente_proprietario"],
-            name="utenti_arnie_id_apiario_fkey",
-        ),
+        {"comment": "Apiari condivisi dal proprietario con altri utenti"},
     )
+
+    id: int | None = Field(default=None, primary_key=True)
 
 
 # ============================================
@@ -810,8 +824,10 @@ INDEXES = (
     Index("idx_utenti_attivo", Utente.attivo),
     Index("idx_nodi_attivo", Nodo.attivo),
     Index("idx_nodi_ultimo_messaggio", Nodo.ultimo_messaggio),
+    Index("idx_nodi_proprietario", Nodo.id_proprietario),
     Index("idx_arnie_nodo", Arnia.id_nodo),
     Index("idx_arnie_attiva", Arnia.attiva),
+    Index("idx_arnie_apiario", Arnia.id_apiario),
     Index("idx_apiari_proprietario", Apiario.id_utente_proprietario),
     # One default apiary per user.
     Index(
@@ -820,10 +836,8 @@ INDEXES = (
         unique=True,
         postgresql_where=Apiario.predefinito,
     ),
-    Index("idx_utenti_arnie_utente", UtenteArnia.id_utente),
-    Index("idx_utenti_arnie_arnia", UtenteArnia.id_arnia),
-    Index("idx_utenti_arnie_attivo", UtenteArnia.attivo),
-    Index("idx_utenti_arnie_apiario", UtenteArnia.id_apiario),
+    Index("idx_utenti_apiari_utente", UtenteApiario.id_utente),
+    Index("idx_utenti_apiari_apiario", UtenteApiario.id_apiario),
     Index("idx_letture_arnia", Lettura.id_arnia),
     Index("idx_letture_timestamp", Lettura.timestamp.desc()),
     Index("idx_letture_arnia_timestamp", Lettura.id_arnia, Lettura.timestamp.desc()),

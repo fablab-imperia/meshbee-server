@@ -3,8 +3,9 @@
 from typing import Any
 
 from meshbee_core.db import integrity_errors
-from meshbee_core.errors import Conflict, NotFound
-from meshbee_core.repository import apiari, arnie
+from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.repository import arnie, nodi
+from meshbee_core.services import apiari
 
 
 def list_for_utente(
@@ -16,9 +17,9 @@ def list_for_utente(
     The admin branch is not a shortcut around the association table: an admin
     is expected to see hives nobody has been granted access to yet.
 
-    Each hive carries the caller's own apiary for it, and `id_apiario` narrows
-    the list to one of the caller's apiaries. Someone else's apiary just
-    matches nothing: apiaries are per user.
+    A user sees the hives in the apiaries they own or have been shared, each
+    with `accesso`: "owner" or the role shared. `id_apiario` narrows the list
+    to one apiary, and opens nothing the user could not already see.
     """
     if current_user["ruolo"] == "admin":
         rows = arnie.list_stato_attive(session, current_user["id_utente"], id_apiario)
@@ -30,22 +31,8 @@ def list_for_utente(
 
 
 def list_all(session, id_apiario: int | None = None) -> list[dict[str, Any]]:
-    """
-    Every arnia including the retired ones — the admin inventory.
-
-    With `id_apiario`, the hives its owner has put in that apiary instead.
-
-    Raises:
-        NotFound: if `id_apiario` names no apiary.
-    """
-    if id_apiario is None:
-        return [dict(row) for row in arnie.list_stato(session)]
-    apiario = apiari.get(session, id_apiario)
-    if not apiario:
-        raise NotFound("Apiario non trovato")
-    return arnie.list_stato_in_apiario(
-        session, apiario["id_utente_proprietario"], id_apiario
-    )
+    """Every arnia including the retired ones — the admin inventory."""
+    return [dict(row) for row in arnie.list_stato(session, id_apiario)]
 
 
 def list_ids(session) -> list[int]:
@@ -55,7 +42,7 @@ def list_ids(session) -> list[int]:
 
 def get_arnia(session, id_arnia: int, id_utente: int | None = None) -> dict[str, Any]:
     """
-    With `id_utente`, the hive carries the apiary that user has put it in.
+    With `id_utente`, the hive carries what that user may do on it.
 
     Raises:
         NotFound: se l'arnia non esiste.
@@ -68,10 +55,17 @@ def get_arnia(session, id_arnia: int, id_utente: int | None = None) -> dict[str,
 
 def create_arnia(session, arnia) -> dict[str, Any]:
     """
+    The hive belongs to its node's owner: it goes in the apiary named, which
+    must be that owner's, or else in their default one. A hive of an
+    unassigned node is unassigned too, until an admin assigns the node.
+
     Raises:
         Conflict: se il sensore è già registrato per quel nodo.
         NotFound: se il nodo non esiste.
+        InvalidData: if the apiary is not the node owner's, or the node is
+            unassigned and an apiary was named.
     """
+    id_apiario = placement(session, arnia.id_nodo, arnia.id_apiario)
     conflict = Conflict(
         f"Sensore '{arnia.id_sensore_fisico}' già registrato per il nodo '{arnia.id_nodo}'"
     )
@@ -92,6 +86,7 @@ def create_arnia(session, arnia) -> dict[str, Any]:
                 latitudine=arnia.latitudine,
                 longitudine=arnia.longitudine,
                 metadati=arnia.metadati,
+                id_apiario=id_apiario,
             )
         )
 
@@ -135,3 +130,42 @@ def deactivate_arnia(session, id_arnia: int) -> None:
     """
     if not arnie.deactivate(session, id_arnia):
         raise NotFound("Arnia non trovata")
+
+
+def move_arnia(session, id_arnia: int, id_apiario: int) -> dict[str, Any]:
+    """
+    Move a hive into another apiary of its owner.
+
+    Raises:
+        NotFound: if the hive does not exist.
+        InvalidData: if the hive is unassigned, or the apiary is not its owner's.
+    """
+    found = arnie.get_proprietario(session, id_arnia)
+    if not found:
+        raise NotFound("Arnia non trovata")
+    if found["id_utente_proprietario"] is None:
+        raise InvalidData("L'arnia non è assegnata: assegna prima il suo nodo")
+    apiari.owned_by(session, id_apiario, found["id_utente_proprietario"])
+    return arnie.set_apiario(session, id_arnia, id_apiario)
+
+
+def placement(session, id_nodo: str, id_apiario: int | None) -> int | None:
+    """
+    The apiary a new hive of this node goes in.
+
+    Raises:
+        NotFound: if the node does not exist.
+        InvalidData: if the apiary is not the node owner's, or the node is
+            unassigned and an apiary was named.
+    """
+    nodo = nodi.get(session, id_nodo)
+    if not nodo:
+        raise NotFound(f"Nodo '{id_nodo}' non trovato")
+    owner = nodo["id_proprietario"]
+    if owner is None:
+        if id_apiario is not None:
+            raise InvalidData("Il nodo non è assegnato: assegnalo prima a un utente")
+        return None
+    if id_apiario is None:
+        return apiari.ensure_predefinito(session, owner)["id_apiario"]
+    return apiari.owned_by(session, id_apiario, owner)["id_apiario"]

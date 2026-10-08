@@ -3,7 +3,8 @@
 from typing import Any
 
 from meshbee_core.errors import Conflict, NotFound
-from meshbee_core.repository import nodi
+from meshbee_core.repository import arnie, nodi
+from meshbee_core.services import apiari
 
 
 def list_nodi(session) -> list[dict[str, Any]]:
@@ -68,3 +69,28 @@ def deactivate_nodo(session, id_nodo: str) -> None:
     """
     if not nodi.deactivate(session, id_nodo):
         raise NotFound(f"Nodo '{id_nodo}' non trovato")
+
+
+def assign_proprietario(session, id_nodo: str, id_utente: int | None) -> dict[str, Any]:
+    """
+    Assign a node to a user, transfer it to another, or (None) unassign it.
+
+    The node's hives follow: into the new owner's default apiary, or into no
+    apiary at all. Shares on the previous owner's apiaries do not follow them.
+    Re-assigning the current owner changes nothing, so it never undoes how the
+    owner has arranged their hives.
+
+    Raises:
+        NotFound: if the node or the user does not exist.
+    """
+    nodo = nodi.get(session, id_nodo)
+    if not nodo:
+        raise NotFound(f"Nodo '{id_nodo}' non trovato")
+    if nodo["id_proprietario"] == id_utente:
+        return nodo
+
+    target = None
+    if id_utente is not None:
+        target = apiari.ensure_predefinito(session, id_utente)["id_apiario"]
+    arnie.place_nodo(session, id_nodo, target)
+    return nodi.set_proprietario(session, id_nodo, id_utente)

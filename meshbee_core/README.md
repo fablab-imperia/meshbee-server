@@ -38,24 +38,25 @@ scripts/ ───────┘
 | Module | Covers |
 |---|---|
 | `utenti.py` | `utenti`. `get_credentials_by_email` is the only projection that includes `password_hash`. |
-| `nodi.py` | `nodi`, including `register_if_absent` for the ingest path. |
-| `arnie.py` | `arnie`, and `STATO`: each hive with its node's name and latest reading; `with_apiario` adds a given user's apiary for it. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
-| `apiari.py` | `apiari`, each user's own, and how many active hives one still holds. |
+| `nodi.py` | `nodi`, including `register_if_absent` for the ingest path and `set_proprietario`. |
+| `arnie.py` | `arnie`, and `STATO`: each hive with its node's name, its apiary and latest reading; `with_accesso` adds what a given user may do on it. `update` uses an `UNSET` sentinel so `attiva` is only touched when explicitly passed. |
+| `apiari.py` | `apiari`: a user's own and those shared with them, and how many active hives one still holds. |
 | `letture.py` | `letture`. `insert` is the single INSERT both entry points reach; `series` whitelists the column name. |
 | `attivita.py` | `log_attivita`, with ownership-scoped update and delete. |
-| `accessi.py` | `utenti_arnie` — the association table. |
+| `accessi.py` | `utenti_apiari` — the shares — and a user's access (`owner`, a role, or none) to an apiary or a hive. |
 
 ### `services/` — decisions
 
 | Module | Covers |
 |---|---|
-| `auth.py` | Authentication, the `read < write < admin` permission ladder, and apiary ownership. |
-| `utenti.py` | Account lifecycle, including the refusal to deactivate yourself. |
-| `arnie.py` | Hives, and who is allowed to see which. |
+| `auth.py` | Authentication, and authorization: `ROLE_ACTIONS`, what each role allows, and `can_on_arnia` / `can_on_apiario`. |
+| `utenti.py` | Account lifecycle, including the refusal to deactivate yourself; every new account gets its `Default` apiary. |
+| `nodi.py` | Nodes, and assigning one to an owner — its hives follow. |
+| `arnie.py` | Hives: which ones a user sees, where a new one goes, moving one between its owner's apiaries. |
 | `apiari.py` | Apiaries: every user's `Default`, and the rules for deleting one. |
 | `letture.py` | Readings, the default one-year window, range validation. |
 | `attivita.py` | The activity log. |
-| `accessi.py` | Granting and revoking access to a hive, and moving it between the user's apiaries. |
+| `accessi.py` | Sharing an apiary: granting, changing and revoking roles. |
 | `ingest.py` | The MQTT path: register the node, resolve or create the hive, store the reading. |
 
 ## Layer rules
@@ -152,7 +153,7 @@ The ranges are validated by the models in `models.py`, with the bounds from `lim
 | `longitudine` | −180 to 180 | CHECK `valid_longitudine` |
 | password | 8 chars min, **72 bytes** max | — |
 | `ruolo` | `user`, `admin` | CHECK on `utenti.ruolo` |
-| `permessi` | `read`, `write`, `admin` | CHECK on `utenti_arnie.permessi` |
+| apiary roles | `viewer`, `collaborator`, `manager` | CHECK on `utenti_apiari.ruolo` |
 | `tipo_attivita` | 8 values | CHECK on `log_attivita.tipo_attivita` |
 
 **Every bound and value set is declared once, in `limits.py`.** The validators on the
@@ -210,8 +211,8 @@ See [`tests/`](../tests/README.md).
 - **`arnie.update` uses an `UNSET` sentinel, not `None`.** `None` is a legitimate value
   to write; the sentinel is how "the caller said nothing about this column" is kept
   distinct, which is what stops a user-facing update from silently retiring a hive.
-- **An unknown permission name raises** rather than returning `False` — a typo fails
-  closed instead of quietly denying everyone.
+- **An unknown action raises** rather than returning `False` — a typo fails loudly
+  instead of quietly reading as "owner only".
 
 ## Related
 

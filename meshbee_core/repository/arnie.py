@@ -2,11 +2,13 @@
 
 from typing import Any
 
-from sqlalchemy import and_, func, true
+from sqlalchemy import case, func, or_, true
+from sqlalchemy import update as sql_update
 from sqlmodel import Session, select
 
-from meshbee_core.models import Apiario, Arnia, Lettura, Nodo, UtenteArnia
+from meshbee_core.models import Apiario, Arnia, Lettura, Nodo, UtenteApiario
 from meshbee_core.repository import as_dict, mapping
+from meshbee_core.repository.accessi import OWNER
 
 # Sentinel for "leave this column alone entirely", which is not the same as
 # passing None (which also leaves it alone, but for every other column).
@@ -29,8 +31,8 @@ _latest = (
 )
 
 # An arnia with its node's name and its current state: what the hive list shows.
-# The columns are those of the former `v_arnie_stato` view, in the same order.
-# Apiaries are per user, so they are not here: `with_apiario` adds the caller's.
+# The columns are those of the former `v_arnie_stato` view, in the same order,
+# followed by the hive's apiary.
 STATO = (
     select(
         Arnia.id_arnia,
@@ -50,9 +52,12 @@ STATO = (
         _latest.c.peso.label("ultimo_peso"),
         _latest.c.timestamp.label("ultimo_aggiornamento"),
         _latest.c.batteria.label("ultima_batteria"),
+        Arnia.id_apiario,
+        Apiario.nome_apiario,
     )
     .select_from(Arnia)
     .outerjoin(Nodo, Nodo.id_nodo == Arnia.id_nodo)
+    .outerjoin(Apiario, Apiario.id_apiario == Arnia.id_apiario)
     .outerjoin(_latest, true())
 )
 
@@ -61,55 +66,42 @@ def stato_rows(session: Session, query) -> list[dict[str, Any]]:
     return [mapping(row) for row in session.exec(query).all()]
 
 
-def with_apiario(
-    query, id_utente: int, *, associated_only: bool, id_apiario: int | None = None
-):
+def with_accesso(query, id_utente: int, *, accessible_only: bool):
     """
-    Add the user's own apiary for each hive, from their active association.
+    Add what the user may do on each hive: "owner" when its apiary is theirs,
+    else the role shared with them on it, else None.
 
-    `associated_only` keeps just the hives the user is associated with;
-    otherwise the others stay, with no apiary. `id_apiario` narrows to one of
-    the user's apiaries.
+    `accessible_only` keeps just the hives with some access.
     """
-    association = and_(
-        UtenteArnia.id_arnia == Arnia.id_arnia,
-        UtenteArnia.id_utente == id_utente,
-        UtenteArnia.attivo.is_(True),
+    owned = Apiario.id_utente_proprietario == id_utente
+    query = query.add_columns(
+        case((owned, OWNER), else_=UtenteApiario.ruolo).label("accesso")
+    ).outerjoin(
+        UtenteApiario,
+        (UtenteApiario.id_apiario == Arnia.id_apiario)
+        & (UtenteApiario.id_utente == id_utente),
     )
-    query = query.add_columns(UtenteArnia.id_apiario, Apiario.nome_apiario)
-    query = (
-        query.join(UtenteArnia, association)
-        if associated_only
-        else query.outerjoin(UtenteArnia, association)
-    ).outerjoin(Apiario, Apiario.id_apiario == UtenteArnia.id_apiario)
-    if id_apiario is not None:
-        query = query.where(UtenteArnia.id_apiario == id_apiario)
+    if accessible_only:
+        query = query.where(or_(owned, UtenteApiario.id.is_not(None)))
     return query
 
 
-def list_stato(session: Session) -> list[dict[str, Any]]:
-    return stato_rows(session, STATO.order_by(Arnia.id_arnia))
+def in_apiario(query, id_apiario: int | None):
+    """Narrow to one apiary; None leaves the query unfiltered."""
+    return query if id_apiario is None else query.where(Arnia.id_apiario == id_apiario)
 
 
-def list_stato_in_apiario(
-    session: Session, id_utente: int, id_apiario: int
-) -> list[dict[str, Any]]:
-    """The hives a user has in one of their apiaries, retired ones included."""
-    return stato_rows(
-        session,
-        with_apiario(
-            STATO, id_utente, associated_only=True, id_apiario=id_apiario
-        ).order_by(Arnia.id_arnia),
-    )
+def list_stato(session: Session, id_apiario: int | None = None) -> list[dict[str, Any]]:
+    return stato_rows(session, in_apiario(STATO, id_apiario).order_by(Arnia.id_arnia))
 
 
 def list_stato_attive(
     session: Session, id_utente: int, id_apiario: int | None = None
 ) -> list[dict[str, Any]]:
-    """Every active arnia, with the apiary `id_utente` has put it in, if any."""
+    """Every active arnia, with what `id_utente` may do on each."""
     return stato_rows(
         session,
-        with_apiario(STATO, id_utente, associated_only=False, id_apiario=id_apiario)
+        with_accesso(in_apiario(STATO, id_apiario), id_utente, accessible_only=False)
         .where(Arnia.attiva.is_(True))
         .order_by(Arnia.nome_arnia),
     )
@@ -118,9 +110,10 @@ def list_stato_attive(
 def list_stato_for_utente(
     session: Session, id_utente: int, id_apiario: int | None = None
 ) -> list[dict[str, Any]]:
+    """The active hives the user owns or has been shared, through their apiary."""
     return stato_rows(
         session,
-        with_apiario(STATO, id_utente, associated_only=True, id_apiario=id_apiario)
+        with_accesso(in_apiario(STATO, id_apiario), id_utente, accessible_only=True)
         .where(Arnia.attiva.is_(True))
         .order_by(Arnia.nome_arnia),
     )
@@ -129,10 +122,10 @@ def list_stato_for_utente(
 def get_stato(
     session: Session, id_arnia: int, id_utente: int | None = None
 ) -> dict[str, Any] | None:
-    """One arnia; with `id_utente`, also the apiary that user has put it in."""
+    """One arnia; with `id_utente`, also what that user may do on it."""
     query = STATO
     if id_utente is not None:
-        query = with_apiario(query, id_utente, associated_only=False)
+        query = with_accesso(query, id_utente, accessible_only=False)
     return mapping(session.exec(query.where(Arnia.id_arnia == id_arnia)).first())
 
 
@@ -158,6 +151,7 @@ def insert(
     latitudine=None,
     longitudine=None,
     metadati: dict | None = None,
+    id_apiario: int | None = None,
 ) -> dict[str, Any]:
     arnia = Arnia(
         id_nodo=id_nodo,
@@ -169,6 +163,7 @@ def insert(
         longitudine=longitudine,
         attiva=True,
         metadati=metadati or None,
+        id_apiario=id_apiario,
     )
     session.add(arnia)
     session.flush()
@@ -246,3 +241,40 @@ def find_first_id_by_nodo(session: Session, id_nodo: str) -> dict[str, Any] | No
         .limit(1)
     ).first()
     return {"id_arnia": found} if found is not None else None
+
+
+def set_apiario(
+    session: Session, id_arnia: int, id_apiario: int
+) -> dict[str, Any] | None:
+    arnia = session.get(Arnia, id_arnia)
+    if arnia is None:
+        return None
+    arnia.id_apiario = id_apiario
+    session.flush()
+    return as_dict(arnia)
+
+
+def move_all(session: Session, from_apiario: int, to_apiario: int) -> None:
+    """Every hive of one apiary, retired ones included, into another."""
+    session.exec(
+        sql_update(Arnia)
+        .where(Arnia.id_apiario == from_apiario)
+        .values(id_apiario=to_apiario)
+    )
+
+
+def place_nodo(session: Session, id_nodo: str, id_apiario: int | None) -> None:
+    """Every hive of a node into one apiary, or (None) into none."""
+    session.exec(
+        sql_update(Arnia).where(Arnia.id_nodo == id_nodo).values(id_apiario=id_apiario)
+    )
+
+
+def get_proprietario(session: Session, id_arnia: int) -> dict[str, Any] | None:
+    """The hive's owner, through its apiary; None if the hive does not exist."""
+    row = session.exec(
+        select(Arnia.id_arnia, Apiario.id_utente_proprietario)
+        .outerjoin(Apiario, Apiario.id_apiario == Arnia.id_apiario)
+        .where(Arnia.id_arnia == id_arnia)
+    ).first()
+    return mapping(row)

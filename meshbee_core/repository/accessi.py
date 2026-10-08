@@ -1,113 +1,116 @@
-"""Queries on `utenti_arnie`, the user-to-arnia association."""
+"""Who may do what: apiary ownership and the roles shared on `utenti_apiari`."""
 
 from typing import Any
 
-from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
-from meshbee_core.models import UtenteArnia
+from meshbee_core.models import Apiario, Arnia, Utente, UtenteApiario
 
-PAIR = ["id_utente", "id_arnia"]
+PAIR = ["id_utente", "id_apiario"]
+
+OWNER = "owner"
 
 
-def active(session: Session, id_utente: int, id_arnia: int) -> UtenteArnia | None:
-    return session.exec(
-        select(UtenteArnia).where(
-            UtenteArnia.id_utente == id_utente,
-            UtenteArnia.id_arnia == id_arnia,
-            UtenteArnia.attivo.is_(True),
+def _accesso(row, id_utente: int) -> str | None:
+    """The access a (owner id, shared role) row gives the user."""
+    if row is None:
+        return None
+    id_proprietario, ruolo = row
+    return OWNER if id_proprietario == id_utente else ruolo
+
+
+def accesso_su_apiario(session: Session, id_utente: int, id_apiario: int) -> str | None:
+    row = session.exec(
+        select(Apiario.id_utente_proprietario, UtenteApiario.ruolo)
+        .outerjoin(
+            UtenteApiario,
+            (UtenteApiario.id_apiario == Apiario.id_apiario)
+            & (UtenteApiario.id_utente == id_utente),
+        )
+        .where(Apiario.id_apiario == id_apiario)
+    ).first()
+    return _accesso(row, id_utente)
+
+
+def accesso_su_arnia(session: Session, id_utente: int, id_arnia: int) -> str | None:
+    """Through the hive's apiary; None for an unassigned hive, which only admins reach."""
+    row = session.exec(
+        select(Apiario.id_utente_proprietario, UtenteApiario.ruolo)
+        .select_from(Arnia)
+        .join(Apiario, Apiario.id_apiario == Arnia.id_apiario)
+        .outerjoin(
+            UtenteApiario,
+            (UtenteApiario.id_apiario == Apiario.id_apiario)
+            & (UtenteApiario.id_utente == id_utente),
+        )
+        .where(Arnia.id_arnia == id_arnia)
+    ).first()
+    return _accesso(row, id_utente)
+
+
+# A share with the user it is for, as the owner sees it.
+_CONDIVISIONE = select(
+    UtenteApiario.id_utente,
+    UtenteApiario.id_apiario,
+    UtenteApiario.ruolo,
+    UtenteApiario.data_condivisione,
+    Utente.email,
+    Utente.nome,
+    Utente.cognome,
+).join(Utente, Utente.id_utente == UtenteApiario.id_utente)
+
+
+def list_for_apiario(session: Session, id_apiario: int) -> list[dict[str, Any]]:
+    rows = session.exec(
+        _CONDIVISIONE.where(UtenteApiario.id_apiario == id_apiario).order_by(
+            Utente.email
+        )
+    ).all()
+    return [dict(row._mapping) for row in rows]
+
+
+def get(session: Session, id_utente: int, id_apiario: int) -> dict[str, Any] | None:
+    row = session.exec(
+        _CONDIVISIONE.where(
+            UtenteApiario.id_utente == id_utente,
+            UtenteApiario.id_apiario == id_apiario,
         )
     ).first()
+    return dict(row._mapping) if row is not None else None
 
 
-def get_permesso(
-    session: Session, id_utente: int, id_arnia: int
-) -> dict[str, Any] | None:
-    """The permission level of an *active* association, or None if there is none."""
-    association = active(session, id_utente, id_arnia)
-    return {"permessi": association.permessi} if association else None
-
-
-def upsert(
-    session: Session, id_utente: int, id_arnia: int, permessi: str, id_apiario: int
-) -> None:
-    """
-    Grant access, reviving and re-levelling a previously removed association.
-
-    `id_apiario` only places a new association: a revived one stays in the
-    apiary the user had put the hive in.
-    """
-    statement = pg_insert(UtenteArnia).values(
-        id_utente=id_utente,
-        id_arnia=id_arnia,
-        permessi=permessi,
-        attivo=True,
-        id_apiario=id_apiario,
+def upsert(session: Session, id_utente: int, id_apiario: int, ruolo: str) -> None:
+    """Share the apiary, or change the role of an existing share."""
+    statement = pg_insert(UtenteApiario).values(
+        id_utente=id_utente, id_apiario=id_apiario, ruolo=ruolo
     )
     session.exec(
         statement.on_conflict_do_update(
-            index_elements=PAIR,
-            set_={
-                "permessi": statement.excluded.permessi,
-                "attivo": True,
-                "data_disassociazione": None,
-            },
+            index_elements=PAIR, set_={"ruolo": statement.excluded.ruolo}
         )
     )
 
 
-def insert_if_absent(
-    session: Session, id_utente: int, id_arnia: int, permessi: str, id_apiario: int
-) -> None:
-    """
-    Grant access only where none was ever recorded, leaving existing rows alone.
-
-    Deliberately not `upsert`: this is for bootstrapping, which re-runs on every
-    `docker-compose up`. Reviving an association an admin had revoked, on every
-    restart, would be a silent authorization change.
-    """
-    session.exec(
-        pg_insert(UtenteArnia)
-        .values(
-            id_utente=id_utente,
-            id_arnia=id_arnia,
-            permessi=permessi,
-            attivo=True,
-            id_apiario=id_apiario,
+def update_ruolo(session: Session, id_utente: int, id_apiario: int, ruolo: str) -> bool:
+    share = session.exec(
+        select(UtenteApiario).where(
+            UtenteApiario.id_utente == id_utente,
+            UtenteApiario.id_apiario == id_apiario,
         )
-        .on_conflict_do_nothing(index_elements=PAIR)
-    )
-
-
-def deactivate(
-    session: Session, id_utente: int, id_arnia: int
-) -> dict[str, Any] | None:
-    association = active(session, id_utente, id_arnia)
-    if association is None:
-        return None
-    association.attivo = False
-    association.data_disassociazione = func.now()
+    ).first()
+    if share is None:
+        return False
+    share.ruolo = ruolo
     session.flush()
-    return {"id": association.id}
+    return True
 
 
-def move(
-    session: Session, id_utente: int, id_arnia: int, id_apiario: int
-) -> dict[str, Any] | None:
-    """Put the user's active association with an arnia in another apiary."""
-    association = active(session, id_utente, id_arnia)
-    if association is None:
-        return None
-    association.id_apiario = id_apiario
-    session.flush()
-    return {"id_arnia": id_arnia, "id_apiario": id_apiario}
-
-
-def move_all(session: Session, from_apiario: int, to_apiario: int) -> None:
-    """Re-point every association, revoked ones included, from one apiary to another."""
-    session.exec(
-        update(UtenteArnia)
-        .where(UtenteArnia.id_apiario == from_apiario)
-        .values(id_apiario=to_apiario)
+def delete_share(session: Session, id_utente: int, id_apiario: int) -> bool:
+    result = session.exec(
+        delete(UtenteApiario).where(
+            UtenteApiario.id_utente == id_utente,
+            UtenteApiario.id_apiario == id_apiario,
+        )
     )
+    return result.rowcount > 0

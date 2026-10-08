@@ -96,36 +96,26 @@ def test_an_unknown_apiario_is_not_found(admin):
 
 
 def test_admins_follow_the_owners_delete_rules(
-    admin, make_utente, make_apiario, make_arnia, grant_access
+    admin, make_utente, make_apiario, make_arnia
 ):
     """Neither the default nor an apiary with hives in it, even for an admin."""
     utente = make_utente()
     full, empty = make_apiario(utente), make_apiario(utente)
-    grant_access(
-        utente["id_utente"], make_arnia()["id_arnia"], id_apiario=full["id_apiario"]
-    )
+    make_arnia(apiario=full)
 
-    assert (
-        admin.delete(
-            f"/api/admin/apiari/{utente['id_apiario_predefinito']}"
-        ).status_code
-        == 409
-    )
+    default_path = f"/api/admin/apiari/{utente['id_apiario_predefinito']}"
+    assert admin.delete(default_path).status_code == 409
     assert admin.delete(f"/api/admin/apiari/{full['id_apiario']}").status_code == 409
     assert admin.delete(f"/api/admin/apiari/{empty['id_apiario']}").status_code == 200
 
 
 def test_the_admin_hive_list_filters_by_apiario(
-    admin, make_utente, make_apiario, make_arnia, grant_access
+    admin, make_utente, make_apiario, make_arnia
 ):
-    """The hives the apiary's owner has put in it, with that apiary on each."""
     utente = make_utente()
     apiario = make_apiario(utente)
-    inside = make_arnia()
-    grant_access(
-        utente["id_utente"], inside["id_arnia"], id_apiario=apiario["id_apiario"]
-    )
-    grant_access(utente["id_utente"], make_arnia()["id_arnia"])
+    inside = make_arnia(apiario=apiario)
+    make_arnia(apiario=utente)
 
     body = admin.get(f"/api/admin/arnie?id_apiario={apiario['id_apiario']}").json()
 
@@ -134,60 +124,146 @@ def test_the_admin_hive_list_filters_by_apiario(
     ]
 
 
-def test_the_admin_hive_list_rejects_an_unknown_apiario(admin):
-    assert admin.get("/api/admin/arnie?id_apiario=999999").status_code == 404
-
-
 # ============================================
-# PUT /api/admin/utenti/{id_utente}/arnie/{id_arnia}/apiario
+# PUT /api/admin/nodi/{id_nodo}/proprietario
 # ============================================
 
 
-def admin_move(client, utente, arnia, id_apiario):
+def assign(client, id_nodo, id_utente):
     return client.put(
-        f"/api/admin/utenti/{utente['id_utente']}/arnie/{arnia['id_arnia']}/apiario",
-        json={"id_apiario": id_apiario},
+        f"/api/admin/nodi/{id_nodo}/proprietario", json={"id_utente": id_utente}
     )
 
 
-def test_an_admin_moves_a_users_hive(
-    admin, as_user, make_utente, make_apiario, make_arnia, grant_access
-):
-    """Read-only on the hive is no obstacle: the admin acts on the user's behalf."""
-    utente = make_utente()
-    orto = make_apiario(utente)
-    arnia = make_arnia()
-    grant_access(utente["id_utente"], arnia["id_arnia"], "read")
+def hives_of(db, id_nodo):
+    db.execute(
+        "SELECT a.id_apiario, ap.id_utente_proprietario FROM arnie a"
+        " LEFT JOIN apiari ap USING (id_apiario) WHERE a.id_nodo = %s",
+        (id_nodo,),
+    )
+    return [tuple(row.values()) for row in db.fetchall()]
 
-    response = admin_move(admin, utente, arnia, orto["id_apiario"])
+
+def test_assigning_a_node_puts_its_hives_in_the_owners_default(
+    admin, make_utente, make_arnia, db
+):
+    utente = make_utente()
+    arnia = make_arnia()
+
+    response = assign(admin, arnia["id_nodo"], utente["id_utente"])
 
     assert response.status_code == 200
-    row = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}").json()
-    assert row["id_apiario"] == orto["id_apiario"]
+    assert response.json()["id_proprietario"] == utente["id_utente"]
+    assert hives_of(db, arnia["id_nodo"]) == [
+        (utente["id_apiario_predefinito"], utente["id_utente"])
+    ]
 
 
-def test_an_admin_cannot_move_a_hive_into_another_users_apiario(
-    admin, make_utente, make_apiario, make_arnia, grant_access
+def test_transferring_a_node_moves_its_hives_away_from_the_old_owners_shares(
+    admin, as_user, make_utente, make_apiario, make_arnia, share, db
 ):
-    """The apiary must be the hive's user's own, whoever asks."""
-    utente = make_utente()
-    arnia = make_arnia()
-    grant_access(utente["id_utente"], arnia["id_arnia"])
+    """The new owner gets the hives in their Default; old shares do not follow."""
+    old, new, guest = make_utente(), make_utente(), make_utente()
+    shared = make_apiario(old)
+    arnia = make_arnia(apiario=shared)
+    share(guest["id_utente"], shared["id_apiario"], "viewer")
 
-    response = admin_move(
-        admin, utente, arnia, make_apiario(make_utente())["id_apiario"]
+    assign(admin, arnia["id_nodo"], new["id_utente"])
+
+    assert hives_of(db, arnia["id_nodo"]) == [
+        (new["id_apiario_predefinito"], new["id_utente"])
+    ]
+    assert as_user(guest).get("/api/user/arnie").json() == []
+
+
+def test_unassigning_a_node_hides_its_hives_from_the_former_owner(
+    admin, as_user, make_utente, make_arnia, db
+):
+    utente = make_utente()
+    arnia = make_arnia(apiario=utente)
+
+    assign(admin, arnia["id_nodo"], None)
+
+    assert hives_of(db, arnia["id_nodo"]) == [(None, None)]
+    assert as_user(utente).get("/api/user/arnie").json() == []
+
+
+def test_re_assigning_the_same_owner_keeps_their_arrangement(
+    admin, make_utente, make_apiario, make_arnia, db
+):
+    """Hives the owner moved out of the Default stay where they put them."""
+    utente = make_utente()
+    orto = make_apiario(utente)
+    arnia = make_arnia(apiario=orto)
+
+    assign(admin, arnia["id_nodo"], utente["id_utente"])
+
+    assert hives_of(db, arnia["id_nodo"]) == [(orto["id_apiario"], utente["id_utente"])]
+
+
+# ============================================
+# POST /api/admin/arnie: where a new hive goes
+# ============================================
+
+
+def create_hive(client, id_nodo, sensor="S1", **extra):
+    return client.post(
+        "/api/admin/arnie",
+        json={"id_nodo": id_nodo, "id_sensore_fisico": sensor, **extra},
+    )
+
+
+def test_a_hive_of_an_owned_node_goes_in_the_owners_default(
+    admin, make_utente, make_arnia
+):
+    utente = make_utente()
+    existing = make_arnia(apiario=utente)
+
+    response = create_hive(admin, existing["id_nodo"], "S-NEW")
+
+    assert response.json()["id_apiario"] == utente["id_apiario_predefinito"]
+
+
+def test_a_hive_can_be_created_in_another_apiario_of_the_node_owner(
+    admin, make_utente, make_apiario, make_arnia
+):
+    utente = make_utente()
+    orto = make_apiario(utente)
+    existing = make_arnia(apiario=utente)
+
+    response = create_hive(
+        admin, existing["id_nodo"], "S-NEW", id_apiario=orto["id_apiario"]
+    )
+
+    assert response.json()["id_apiario"] == orto["id_apiario"]
+
+
+def test_a_hive_cannot_be_created_in_someone_elses_apiario(
+    admin, make_utente, make_arnia
+):
+    """A node's hives always belong to the node's owner."""
+    existing = make_arnia(apiario=make_utente())
+
+    response = create_hive(
+        admin,
+        existing["id_nodo"],
+        "S-NEW",
+        id_apiario=make_utente()["id_apiario_predefinito"],
     )
 
     assert response.status_code == 400
 
 
-def test_an_admin_cannot_move_a_hive_the_user_has_no_access_to(
-    admin, make_utente, make_apiario, make_arnia
-):
-    utente = make_utente()
+def test_a_hive_of_an_unassigned_node_stays_unassigned(admin, make_arnia, make_utente):
+    existing = make_arnia()
 
-    response = admin_move(
-        admin, utente, make_arnia(), make_apiario(utente)["id_apiario"]
+    created = create_hive(admin, existing["id_nodo"], "S-NEW")
+    refused = create_hive(
+        admin,
+        existing["id_nodo"],
+        "S-OTHER",
+        id_apiario=make_utente()["id_apiario_predefinito"],
     )
 
-    assert response.status_code == 404
+    assert created.json()["id_apiario"] is None
+    assert refused.status_code == 400

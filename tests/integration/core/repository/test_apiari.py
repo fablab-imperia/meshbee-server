@@ -1,8 +1,8 @@
 """Tests for the apiari repository (meshbee_core/repository/apiari.py).
 
-Apiaries are personal, and which one a hive is in lives on the association.
-The weight is on what counts as "a hive in it": that is the rule that decides
-whether an apiary can be deleted.
+An apiary belongs to one user and holds that user's hives; others reach it
+only through a share. The weight is on what a user's list contains, with what
+access, and on what counts as "still holding hives" when deleting.
 """
 
 import psycopg2
@@ -11,16 +11,34 @@ import pytest
 from meshbee_core.repository import apiari
 
 
-def test_a_users_list_holds_only_their_apiari_default_first(
-    session, make_utente, make_apiario
+def test_a_user_lists_their_own_apiari_then_those_shared_with_them(
+    session, make_utente, make_apiario, share
 ):
     utente, other = make_utente(), make_utente()
-    extra = make_apiario(utente, nome_apiario="Alpha")
-    make_apiario(other)
+    mine = make_apiario(utente, nome_apiario="Alpha")
+    theirs = make_apiario(other)
+    make_apiario(other)  # not shared
+    share(utente["id_utente"], theirs["id_apiario"], "viewer")
 
-    ids = [a["id_apiario"] for a in apiari.list_all(session, utente["id_utente"])]
+    rows = apiari.list_for_utente(session, utente["id_utente"])
 
-    assert ids == [utente["id_apiario_predefinito"], extra["id_apiario"]]
+    assert [(a["id_apiario"], a["accesso"]) for a in rows] == [
+        (utente["id_apiario_predefinito"], "owner"),
+        (mine["id_apiario"], "owner"),
+        (theirs["id_apiario"], "viewer"),
+    ]
+
+
+def test_one_apiario_comes_with_the_users_access(session, make_utente, make_apiario):
+    """An admin who neither owns nor has it shared still finds it, with no access."""
+    owner, admin = make_utente(), make_utente(ruolo="admin")
+    apiario = make_apiario(owner)
+
+    as_owner = apiari.get_for_utente(session, apiario["id_apiario"], owner["id_utente"])
+    as_admin = apiari.get_for_utente(session, apiario["id_apiario"], admin["id_utente"])
+
+    assert as_owner["accesso"] == "owner"
+    assert as_admin["accesso"] is None
 
 
 def test_the_default_is_found(session, make_utente):
@@ -43,37 +61,15 @@ def test_a_user_cannot_have_two_defaults(db, make_utente):
         )
 
 
-def test_a_hive_cannot_go_in_someone_elses_apiario(
-    db, make_utente, make_apiario, make_arnia, grant_access
+def test_only_active_hives_are_counted(
+    session, db, make_utente, make_apiario, make_arnia
 ):
-    """The composite foreign key: the database itself refuses a cross-user placement."""
-    utente, other = make_utente(), make_utente()
-    theirs = make_apiario(other)
-
-    with pytest.raises(psycopg2.errors.ForeignKeyViolation):
-        grant_access(
-            utente["id_utente"],
-            make_arnia()["id_arnia"],
-            id_apiario=theirs["id_apiario"],
-        )
-
-
-def test_only_active_associations_with_active_hives_are_counted(
-    session, db, make_utente, make_apiario, make_arnia, grant_access
-):
+    """Retired hives no longer block deleting their apiary."""
     utente = make_utente()
     apiario = make_apiario(utente)
-    for attivo in (True, False):
-        grant_access(
-            utente["id_utente"],
-            make_arnia()["id_arnia"],
-            attivo=attivo,
-            id_apiario=apiario["id_apiario"],
-        )
-    retired = make_arnia()
-    grant_access(
-        utente["id_utente"], retired["id_arnia"], id_apiario=apiario["id_apiario"]
-    )
+    make_arnia(apiario=apiario)
+    retired = make_arnia(apiario=apiario)
+    make_arnia(apiario=utente)
     db.execute(
         "UPDATE arnie SET attiva = false WHERE id_arnia = %s", (retired["id_arnia"],)
     )
@@ -92,10 +88,15 @@ def test_update_leaves_unmentioned_columns_alone(session, make_utente, make_apia
     assert updated["posizione"] == "Collina sud"
 
 
-def test_deleting_the_user_deletes_their_apiari(session, db, make_utente):
-    """ON DELETE CASCADE: personal groupings mean nothing without their owner."""
+def test_deleting_an_apiario_deletes_its_shares(
+    session, db, make_utente, make_apiario, share
+):
+    """ON DELETE CASCADE on `utenti_apiari`: a share of nothing means nothing."""
     utente = make_utente()
+    apiario = make_apiario(make_utente())
+    share(utente["id_utente"], apiario["id_apiario"], "viewer")
 
-    db.execute("DELETE FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
+    apiari.delete(session, apiario["id_apiario"])
 
-    assert apiari.get(session, utente["id_apiario_predefinito"]) is None
+    db.execute("SELECT count(*) AS n FROM utenti_apiari")
+    assert db.fetchone()["n"] == 0
