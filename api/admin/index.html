@@ -78,8 +78,8 @@
             </template>
             <button class="secondary outline" @click="refresh()" :aria-busy="loading">Aggiorna</button>
             <button x-show="resource.create" @click="openCreate()">Nuovo</button>
-            <button class="secondary" x-show="resource.chart && filters.id_arnia" @click="showChart = !showChart" x-text="showChart ? 'Tabella' : 'Grafico'"></button>
-            <button class="secondary outline" x-show="resource.bulkDelete && !chartShown && allSelected && selected.length < rows.length" @click="selectAllLoaded()" x-text="`Seleziona tutte (${rows.length})`"></button>
+            <button class="secondary" x-show="resource.chart && filters.id_arnia" @click="toggleChart()" x-text="showChart ? 'Tabella' : 'Grafico'"></button>
+            <button class="secondary outline" x-show="resource.bulkDelete && !chartShown && allSelected && selected.length < total" @click="selectAllMatching()" x-text="`Seleziona tutte (${total})`"></button>
             <button class="contrast" x-show="resource.bulkDelete && selected.length && !chartShown" @click="deleteSelected()" x-text="`Elimina selezionate (${selected.length})`"></button>
           </div>
 
@@ -120,13 +120,13 @@
                   </tbody>
                 </table>
               </div>
-              <nav class="pager" x-data="{ pager: 'silent', get list() { return silentNodes } }" x-show="list.length > pageSizes[0]" aria-label="Pagine">
-                <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="currentPage(pager, list) === 1" @click="goTo(pager, list, 1)">«</button>
-                <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="currentPage(pager, list) === 1" @click="goTo(pager, list, currentPage(pager, list) - 1)">‹</button>
-                <span x-text="`Pagina ${currentPage(pager, list)} di ${pageCount(pager, list)} · ${list.length} elementi`"></span>
-                <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="currentPage(pager, list) === pageCount(pager, list)" @click="goTo(pager, list, currentPage(pager, list) + 1)">›</button>
-                <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="currentPage(pager, list) === pageCount(pager, list)" @click="goTo(pager, list, pageCount(pager, list))">»</button>
-                <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="resetPage(pager)">
+              <nav class="pager" x-data="{ pager: 'silent', get count() { return silentNodes.length } }" x-show="count > pageSizes[0]" aria-label="Pagine">
+                <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="currentPage(pager, count) === 1" @click="goTo(pager, count, 1)">«</button>
+                <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="currentPage(pager, count) === 1" @click="goTo(pager, count, currentPage(pager, count) - 1)">‹</button>
+                <span x-text="`Pagina ${currentPage(pager, count)} di ${pageCount(pager, count)} · ${count} elementi`"></span>
+                <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="currentPage(pager, count) === pageCount(pager, count)" @click="goTo(pager, count, currentPage(pager, count) + 1)">›</button>
+                <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="currentPage(pager, count) === pageCount(pager, count)" @click="goTo(pager, count, pageCount(pager, count))">»</button>
+                <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="setPageSize(pager)">
                   <template x-for="n in pageSizes" :key="n">
                     <option :value="n" :selected="n === pagers[pager].size" x-text="`${n} per pagina`"></option>
                   </template>
@@ -159,7 +159,11 @@
                   </article>
                 </template>
               </div>
-              <p><small>I grafici mostrano le letture caricate: per vederne di più alza il limite o restringi le date.</small></p>
+              <p>
+                <small x-text="chartTotal > chartRows.length
+                  ? `Disegnate le ${chartRows.length} letture più recenti di ${chartTotal} nel periodo: restringi le date per vedere le altre.`
+                  : `${chartRows.length} letture nel periodo scelto (senza date: l'ultimo anno).`"></small>
+              </p>
             </section>
           </template>
 
@@ -177,7 +181,7 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="row in pageRows" :key="row[resource.key]">
+                <template x-for="row in rows" :key="row[resource.key]">
                   <tr>
                     <td class="select" x-show="resource.bulkDelete">
                       <input type="checkbox" aria-label="Seleziona" :checked="isSelected(row)" @change="toggle(row)" />
@@ -195,13 +199,13 @@
               </tbody>
             </table>
             <p x-show="!loading && rows.length === 0"><em>Nessun elemento.</em></p>
-            <nav class="pager" x-data="{ pager: 'main', get list() { return rows } }" x-show="list.length > pageSizes[0]" aria-label="Pagine">
-              <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="currentPage(pager, list) === 1" @click="goTo(pager, list, 1)">«</button>
-              <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="currentPage(pager, list) === 1" @click="goTo(pager, list, currentPage(pager, list) - 1)">‹</button>
-              <span x-text="`Pagina ${currentPage(pager, list)} di ${pageCount(pager, list)} · ${list.length} elementi`"></span>
-              <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="currentPage(pager, list) === pageCount(pager, list)" @click="goTo(pager, list, currentPage(pager, list) + 1)">›</button>
-              <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="currentPage(pager, list) === pageCount(pager, list)" @click="goTo(pager, list, pageCount(pager, list))">»</button>
-              <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="resetPage(pager)">
+            <nav class="pager" x-data="{ pager: 'main', get count() { return total } }" x-show="count > pageSizes[0]" aria-label="Pagine">
+              <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="currentPage(pager, count) === 1" @click="goTo(pager, count, 1)">«</button>
+              <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="currentPage(pager, count) === 1" @click="goTo(pager, count, currentPage(pager, count) - 1)">‹</button>
+              <span x-text="`Pagina ${currentPage(pager, count)} di ${pageCount(pager, count)} · ${count} elementi`"></span>
+              <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="currentPage(pager, count) === pageCount(pager, count)" @click="goTo(pager, count, currentPage(pager, count) + 1)">›</button>
+              <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="currentPage(pager, count) === pageCount(pager, count)" @click="goTo(pager, count, pageCount(pager, count))">»</button>
+              <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="setPageSize(pager)">
                 <template x-for="n in pageSizes" :key="n">
                   <option :value="n" :selected="n === pagers[pager].size" x-text="`${n} per pagina`"></option>
                 </template>
@@ -299,13 +303,13 @@
                 </tbody>
               </table>
               <p x-show="shares.rows.length === 0"><em>Non condiviso con nessuno.</em></p>
-              <nav class="pager" x-data="{ pager: 'shares', get list() { return shares.rows } }" x-show="list.length > pageSizes[0]" aria-label="Pagine">
-                <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="currentPage(pager, list) === 1" @click="goTo(pager, list, 1)">«</button>
-                <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="currentPage(pager, list) === 1" @click="goTo(pager, list, currentPage(pager, list) - 1)">‹</button>
-                <span x-text="`Pagina ${currentPage(pager, list)} di ${pageCount(pager, list)} · ${list.length} elementi`"></span>
-                <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="currentPage(pager, list) === pageCount(pager, list)" @click="goTo(pager, list, currentPage(pager, list) + 1)">›</button>
-                <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="currentPage(pager, list) === pageCount(pager, list)" @click="goTo(pager, list, pageCount(pager, list))">»</button>
-                <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="resetPage(pager)">
+              <nav class="pager" x-data="{ pager: 'shares', get count() { return shares.rows.length } }" x-show="count > pageSizes[0]" aria-label="Pagine">
+                <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="currentPage(pager, count) === 1" @click="goTo(pager, count, 1)">«</button>
+                <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="currentPage(pager, count) === 1" @click="goTo(pager, count, currentPage(pager, count) - 1)">‹</button>
+                <span x-text="`Pagina ${currentPage(pager, count)} di ${pageCount(pager, count)} · ${count} elementi`"></span>
+                <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="currentPage(pager, count) === pageCount(pager, count)" @click="goTo(pager, count, currentPage(pager, count) + 1)">›</button>
+                <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="currentPage(pager, count) === pageCount(pager, count)" @click="goTo(pager, count, pageCount(pager, count))">»</button>
+                <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="setPageSize(pager)">
                   <template x-for="n in pageSizes" :key="n">
                     <option :value="n" :selected="n === pagers[pager].size" x-text="`${n} per pagina`"></option>
                   </template>

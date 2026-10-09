@@ -287,19 +287,22 @@ Things to know:
 - Picking a hive on the readings or activities tab switches to the hive-scoped
   `/api/user/arnie/{id_arnia}/…` route — the one with date filters, which admins pass.
   To delete a hive's readings over a period, filter by hive and dates, tick the header
-  checkbox, press **Seleziona tutte** (the header covers only the page shown) and delete
-  the selection.
-- **Tables are paged in the browser**, 25 rows to start. The page still loads what it
-  always did — every user, node, hive and apiary; readings and activities up to
-  **Limite** — and shows it a page at a time; the API's [paging](#paging) is there for
-  when those lists outgrow that. Changing a filter goes back to page 1; Aggiorna and a
-  save keep the page.
+  checkbox, press **Seleziona tutte** and delete the selection. The header covers only the
+  page shown; Seleziona tutte fetches every reading the filters match (up to 10000, the
+  most a bulk delete takes) in one request.
+- **The main table pages on the server**, 25 rows to start: each page is one request
+  with `limit` and `offset`, and [`X-Total-Count`](#paging) sizes the pager. A page change
+  reloads only the rows. Changing a filter goes back to page 1; Aggiorna and a save keep
+  the page. The lookups behind the selects and the readable cells (users, apiaries,
+  hives, nodes) still load whole, so the silent nodes and an apiary's shares page in the
+  browser.
 - An apiary's **Condivisioni** use the owner's `/api/user/apiari/{id_apiario}/condivisioni`
   routes, which admins pass too: there are no admin twins of them. So does a hive's
   **Sposta**, through `PUT /api/user/arnie/{id_arnia}/apiario`.
-- The **charts** draw the readings already listed, as inline SVG: no chart library and
-  no extra request. To chart a longer period, raise the limit or set the dates. A missing
-  value breaks the line, so a measurement the ingest nulled shows as a gap.
+- The **charts** load their own readings, since the table holds only a page: the
+  picked hive's in the picked period (the last year without dates), up to the newest
+  10000. Inline SVG, no chart library. A missing value breaks the line, so a measurement
+  the ingest nulled shows as a gap.
 - The **Panoramica** tab is computed from the lists every tab already loads; it has no
   request of its own.
 

@@ -1,5 +1,6 @@
-// The readings tab as charts: the rows already listed, drawn as inline SVG
-// paths. No chart library and no extra request. Mixed into admin().
+// The readings tab as charts, drawn as inline SVG paths, no chart library.
+// The table holds one page, so the charts load their own readings: the
+// picked hive's in the picked period, up to CHART_LIMIT. Mixed into admin().
 
 // The measurements the readings charts draw.
 const MEASURES = [
@@ -8,6 +9,9 @@ const MEASURES = [
   { name: "peso", label: "Peso", unit: "kg" },
   { name: "batteria", label: "Batteria", unit: "V" },
 ];
+
+// The most readings a chart draws: the readings route's largest page.
+const CHART_LIMIT = 10000;
 
 // The charts' SVG viewBox; index.html writes the same numbers literally.
 const CHART_W = 300;
@@ -18,15 +22,30 @@ function chartsMixin() {
     measures: MEASURES,
     // The readings tab shows charts instead of the table.
     showChart: false,
+    // What the charts draw, and how many readings the period holds in all.
+    chartRows: [],
+    chartTotal: 0,
 
     get chartShown() {
       return !!(this.resource.chart && this.filters.id_arnia && this.showChart);
     },
 
-    // One measurement of the listed readings, as an SVG path over
+    async toggleChart() {
+      this.showChart = !this.showChart;
+      if (this.chartShown) await this.loadChart();
+    },
+
+    // The same route and filters as the table, in one window from the newest.
+    async loadChart() {
+      const page = await this.list(this.listPath(CHART_LIMIT, 0));
+      this.chartRows = page ? page.rows : [];
+      this.chartTotal = page ? page.total : 0;
+    },
+
+    // One measurement of the loaded readings, as an SVG path over
     // CHART_W × CHART_H. A missing value lifts the pen, so gaps show.
     chart(measure) {
-      const points = this.rows
+      const points = this.chartRows
         .map((r) => ({ t: new Date(r.timestamp).getTime(), v: r[measure] == null ? null : Number(r[measure]) }))
         .sort((a, b) => a.t - b.t);
       const values = points.filter((p) => p.v != null).map((p) => p.v);

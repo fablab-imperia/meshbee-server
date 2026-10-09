@@ -263,7 +263,8 @@ const RESOURCES = {
     label: "Letture",
     path: (f) => (f.id_arnia ? `/api/user/arnie/${id(f.id_arnia)}/letture` : "/api/admin/letture"),
     createPath: "/api/admin/letture",
-    bulkDelete: { path: "/api/admin/letture/elimina", body: "id_letture" },
+    // `max`: the most ids the route takes, and the largest page of the list routes.
+    bulkDelete: { path: "/api/admin/letture/elimina", body: "id_letture", max: 10000 },
     // With a hive picked, the listed rows can also be drawn as charts.
     chart: true,
     key: "id_lettura",
@@ -271,7 +272,6 @@ const RESOURCES = {
       { name: "id_arnia", label: "Arnia", type: "select", options: "arnie" },
       { name: "data_inizio", label: "Dal", type: "datetime-local", scoped: true },
       { name: "data_fine", label: "Al", type: "datetime-local", scoped: true },
-      { name: "limit", label: "Limite", type: "number", value: 100 },
     ],
     columns: [
       { name: "timestamp", label: "Ora", fmt: "date" },
@@ -334,7 +334,6 @@ const RESOURCES = {
       { name: "tipo_attivita", label: "Tipo", type: "select", options: "tipiAttivita", scoped: true },
       { name: "data_inizio", label: "Dal", type: "datetime-local", scoped: true },
       { name: "data_fine", label: "Al", type: "datetime-local", scoped: true },
-      { name: "limit", label: "Limite", type: "number", value: 100 },
     ],
     columns: [
       { name: "timestamp", label: "Ora", fmt: "date" },

@@ -28,7 +28,9 @@ function adminCore() {
     me: null,
     login: { email: "", password: "" },
     tab: "panoramica",
+    // The main table's page, and how many rows match its filters in all.
     rows: [],
+    total: 0,
     filters: {},
     loading: false,
     error: "",
@@ -113,6 +115,21 @@ function adminCore() {
 
     // One request; returns the parsed body, or null after showing the error.
     async api(method, path, body, onError = (m) => (this.error = m)) {
+      const answer = await this.request(method, path, body, onError);
+      return answer && answer.data;
+    },
+
+    // One page of a list route: its rows, and X-Total-Count (sent because the
+    // path carries `limit`); null after showing the error.
+    async list(path, onError = (m) => (this.error = m)) {
+      const answer = await this.request("GET", path, undefined, onError);
+      if (!answer) return null;
+      const total = Number(answer.res.headers.get("X-Total-Count"));
+      return { rows: answer.data, total: Number.isNaN(total) ? answer.data.length : total };
+    },
+
+    // Returns { res, data }, or null after showing the error.
+    async request(method, path, body, onError) {
       let res;
       try {
         res = await fetch(path, {
@@ -136,7 +153,7 @@ function adminCore() {
         onError(describeError(res.status, data));
         return null;
       }
-      return data;
+      return { res, data };
     },
 
     // Returns false after showing the error: without the enums the forms
@@ -176,6 +193,7 @@ function adminCore() {
       // The old tab's rows would render under the new tab's key: all undefined,
       // so duplicate keys, and the x-for breaks.
       this.rows = [];
+      this.total = 0;
       this.tab = tab;
       this.filters = {};
       for (const f of this.resource.filters || []) this.filters[f.name] = f.value ?? "";
@@ -192,27 +210,55 @@ function adminCore() {
       await this.refresh();
     },
 
+    // The lookups, then the main table's page. Aggiorna, and after a save.
     async refresh() {
       this.loading = true;
       this.error = "";
       this.selected = [];
       try {
         await this.loadLookups();
-        const r = this.resource;
-        if (r.view) return;
-        const path = typeof r.path === "function" ? r.path(this.filters) : r.path;
-        const query = new URLSearchParams();
-        for (const f of r.filters || []) {
-          const value = this.filters[f.name];
-          if (f.name === "id_arnia" || value === "" || value == null) continue;
-          if (f.scoped && !this.filters.id_arnia) continue;
-          query.set(f.name, value);
-        }
-        const qs = query.toString();
-        this.rows = (await this.api("GET", qs ? `${path}?${qs}` : path)) || [];
+        await this.loadRows();
       } finally {
         this.loading = false;
       }
+    },
+
+    // The current page of the tab's list route, as pagers.main sets it. A page
+    // change calls this alone: the lookups stay as they are.
+    async loadRows() {
+      if (this.resource.view) return;
+      this.loading = true;
+      try {
+        const { limit, offset } = this.window("main"); // pagination.js
+        const page = await this.list(this.listPath(limit, offset));
+        this.rows = page ? page.rows : [];
+        this.total = page ? page.total : 0;
+        // A delete can empty the last page: step back to the new last one.
+        if (page && this.rows.length === 0 && this.total > 0 && offset > 0) {
+          this.pagers.main.page = this.pageCount("main", this.total);
+          await this.loadRows();
+          return;
+        }
+        if (this.chartShown) await this.loadChart(); // charts.js
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // The tab's list route with its filters, and a window of it.
+    listPath(limit, offset) {
+      const r = this.resource;
+      const path = typeof r.path === "function" ? r.path(this.filters) : r.path;
+      const query = new URLSearchParams();
+      for (const f of r.filters || []) {
+        const value = this.filters[f.name];
+        if (f.name === "id_arnia" || value === "" || value == null) continue;
+        if (f.scoped && !this.filters.id_arnia) continue;
+        query.set(f.name, value);
+      }
+      query.set("limit", limit);
+      query.set("offset", offset);
+      return `${path}?${query}`;
     },
 
     filterShown(f) {
@@ -229,13 +275,8 @@ function adminCore() {
       this.openForm(`Nuovo: ${r.label}`, "POST", r.createPath || r.path, r.create, values, r.createNote);
     },
 
-    // The rows of the main table's current page.
-    get pageRows() {
-      return this.paged("main", this.rows);
-    },
-
     // Bulk selection, by key, so it survives a page change. The header
-    // checkbox covers the page shown; selectAllLoaded() every row loaded.
+    // checkbox covers the page shown; selectAllMatching() every matching row.
     isSelected(row) {
       return this.selected.includes(row[this.resource.key]);
     },
@@ -246,18 +287,25 @@ function adminCore() {
     },
 
     get allSelected() {
-      return this.pageRows.length > 0 && this.pageRows.every((row) => this.isSelected(row));
+      return this.rows.length > 0 && this.rows.every((row) => this.isSelected(row));
     },
 
     toggleAll(on) {
-      const keys = this.pageRows.map((row) => row[this.resource.key]);
+      const keys = this.rows.map((row) => row[this.resource.key]);
       this.selected = on
         ? [...new Set([...this.selected, ...keys])]
         : this.selected.filter((k) => !keys.includes(k));
     },
 
-    selectAllLoaded() {
-      this.selected = this.rows.map((row) => row[this.resource.key]);
+    // Every row the filters match, not just the page shown: one request at the
+    // route's largest page, which is also the most a bulk delete takes.
+    async selectAllMatching() {
+      const page = await this.list(this.listPath(this.resource.bulkDelete.max, 0));
+      if (!page) return;
+      this.selected = page.rows.map((row) => row[this.resource.key]);
+      if (page.total > page.rows.length) {
+        this.notice = `Selezionate le prime ${page.rows.length} di ${page.total}: elimina e ripeti per le altre.`;
+      }
     },
 
     deleteSelected() {

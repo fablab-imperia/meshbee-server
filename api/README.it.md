@@ -294,22 +294,24 @@ Da sapere:
 - Scegliendo un'arnia nelle schede letture o attività si passa alla rotta
   `/api/user/arnie/{id_arnia}/…` dell'arnia — quella con i filtri per data, che gli
   admin superano. Per eliminare le letture di un'arnia in un periodo si filtra per arnia
-  e date, si spunta la casella dell'intestazione, si preme **Seleziona tutte**
-  (l'intestazione copre solo la pagina mostrata) e si elimina la selezione.
-- **Le tabelle sono paginate nel browser**, 25 righe per cominciare. La pagina carica
-  ancora quello che ha sempre caricato — tutti gli utenti, nodi, arnie e apiari; letture
-  e attività fino a **Limite** — e lo mostra una pagina alla volta; la
-  [paginazione](#paginazione) dell'API serve per quando quegli elenchi saranno troppo
-  grandi. Cambiare un filtro riporta a pagina 1; Aggiorna e un salvataggio mantengono la
-  pagina.
+  e date, si spunta la casella dell'intestazione, si preme **Seleziona tutte** e si
+  elimina la selezione. L'intestazione copre solo la pagina mostrata; Seleziona tutte
+  recupera in una richiesta ogni lettura che i filtri trovano (fino a 10000, il massimo
+  che un'eliminazione multipla accetta).
+- **La tabella principale è paginata sul server**, 25 righe per cominciare: ogni pagina è
+  una richiesta con `limit` e `offset`, e [`X-Total-Count`](#paginazione) dimensiona la
+  paginazione. Cambiare pagina ricarica solo le righe. Cambiare un filtro riporta a
+  pagina 1; Aggiorna e un salvataggio mantengono la pagina. Gli elenchi dietro le
+  select e le celle leggibili (utenti, apiari, arnie, nodi) si caricano ancora interi,
+  così i nodi silenziosi e le condivisioni di un apiario sono paginati nel browser.
 - Le **Condivisioni** di un apiario usano le rotte del proprietario
   `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse: non
   esistono equivalenti admin. Lo stesso vale per **Sposta** di un'arnia, tramite
   `PUT /api/user/arnie/{id_arnia}/apiario`.
-- I **grafici** disegnano le letture già elencate, in SVG inline: nessuna libreria di
-  grafici e nessuna richiesta in più. Per un periodo più lungo si alza il limite o si
-  impostano le date. Un valore mancante interrompe la linea, così una misura che
-  l'ingest ha messo a null appare come un buco.
+- I **grafici** caricano le proprie letture, perché la tabella ne contiene solo una
+  pagina: quelle dell'arnia scelta nel periodo scelto (l'ultimo anno senza date), fino
+  alle 10000 più recenti. SVG inline, nessuna libreria di grafici. Un valore mancante
+  interrompe la linea, così una misura che l'ingest ha messo a null appare come un buco.
 - La scheda **Panoramica** si calcola dagli elenchi che ogni scheda carica già; non ha
   richieste proprie.
 
