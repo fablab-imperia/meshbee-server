@@ -216,9 +216,11 @@ colonne.
 ## Pagina admin
 
 `/admin/` serve una piccola pagina per gli amministratori
-([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): elencare, creare,
-modificare e disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un
-nodo, reimpostare una password, consultare letture e attività; gestire con chi è
+([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): una panoramica
+(conteggi e i nodi attivi silenziosi da 24 ore), elencare, creare, modificare e
+disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un nodo, spostare
+un'arnia in un altro apiario del suo proprietario, reimpostare una password, consultare
+letture (come tabella o come grafici) e attività; gestire con chi è
 condiviso un apiario, inserire una lettura a mano, correggerne una ed eliminare letture
 una alla volta o come selezione
 ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
@@ -257,7 +259,14 @@ Da sapere:
   e date, si spunta la casella dell'intestazione e si elimina la selezione.
 - Le **Condivisioni** di un apiario usano le rotte del proprietario
   `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse: non
-  esistono equivalenti admin.
+  esistono equivalenti admin. Lo stesso vale per **Sposta** di un'arnia, tramite
+  `PUT /api/user/arnie/{id_arnia}/apiario`.
+- I **grafici** disegnano le letture già elencate, in SVG inline: nessuna libreria di
+  grafici e nessuna richiesta in più. Per un periodo più lungo si alza il limite o si
+  impostano le date. Un valore mancante interrompe la linea, così una misura che
+  l'ingest ha messo a null appare come un buco.
+- La scheda **Panoramica** si calcola dagli elenchi che ogni scheda carica già; non ha
+  richieste proprie.
 
 ## Configurazione
 

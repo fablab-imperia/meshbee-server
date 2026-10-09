@@ -8,13 +8,36 @@ const TOKEN_KEY = "meshbee-admin-token";
 
 const id = (value) => encodeURIComponent(value);
 
+// An active node with no message for this long is listed as silent.
+const SILENT_HOURS = 24;
+
+// The measurements the readings charts draw.
+const MEASURES = [
+  { name: "temperatura", label: "Temperatura", unit: "°C" },
+  { name: "umidita", label: "Umidità", unit: "%" },
+  { name: "peso", label: "Peso", unit: "kg" },
+  { name: "batteria", label: "Batteria", unit: "V" },
+];
+
+// The charts' SVG viewBox.
+const CHART_W = 300;
+const CHART_H = 100;
+
 // Columns: `fmt` names a formatter in `cell()`. Fields: `options` names a
 // list in `options()`; `readonly` fields are shown but not editable.
 // `createPath` is where the create form posts when `path` is a function;
 // `createDefaults` prefills it. `bulkDelete` makes rows selectable and names
 // the route that deletes a selection. An action with `panel` opens that panel
 // instead of a form; a `partial` action sends only the fields the admin changed.
+// A tab with `view` has its own markup in index.html instead of the table.
 const RESOURCES = {
+  // Counts and silent nodes, all from the lookup lists: no request of its own.
+  panoramica: {
+    label: "Panoramica",
+    view: "overview",
+    actions: [],
+  },
+
   utenti: {
     label: "Utenti",
     path: "/api/admin/utenti",
@@ -175,6 +198,18 @@ const RESOURCES = {
         ],
       },
       {
+        // The owner's route; admins pass its check. An unassigned hive has no
+        // owner, so nowhere to move to: its node needs an owner first.
+        label: "Sposta",
+        method: "PUT",
+        path: (r) => `/api/user/arnie/${id(r.id_arnia)}/apiario`,
+        fields: [
+          { name: "id_apiario", label: "Apiario", type: "select", options: "apiariProprietario", required: true },
+        ],
+        note: "Solo verso un apiario dello stesso proprietario. Chi vede l'arnia segue l'apiario.",
+        when: (r) => r.id_apiario != null,
+      },
+      {
         label: "Disattiva",
         method: "DELETE",
         path: (r) => `/api/admin/arnie/${id(r.id_arnia)}`,
@@ -248,6 +283,8 @@ const RESOURCES = {
     path: (f) => (f.id_arnia ? `/api/user/arnie/${id(f.id_arnia)}/letture` : "/api/admin/letture"),
     createPath: "/api/admin/letture",
     bulkDelete: { path: "/api/admin/letture/elimina", body: "id_letture" },
+    // With a hive picked, the listed rows can also be drawn as charts.
+    chart: true,
     key: "id_lettura",
     filters: [
       { name: "id_arnia", label: "Arnia", type: "select", options: "arnie" },
@@ -332,11 +369,16 @@ const RESOURCES = {
 function admin() {
   return {
     resources: RESOURCES,
+    measures: MEASURES,
+    chartWidth: CHART_W,
+    chartHeight: CHART_H,
     token: null,
     me: null,
     login: { email: "", password: "" },
-    tab: "utenti",
+    tab: "panoramica",
     rows: [],
+    // The readings tab shows charts instead of the table.
+    showChart: false,
     filters: {},
     loading: false,
     error: "",
@@ -369,13 +411,21 @@ function admin() {
 
     async signIn() {
       this.error = "";
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.login),
-      });
+      let res;
+      try {
+        res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.login),
+        });
+      } catch {
+        this.error = UNREACHABLE;
+        return;
+      }
       if (!res.ok) {
-        this.error = "Credenziali non valide";
+        // A 503 (database down) says so; only a 401 is about the credentials.
+        const data = await res.json().catch(() => null);
+        this.error = res.status === 401 ? "Credenziali non valide" : describeError(res.status, data);
         return;
       }
       this.token = (await res.json()).access_token;
@@ -409,20 +459,26 @@ function admin() {
         return;
       }
       this.me = me;
-      await this.loadEnums();
+      if (!(await this.loadEnums())) return;
       await this.select(this.tab);
     },
 
     // One request; returns the parsed body, or null after showing the error.
     async api(method, path, body, onError = (m) => (this.error = m)) {
-      const res = await fetch(path, {
-        method,
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
+      let res;
+      try {
+        res = await fetch(path, {
+          method,
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+      } catch {
+        onError(UNREACHABLE);
+        return null;
+      }
       if (res.status === 401) {
         this.signOut("Sessione scaduta: accedi di nuovo");
         return null;
@@ -435,12 +491,21 @@ function admin() {
       return data;
     },
 
+    // Returns false after showing the error: without the enums the forms
+    // would offer empty selects.
     async loadEnums() {
-      const res = await fetch("/openapi.json");
-      const schemas = (await res.json()).components.schemas;
-      this.enums.ruoli = schemas.UserCreate.properties.ruolo.enum;
-      this.enums.ruoliApiario = schemas.CondivisioneCreate.properties.ruolo.enum;
-      this.enums.tipiAttivita = schemas.AttivitaCreate.properties.tipo_attivita.enum;
+      try {
+        const res = await fetch("/openapi.json");
+        if (!res.ok) throw new Error(`Errore ${res.status}`);
+        const schemas = (await res.json()).components.schemas;
+        this.enums.ruoli = schemas.UserCreate.properties.ruolo.enum;
+        this.enums.ruoliApiario = schemas.CondivisioneCreate.properties.ruolo.enum;
+        this.enums.tipiAttivita = schemas.AttivitaCreate.properties.tipo_attivita.enum;
+        return true;
+      } catch (e) {
+        this.signOut(`Impossibile leggere /openapi.json: ${e.message}`);
+        return false;
+      }
     },
 
     // The id → name lists behind the selects and the readable table cells.
@@ -464,6 +529,7 @@ function admin() {
       this.filters = {};
       for (const f of this.resource.filters || []) this.filters[f.name] = f.value ?? "";
       this.notice = "";
+      this.showChart = false;
       await this.refresh();
     },
 
@@ -471,19 +537,87 @@ function admin() {
       this.loading = true;
       this.error = "";
       this.selected = [];
-      await this.loadLookups();
-      const r = this.resource;
-      const path = typeof r.path === "function" ? r.path(this.filters) : r.path;
-      const query = new URLSearchParams();
-      for (const f of r.filters || []) {
-        const value = this.filters[f.name];
-        if (f.name === "id_arnia" || value === "" || value == null) continue;
-        if (f.scoped && !this.filters.id_arnia) continue;
-        query.set(f.name, value);
+      try {
+        await this.loadLookups();
+        const r = this.resource;
+        if (r.view) return;
+        const path = typeof r.path === "function" ? r.path(this.filters) : r.path;
+        const query = new URLSearchParams();
+        for (const f of r.filters || []) {
+          const value = this.filters[f.name];
+          if (f.name === "id_arnia" || value === "" || value == null) continue;
+          if (f.scoped && !this.filters.id_arnia) continue;
+          query.set(f.name, value);
+        }
+        const qs = query.toString();
+        this.rows = (await this.api("GET", qs ? `${path}?${qs}` : path)) || [];
+      } finally {
+        this.loading = false;
       }
-      const qs = query.toString();
-      this.rows = (await this.api("GET", qs ? `${path}?${qs}` : path)) || [];
-      this.loading = false;
+    },
+
+    // The overview, from the lookup lists.
+    get stats() {
+      const l = this.lookups;
+      const count = (list, test) => list.filter(test).length;
+      return [
+        { label: "Utenti attivi", value: `${count(l.utenti, (u) => u.attivo)} / ${l.utenti.length}` },
+        { label: "Nodi attivi", value: `${count(l.nodi, (n) => n.attivo)} / ${l.nodi.length}` },
+        { label: "Nodi silenziosi", value: this.silentNodes.length },
+        { label: "Arnie attive", value: `${count(l.arnie, (a) => a.attiva)} / ${l.arnie.length}` },
+        { label: "Apiari", value: l.apiari.length },
+      ];
+    },
+
+    // Active nodes with no MQTT message in SILENT_HOURS, never-heard ones first.
+    get silentNodes() {
+      const since = Date.now() - SILENT_HOURS * 3600 * 1000;
+      const time = (n) => (n.ultimo_messaggio ? new Date(n.ultimo_messaggio).getTime() : 0);
+      return this.lookups.nodi.filter((n) => n.attivo && time(n) < since).sort((a, b) => time(a) - time(b));
+    },
+
+    silentHours: SILENT_HOURS,
+
+    get chartShown() {
+      return !!(this.resource.chart && this.filters.id_arnia && this.showChart);
+    },
+
+    // One measurement of the listed readings, as an SVG path over
+    // CHART_W × CHART_H. A missing value lifts the pen, so gaps show.
+    chart(measure) {
+      const points = this.rows
+        .map((r) => ({ t: new Date(r.timestamp).getTime(), v: r[measure] == null ? null : Number(r[measure]) }))
+        .sort((a, b) => a.t - b.t);
+      const values = points.filter((p) => p.v != null).map((p) => p.v);
+      if (values.length === 0) return { empty: true, d: "" };
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const t0 = points[0].t;
+      const tSpan = points[points.length - 1].t - t0 || 1;
+      const vSpan = max - min || 1;
+      let d = "";
+      let pen = "M";
+      for (const p of points) {
+        if (p.v == null) {
+          pen = "M";
+          continue;
+        }
+        const x = ((p.t - t0) / tSpan) * CHART_W;
+        const y = CHART_H - ((p.v - min) / vSpan) * CHART_H;
+        // A zero-length stroke after each move: a lone value still shows, as a dot.
+        d += `${pen}${x.toFixed(1)},${y.toFixed(1)} ${pen === "M" ? "l0,0 " : ""}`;
+        pen = "L";
+      }
+      const date = (t) => new Date(t).toLocaleString("it-IT");
+      return {
+        empty: false,
+        d,
+        min,
+        max,
+        last: values[values.length - 1],
+        from: date(t0),
+        to: date(points[points.length - 1].t),
+      };
     },
 
     filterShown(f) {
@@ -542,6 +676,8 @@ function admin() {
       }
       this.openForm(`${action.label}: ${this.rowLabel(row)}`, action.method, action.path(row), action.fields, values, action.note);
       this.dialog.partial = !!action.partial;
+      // Some option lists depend on the row (apiariProprietario).
+      this.dialog.row = row;
     },
 
     openForm(title, method, path, fields, values, note = "", body = undefined) {
@@ -641,6 +777,15 @@ function admin() {
           return l.utenti.map((u) => ({ value: String(u.id_utente), label: `${u.email} (${u.nome} ${u.cognome})` }));
         case "apiari":
           return l.apiari.map((a) => ({ value: String(a.id_apiario), label: `${a.nome_apiario} — ${this.userName(a.id_utente_proprietario)}` }));
+        // The apiaries of the dialog row's owner: where a hive can move.
+        case "apiariProprietario": {
+          const row = this.dialog && this.dialog.row;
+          const current = row && l.apiari.find((a) => a.id_apiario === row.id_apiario);
+          if (!current) return [];
+          return l.apiari
+            .filter((a) => a.id_utente_proprietario === current.id_utente_proprietario)
+            .map((a) => ({ value: String(a.id_apiario), label: a.nome_apiario }));
+        }
         case "arnie":
           return l.arnie.map((a) => ({ value: String(a.id_arnia), label: `${a.id_arnia} · ${a.nome_arnia || a.id_sensore_fisico}` }));
         case "nodi":
@@ -684,6 +829,9 @@ function admin() {
     },
   };
 }
+
+// A fetch that rejects: no answer at all, not an error status.
+const UNREACHABLE = "Server non raggiungibile";
 
 // FastAPI answers `detail` as a string, or as a list of field errors (422).
 function describeError(status, data) {

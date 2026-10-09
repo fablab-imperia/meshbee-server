@@ -212,9 +212,10 @@ The 500 body stays vague on purpose: the exception text can name tables and colu
 ## Admin page
 
 `/admin/` serves a small page for administrators
-([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): list, create, edit
-and deactivate users, nodes, hives and apiaries, assign a node's owner, reset a
-password, browse readings and activities; manage who an apiary is shared with, insert a
+([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): an overview (counts
+and the active nodes silent for 24 hours), list, create, edit and deactivate users,
+nodes, hives and apiaries, assign a node's owner, move a hive to another apiary of its
+owner, reset a password, browse readings (as a table or as charts) and activities; manage who an apiary is shared with, insert a
 reading by hand, correct one, and delete readings one at a time or as a selection
 ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
 [#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI at
@@ -251,7 +252,13 @@ Things to know:
   To delete a hive's readings over a period, filter by hive and dates, tick the header
   checkbox and delete the selection.
 - An apiary's **Condivisioni** use the owner's `/api/user/apiari/{id_apiario}/condivisioni`
-  routes, which admins pass too: there are no admin twins of them.
+  routes, which admins pass too: there are no admin twins of them. So does a hive's
+  **Sposta**, through `PUT /api/user/arnie/{id_arnia}/apiario`.
+- The **charts** draw the readings already listed, as inline SVG: no chart library and
+  no extra request. To chart a longer period, raise the limit or set the dates. A missing
+  value breaks the line, so a measurement the ingest nulled shows as a gap.
+- The **Panoramica** tab is computed from the lists every tab already loads; it has no
+  request of its own.
 
 ## Configuration
 

@@ -73,13 +73,77 @@
             </template>
             <button class="secondary outline" @click="refresh()" :aria-busy="loading">Aggiorna</button>
             <button x-show="resource.create" @click="openCreate()">Nuovo</button>
-            <button class="contrast" x-show="resource.bulkDelete && selected.length" @click="deleteSelected()" x-text="`Elimina selezionate (${selected.length})`"></button>
+            <button class="secondary" x-show="resource.chart && filters.id_arnia" @click="showChart = !showChart" x-text="showChart ? 'Tabella' : 'Grafico'"></button>
+            <button class="contrast" x-show="resource.bulkDelete && selected.length && !chartShown" @click="deleteSelected()" x-text="`Elimina selezionate (${selected.length})`"></button>
           </div>
 
           <p class="notice" x-show="notice" x-text="notice"></p>
           <p class="error" x-show="error" x-text="error"></p>
 
-          <div class="overflow-auto">
+          <!-- Overview -->
+          <template x-if="resource.view === 'overview'">
+            <section>
+              <div class="stats">
+                <template x-for="s in stats" :key="s.label">
+                  <article>
+                    <small x-text="s.label"></small>
+                    <strong x-text="s.value"></strong>
+                  </article>
+                </template>
+              </div>
+              <h3 x-text="`Nodi attivi senza messaggi da ${silentHours} ore`"></h3>
+              <div class="overflow-auto" x-show="silentNodes.length">
+                <table class="striped">
+                  <thead>
+                    <tr>
+                      <th>Nodo</th>
+                      <th>Nome</th>
+                      <th>Proprietario</th>
+                      <th>Ultimo messaggio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="n in silentNodes" :key="n.id_nodo">
+                      <tr>
+                        <td x-text="n.id_nodo"></td>
+                        <td x-text="n.nome_nodo || '—'"></td>
+                        <td x-text="userName(n.id_proprietario)"></td>
+                        <td x-text="n.ultimo_messaggio ? new Date(n.ultimo_messaggio).toLocaleString('it-IT') : 'mai'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <p x-show="!loading && silentNodes.length === 0"><em>Tutti i nodi attivi hanno trasmesso di recente.</em></p>
+            </section>
+          </template>
+
+          <!-- Readings as charts: the rows listed, drawn -->
+          <template x-if="chartShown">
+            <section>
+              <div class="charts">
+                <template x-for="m in measures" :key="m.name">
+                  <article x-data="{ get c() { return chart(m.name) } }">
+                    <header>
+                      <strong x-text="`${m.label} (${m.unit})`"></strong>
+                      <small x-show="!c.empty" x-text="`ultima ${c.last} · min ${c.min} · max ${c.max}`"></small>
+                    </header>
+                    <svg x-show="!c.empty" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none" role="img" :aria-label="m.label">
+                      <path :d="c.d" vector-effect="non-scaling-stroke"></path>
+                    </svg>
+                    <p x-show="c.empty"><em>Nessun valore.</em></p>
+                    <footer x-show="!c.empty">
+                      <small x-text="c.from"></small>
+                      <small x-text="c.to"></small>
+                    </footer>
+                  </article>
+                </template>
+              </div>
+              <p><small>I grafici mostrano le letture caricate: per vederne di più alza il limite o restringi le date.</small></p>
+            </section>
+          </template>
+
+          <div class="overflow-auto" x-show="!resource.view && !chartShown">
             <table class="striped">
               <thead>
                 <tr>
@@ -115,7 +179,8 @@
         </main>
 
         <!-- Create / edit form -->
-        <dialog :open="!!dialog">
+        <!-- Modal: showModal() traps focus and Escape closes it. -->
+        <dialog x-effect="dialog ? $el.open || $el.showModal() : $el.open && $el.close()" @close="dialog = null">
           <template x-if="dialog && dialog.kind !== 'shares'">
             <article>
               <header>

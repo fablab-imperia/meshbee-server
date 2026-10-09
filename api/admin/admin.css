@@ -74,3 +74,54 @@ dialog article.wide td select {
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
 }
+
+/* The overview's counts. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
+}
+
+.stats article {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stats strong {
+  font-size: 1.75rem;
+}
+
+/* The readings charts: one card per measurement. */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  gap: 1rem;
+}
+
+.charts article {
+  margin: 0;
+}
+
+.charts header,
+.charts footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.charts svg {
+  display: block;
+  width: 100%;
+  height: 8rem;
+  overflow: visible;
+}
+
+.charts path {
+  fill: none;
+  stroke: var(--pico-primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
