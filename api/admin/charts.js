@@ -32,6 +32,7 @@ function chartsMixin() {
 
     async toggleChart() {
       this.showChart = !this.showChart;
+      this.writeUrl(); // url.js
       if (this.chartShown) await this.loadChart();
     },
 

@@ -277,7 +277,7 @@ dichiarati una sola volta in `meshbee_core/limits.py`.
 | `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
 | `resources.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe. Una nuova operazione admin di solito è una voce lì. |
 | `admin.js` | Il nucleo dell'unico componente Alpine: login, richieste, la tabella e il form generico guidati da `RESOURCES`. `admin()` vi unisce i file di funzionalità qui sotto. |
-| `overview.js`, `charts.js`, `shares.js`, `pagination.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario, la paginazione sotto ogni tabella. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
+| `overview.js`, `charts.js`, `shares.js`, `pagination.js`, `url.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario, la paginazione sotto ogni tabella, la vista tenuta nell'URL. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
 | `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
 | `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file: niente build, niente CDN, funziona in una LAN senza internet. Per aggiornarli si sostituisce il file e i riferimenti in `index.html`. |
 
@@ -314,6 +314,15 @@ Da sapere:
   interrompe la linea, così una misura che l'ingest ha messo a null appare come un buco.
 - La scheda **Panoramica** si calcola dagli elenchi che ogni scheda carica già; non ha
   richieste proprie.
+- **L'hash dell'URL indica la vista**: la scheda, i suoi filtri, pagina e dimensione della
+  tabella principale e il passaggio ai grafici, per esempio
+  `#/letture?id_arnia=3&page=2&grafico=1`. Ogni passo è una voce della cronologia, così
+  Indietro lo annulla; un ricaricamento o un link copiato aprono la stessa vista dopo il
+  login. Una trentina di righe in `url.js`, nessuna libreria di routing: le schede
+  condividono una sola tabella, quindi template per rotta non avrebbero niente da
+  contenere.
+- **Ogni paginazione è un unico `<template id="pager">`**, che `pager(name, count)` in
+  `pagination.js` copia in ogni `<nav class="pager">`.
 
 ## Configurazione
 

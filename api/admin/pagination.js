@@ -2,6 +2,9 @@
 // is one request with `limit` and `offset`, and the API's X-Total-Count says how
 // many rows there are. The small tables (silent nodes, an apiary's shares) page
 // a list already loaded. Mixed into admin().
+//
+// index.html draws every pager the same way: a <nav x-data="pager(...)"> that
+// fills itself from the one <template id="pager">.
 
 const PAGE_SIZES = [25, 50, 100, 500];
 
@@ -41,16 +44,60 @@ function paginationMixin() {
 
     async goTo(name, count, page) {
       this.pagers[name].page = Math.min(Math.max(1, page), this.pageCount(name, count));
-      if (this.pagers[name].server) await this.loadRows();
+      await this.reloadPage(name);
     },
 
     async setPageSize(name) {
       this.resetPage(name);
-      if (this.pagers[name].server) await this.loadRows();
+      await this.reloadPage(name);
+    },
+
+    // A server pager's new page: one more step in the URL (url.js), then its rows.
+    async reloadPage(name) {
+      if (!this.pagers[name].server) return;
+      this.writeUrl();
+      await this.loadRows();
     },
 
     resetPage(name) {
       this.pagers[name].page = 1;
     },
+
+    // A page and size as the URL gives them: strings, maybe missing or bogus.
+    // A page past the end is left for loadRows to step back from.
+    setPager(name, page, size) {
+      const p = this.pagers[name];
+      p.page = Math.max(1, Number.parseInt(page, 10) || 1);
+      p.size = this.pageSizes.includes(Number(size)) ? Number(size) : this.pageSizes[0];
+    },
   };
 }
+
+// One pager's controls. `name` picks the pager, `count` reads how many items
+// its list holds. The markup is index.html's <template id="pager">; anything
+// it names that isn't here resolves on admin().
+document.addEventListener("alpine:init", () => {
+  Alpine.data("pager", (name, count) => ({
+    pager: name,
+    get count() {
+      return count();
+    },
+    get page() {
+      return this.currentPage(name, this.count);
+    },
+    get pages() {
+      return this.pageCount(name, this.count);
+    },
+    // A list that fits on the smallest page needs no pager.
+    get needed() {
+      return this.count > this.pageSizes[0];
+    },
+    // Alpine runs this after walking the nav's (then empty) children, so the
+    // copy is initialised here; Alpine marks each node, none twice.
+    init() {
+      const controls = [...document.getElementById("pager").content.cloneNode(true).children];
+      this.$el.append(...controls);
+      for (const el of controls) Alpine.initTree(el);
+    },
+  }));
+});

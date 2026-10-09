@@ -6,8 +6,8 @@
 //
 // This file is the core: login, requests, the table and the generic form, all
 // driven by RESOURCES (resources.js). Each feature with state of its own lives
-// in a mixin file (overview.js, charts.js, shares.js, pagination.js) that
-// admin() merges in.
+// in a mixin file (overview.js, charts.js, shares.js, pagination.js, url.js)
+// that admin() merges in.
 
 const TOKEN_KEY = "meshbee-admin-token";
 
@@ -15,7 +15,7 @@ const TOKEN_KEY = "meshbee-admin-token";
 // Property descriptors, not a spread: a spread would freeze the getters.
 function admin() {
   const component = {};
-  for (const part of [adminCore(), overviewMixin(), chartsMixin(), sharesMixin(), paginationMixin()]) {
+  for (const part of [adminCore(), overviewMixin(), chartsMixin(), sharesMixin(), paginationMixin(), urlMixin()]) {
     Object.defineProperties(component, Object.getOwnPropertyDescriptors(part));
   }
   return component;
@@ -51,6 +51,7 @@ function adminCore() {
     },
 
     async init() {
+      window.addEventListener("popstate", () => this.followUrl()); // url.js
       try {
         this.token = sessionStorage.getItem(TOKEN_KEY);
       } catch {
@@ -110,7 +111,8 @@ function adminCore() {
       }
       this.me = me;
       if (!(await this.loadEnums())) return;
-      await this.select(this.tab);
+      const { tab, query } = this.readUrl(); // url.js
+      await this.select(tab, query, true);
     },
 
     // One request; returns the parsed body, or null after showing the error.
@@ -189,17 +191,23 @@ function adminCore() {
       };
     },
 
-    async select(tab) {
+    // A tab, with the filters, page and charts toggle `query` names: none from
+    // a tab link, the URL's own when `fromUrl` (url.js), which then corrects
+    // the entry rather than adding one.
+    async select(tab, query = new URLSearchParams(), fromUrl = false) {
       // The old tab's rows would render under the new tab's key: all undefined,
       // so duplicate keys, and the x-for breaks.
       this.rows = [];
       this.total = 0;
       this.tab = tab;
       this.filters = {};
-      for (const f of this.resource.filters || []) this.filters[f.name] = f.value ?? "";
+      for (const f of this.resource.filters || []) {
+        this.filters[f.name] = query.has(f.name) ? query.get(f.name) : (f.value ?? "");
+      }
       this.notice = "";
-      this.showChart = false; // charts.js
-      this.resetPage("main"); // pagination.js
+      this.showChart = query.get("grafico") === "1"; // charts.js
+      this.setPager("main", query.get("page"), query.get("size")); // pagination.js
+      this.writeUrl(fromUrl);
       await this.refresh();
     },
 
@@ -207,6 +215,7 @@ function adminCore() {
     // refresh (Aggiorna, or after a save) keeps the page.
     async applyFilters() {
       this.resetPage("main");
+      this.writeUrl();
       await this.refresh();
     },
 
@@ -236,6 +245,7 @@ function adminCore() {
         // A delete can empty the last page: step back to the new last one.
         if (page && this.rows.length === 0 && this.total > 0 && offset > 0) {
           this.pagers.main.page = this.pageCount("main", this.total);
+          this.writeUrl(true);
           await this.loadRows();
           return;
         }
