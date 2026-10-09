@@ -241,7 +241,7 @@ dichiarati una sola volta in `meshbee_core/limits.py`.
 | `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
 | `resources.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe. Una nuova operazione admin di solito è una voce lì. |
 | `admin.js` | Il nucleo dell'unico componente Alpine: login, richieste, la tabella e il form generico guidati da `RESOURCES`. `admin()` vi unisce i file di funzionalità qui sotto. |
-| `overview.js`, `charts.js`, `shares.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
+| `overview.js`, `charts.js`, `shares.js`, `pagination.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario, la paginazione sotto ogni tabella. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
 | `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
 | `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file: niente build, niente CDN, funziona in una LAN senza internet. Per aggiornarli si sostituisce il file e i riferimenti in `index.html`. |
 
@@ -258,7 +258,13 @@ Da sapere:
 - Scegliendo un'arnia nelle schede letture o attività si passa alla rotta
   `/api/user/arnie/{id_arnia}/…` dell'arnia — quella con i filtri per data, che gli
   admin superano. Per eliminare le letture di un'arnia in un periodo si filtra per arnia
-  e date, si spunta la casella dell'intestazione e si elimina la selezione.
+  e date, si spunta la casella dell'intestazione, si preme **Seleziona tutte**
+  (l'intestazione copre solo la pagina mostrata) e si elimina la selezione.
+- **Le tabelle sono paginate nel browser**, 25 righe per cominciare. Le rotte di elenco
+  accettano un `limit` ma nessun offset, quindi la pagina carica quello che ha sempre
+  caricato — tutti gli utenti, nodi, arnie e apiari; letture e attività fino a
+  **Limite** — e lo mostra una pagina alla volta. Cambiare un filtro riporta a pagina 1;
+  Aggiorna e un salvataggio mantengono la pagina.
 - Le **Condivisioni** di un apiario usano le rotte del proprietario
   `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse: non
   esistono equivalenti admin. Lo stesso vale per **Sposta** di un'arnia, tramite

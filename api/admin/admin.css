@@ -131,3 +131,25 @@ dialog article.wide td select {
   stroke-linejoin: round;
   stroke-linecap: round;
 }
+
+/* The pager under a table. Pico spreads a <nav> with space-between. */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pager button,
+.pager select {
+  width: auto;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+}
+
+/* Room for Pico's dropdown arrow. */
+.pager select {
+  padding-right: 2.5rem;
+}

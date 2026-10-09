@@ -8,6 +8,7 @@ function sharesMixin() {
 
     async openShares(apiario) {
       this.shares = { apiario, rows: [], form: { email: "", ruolo: "viewer" } };
+      this.resetPage("shares"); // pagination.js
       this.dialogError = "";
       this.dialog = { kind: "shares", title: `Condivisioni: ${apiario.nome_apiario}` };
       await this.loadShares();

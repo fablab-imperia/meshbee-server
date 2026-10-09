@@ -6,7 +6,8 @@
 //
 // This file is the core: login, requests, the table and the generic form, all
 // driven by RESOURCES (resources.js). Each feature with state of its own lives
-// in a mixin file (overview.js, charts.js, shares.js) that admin() merges in.
+// in a mixin file (overview.js, charts.js, shares.js, pagination.js) that
+// admin() merges in.
 
 const TOKEN_KEY = "meshbee-admin-token";
 
@@ -14,7 +15,7 @@ const TOKEN_KEY = "meshbee-admin-token";
 // Property descriptors, not a spread: a spread would freeze the getters.
 function admin() {
   const component = {};
-  for (const part of [adminCore(), overviewMixin(), chartsMixin(), sharesMixin()]) {
+  for (const part of [adminCore(), overviewMixin(), chartsMixin(), sharesMixin(), paginationMixin()]) {
     Object.defineProperties(component, Object.getOwnPropertyDescriptors(part));
   }
   return component;
@@ -180,6 +181,14 @@ function adminCore() {
       for (const f of this.resource.filters || []) this.filters[f.name] = f.value ?? "";
       this.notice = "";
       this.showChart = false; // charts.js
+      this.resetPage("main"); // pagination.js
+      await this.refresh();
+    },
+
+    // A filter changed: a different list, so back to its first page. A plain
+    // refresh (Aggiorna, or after a save) keeps the page.
+    async applyFilters() {
+      this.resetPage("main");
       await this.refresh();
     },
 
@@ -220,7 +229,13 @@ function adminCore() {
       this.openForm(`Nuovo: ${r.label}`, "POST", r.createPath || r.path, r.create, values, r.createNote);
     },
 
-    // Bulk selection, over the rows currently listed.
+    // The rows of the main table's current page.
+    get pageRows() {
+      return this.paged("main", this.rows);
+    },
+
+    // Bulk selection, by key, so it survives a page change. The header
+    // checkbox covers the page shown; selectAllLoaded() every row loaded.
     isSelected(row) {
       return this.selected.includes(row[this.resource.key]);
     },
@@ -231,11 +246,18 @@ function adminCore() {
     },
 
     get allSelected() {
-      return this.rows.length > 0 && this.selected.length === this.rows.length;
+      return this.pageRows.length > 0 && this.pageRows.every((row) => this.isSelected(row));
     },
 
     toggleAll(on) {
-      this.selected = on ? this.rows.map((row) => row[this.resource.key]) : [];
+      const keys = this.pageRows.map((row) => row[this.resource.key]);
+      this.selected = on
+        ? [...new Set([...this.selected, ...keys])]
+        : this.selected.filter((k) => !keys.includes(k));
+    },
+
+    selectAllLoaded() {
+      this.selected = this.rows.map((row) => row[this.resource.key]);
     },
 
     deleteSelected() {

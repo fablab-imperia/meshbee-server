@@ -235,7 +235,7 @@ the page shows the API's own `detail` on a 4xx. Value lists (`ruolo`, the apiary
 | `index.html` | The markup, with [Alpine.js](https://alpinejs.dev) bindings. |
 | `resources.js` | `RESOURCES` — per tab: route, columns, form fields, row actions. A new admin operation is usually one entry there. |
 | `admin.js` | The core of the one Alpine component: login, requests, the table and the generic form that `RESOURCES` drives. `admin()` merges the feature files below into it. |
-| `overview.js`, `charts.js`, `shares.js` | One feature each, with its own state: the Panoramica tab, the readings charts, an apiary's sharing panel. A new feature with state of its own gets a file like these, not more branches in `admin.js`. |
+| `overview.js`, `charts.js`, `shares.js`, `pagination.js` | One feature each, with its own state: the Panoramica tab, the readings charts, an apiary's sharing panel, the pager under each table. A new feature with state of its own gets a file like these, not more branches in `admin.js`. |
 | `admin.css` | The little [Pico CSS](https://picocss.com) does not cover. |
 | `vendor/` | Alpine.js and Pico CSS, **vendored** with the version in the file name: no build step, no CDN, works on a LAN with no internet. To upgrade, replace the file and its references in `index.html`. |
 
@@ -252,7 +252,12 @@ Things to know:
 - Picking a hive on the readings or activities tab switches to the hive-scoped
   `/api/user/arnie/{id_arnia}/…` route — the one with date filters, which admins pass.
   To delete a hive's readings over a period, filter by hive and dates, tick the header
-  checkbox and delete the selection.
+  checkbox, press **Seleziona tutte** (the header covers only the page shown) and delete
+  the selection.
+- **Tables are paged in the browser**, 25 rows to start. The list routes take a `limit`
+  but no offset, so the page loads what it always did — every user, node, hive and
+  apiary; readings and activities up to **Limite** — and shows it a page at a time.
+  Changing a filter goes back to page 1; Aggiorna and a save keep the page.
 - An apiary's **Condivisioni** use the owner's `/api/user/apiari/{id_apiario}/condivisioni`
   routes, which admins pass too: there are no admin twins of them. So does a hive's
   **Sposta**, through `PUT /api/user/arnie/{id_arnia}/apiario`.
