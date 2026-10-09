@@ -17,8 +17,8 @@ here.
 |---|---|
 | `main.py` | The application: lifespan, CORS, error translation and all 54 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
+| `paging.py` | The optional `limit`/`offset` parameters of the list routes, and their `X-Total-Count` header — see [Paging](#paging). |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
-| `admin/` | The admin page served at `/admin/` — see [Admin page](#admin-page). |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
 | `Dockerfile` | Image for the `api` service (and for `seed`). Build context is the repo root. |
 | `requirements.txt` | Runtime dependencies. |
@@ -36,6 +36,8 @@ here.
   shared. See [Authentication and authorization](#authentication-and-authorization).
   Admins pass this check unconditionally.
 
+**Paged** marks a list route that takes `limit` and `offset` — see [Paging](#paging).
+
 ### Autenticazione
 
 | Method | Path | Auth | Purpose |
@@ -50,26 +52,26 @@ the caller's access to that hive's apiary, or that apiary.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/user/arnie` | user | Hives in the apiaries the caller owns or has been shared, each with its latest reading, its apiary and `accesso` (the caller's access). Optional `id_apiario` narrows it to one apiary. |
+| GET | `/api/user/arnie` | user | Hives in the apiaries the caller owns or has been shared, each with its latest reading, its apiary and `accesso` (the caller's access). Optional `id_apiario` narrows it to one apiary. **Paged**. |
 | GET | `/api/user/arnie/{id_arnia}` | user + viewer | One hive with its latest reading. |
 | PUT | `/api/user/arnie/{id_arnia}` | user + manager | Rename/reposition a hive. `attiva` (retiring it) is applied only for the owner. |
 | PUT | `/api/user/arnie/{id_arnia}/apiario` | user + owner | Move the hive into another apiary of its owner. Who can see it follows the apiary. |
-| GET | `/api/user/arnie/{id_arnia}/letture` | user + viewer | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
+| GET | `/api/user/arnie/{id_arnia}/letture` | user + viewer | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). **Paged**. |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + viewer | `{timestamp, temperatura}` only — sized for charts. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | user + viewer | `{timestamp, umidita}` only. |
 | GET | `/api/user/arnie/{id_arnia}/letture/peso` | user + viewer | `{timestamp, peso}` only. |
 | GET | `/api/user/arnie/{id_arnia}/letture/batteria` | user + viewer | `{timestamp, batteria}` only — node battery voltage. |
-| GET | `/api/user/arnie/{id_arnia}/attivita` | user + viewer | Activity log. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
+| GET | `/api/user/arnie/{id_arnia}/attivita` | user + viewer | Activity log. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). **Paged**. |
 | POST | `/api/user/arnie/{id_arnia}/attivita` | user + collaborator | Record an activity. |
 | PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + collaborator | Edit an activity — **only your own**. |
 | DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | user + collaborator | Delete an activity — **only your own**. |
 | PUT | `/api/user/password` | user | Change your own password. Requires `current_password`. |
-| GET | `/api/user/apiari` | user | The apiaries the caller owns (the default one first), then those shared with them, each with `accesso`. |
+| GET | `/api/user/apiari` | user | The apiaries the caller owns (the default one first), then those shared with them, each with `accesso`. **Paged**. |
 | POST | `/api/user/apiari` | user | Create an apiary owned by the caller. |
 | GET | `/api/user/apiari/{id_apiario}` | user + viewer | One apiary. |
 | PUT | `/api/user/apiari/{id_apiario}` | user + manager | Edit it — the default one included. |
 | DELETE | `/api/user/apiari/{id_apiario}` | user + owner | Delete it, with its shares. **409** for the default one, and while active hives are still in it. |
-| GET | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Who it is shared with, and as what. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Who it is shared with, and as what. **Paged**. |
 | POST | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Share it with a user, by `email`, as `viewer` (default), `collaborator` or `manager`. Sharing again changes the role. |
 | PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Change that user's role. |
 | DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Stop sharing it with that user. |
@@ -82,33 +84,33 @@ whitelist in `meshbee_core/repository/letture.py`, not string interpolation.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/admin/utenti` | admin | All accounts. |
+| GET | `/api/admin/utenti` | admin | All accounts. **Paged**. |
 | POST | `/api/admin/utenti` | admin | Create an account. |
 | PUT | `/api/admin/utenti/{id_utente}` | admin | Update an account. |
 | DELETE | `/api/admin/utenti/{id_utente}` | admin | Deactivate (soft delete). **You cannot deactivate yourself.** |
 | PUT | `/api/admin/utenti/{id_utente}/password` | admin | Reset someone's password — no `current_password` needed. |
-| GET | `/api/admin/nodi` | admin | All nodes. |
+| GET | `/api/admin/nodi` | admin | All nodes. **Paged**. |
 | POST | `/api/admin/nodi` | admin | Register a node. |
 | GET | `/api/admin/nodi/{id_nodo}` | admin | One node. |
 | PUT | `/api/admin/nodi/{id_nodo}` | admin | Update a node (body is a full `NodoCreate`). |
 | DELETE | `/api/admin/nodi/{id_nodo}` | admin | Deactivate. Hives and readings are kept. |
 | PUT | `/api/admin/nodi/{id_nodo}/proprietario` | admin | Assign the node to a user (`id_utente`), transfer it, or unassign it (`null`). Its hives move to the new owner's default apiary. |
-| GET | `/api/admin/arnie` | admin | All hives, retired ones included. Optional `id_apiario`. |
+| GET | `/api/admin/arnie` | admin | All hives, retired ones included. Optional `id_apiario`. **Paged**. |
 | POST | `/api/admin/arnie` | admin | Create a hive. It goes in the node owner's default apiary, or in `id_apiario` if that is the node owner's; a hive of an unassigned node is unassigned. |
 | GET | `/api/admin/arnie/{id_arnia}` | admin | One hive with its latest reading. |
 | PUT | `/api/admin/arnie/{id_arnia}` | admin | Update a hive — **including `attiva`**, unlike the user route. |
 | DELETE | `/api/admin/arnie/{id_arnia}` | admin | Deactivate. Historical readings are kept. |
-| GET | `/api/admin/apiari` | admin | Every user's apiaries. Optional `id_utente`. |
+| GET | `/api/admin/apiari` | admin | Every user's apiaries. Optional `id_utente`. **Paged**. |
 | POST | `/api/admin/apiari` | admin | Create an apiary for the user named in `id_utente_proprietario`. |
 | GET | `/api/admin/apiari/{id_apiario}` | admin | Any user's apiary. |
 | PUT | `/api/admin/apiari/{id_apiario}` | admin | Edit any user's apiary. |
 | DELETE | `/api/admin/apiari/{id_apiario}` | admin | Delete any user's apiary, under the owner's rules (**409** as above). |
-| GET | `/api/admin/letture` | admin | All readings. `limit` 1–10000, default 1000. |
+| GET | `/api/admin/letture` | admin | All readings. `limit` 1–10000, default 1000. **Paged**. |
 | POST | `/api/admin/letture` | admin | Insert a reading by hand — backfill and testing. |
 | PATCH | `/api/admin/letture/{id_lettura}` | admin | Correct a reading: only the fields sent change, a measurement sent as `null` is cleared, `timestamp` cannot be. Hive and node are not editable. **404** if unknown. |
 | DELETE | `/api/admin/letture/{id_lettura}` | admin | Delete one reading (a real delete). **404** if unknown. |
 | POST | `/api/admin/letture/elimina` | admin | Delete readings in bulk: `{"id_letture": [...]}`, 1–10000 ids. Unknown ids are skipped; the message says how many went. Pick them with the hive and date filters of `GET /api/user/arnie/{id_arnia}/letture`. |
-| GET | `/api/admin/attivita` | admin | All activities. `limit` 1–1000, default 100. |
+| GET | `/api/admin/attivita` | admin | All activities. `limit` 1–1000, default 100. **Paged**. |
 
 `POST /api/admin/letture` and the MQTT path both end at the same INSERT, but they do
 **not** behave the same on unknown references: this route answers **404** for an
@@ -127,6 +129,38 @@ that must stay identical is pinned by `tests/integration/test_ingest_parity.py`.
 `/health` **always answers 200** — the body carries the verdict
 (`"status": "healthy"` / `"unhealthy"`), never the reason: that goes to the API log. A monitor must read the body, not the status
 code.
+
+## Paging
+
+The 11 routes marked **Paged** above accept `limit` and `offset`
+([api/paging.py](paging.py)). Both are optional, and a request with neither gets exactly
+what the route returned before paging existed: the whole list, or the newest `limit`
+readings and activities.
+
+| Parameter | Meaning |
+|---|---|
+| `offset` | Rows to skip, ≥ 0, default 0. |
+| `limit` | Rows to return at most. Readings and activities keep their default and maximum (above); the other lists default to all, at most 1000 per page. |
+
+A request that carries either parameter also gets **`X-Total-Count`**: the size of the
+whole list, filters applied. It costs a COUNT query, which is why a request without
+paging parameters doesn't pay for it. CORS exposes the header, so a browser on another
+origin can read it. The body stays the plain JSON list in every case. `openapi.json`
+declares the header on each paged route's 200 response.
+
+```http
+GET /api/admin/utenti?limit=25&offset=50
+
+200 OK
+X-Total-Count: 132
+
+[ ... ]
+```
+
+Every paged ordering ends on a unique column (the id, or the email for shares), so
+consecutive pages neither repeat nor skip rows that share a timestamp or a name. An
+offset past the end is an empty page, still with its total. The chart series
+(`/letture/{grandezza}`) are not paged: their date window and `limit` already bound them.
 
 ## Authentication and authorization
 
@@ -211,47 +245,10 @@ The 500 body stays vague on purpose: the exception text can name tables and colu
 
 ## Admin page
 
-`/admin/` serves a small page for administrators
-([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): list, create, edit
-and deactivate users, nodes, hives and apiaries, assign a node's owner, reset a
-password, browse readings and activities; manage who an apiary is shared with, insert a
-reading by hand, correct one, and delete readings one at a time or as a selection
-([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
-[#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI at
-`/docs` remains the full fallback.
-
-It is **a client of this API, not a second one**. `main.py` mounts `admin/` with
-`StaticFiles`; the page logs in through `/api/auth/login`, refuses a non-admin account
-after `/api/auth/me`, and from then on calls the same routes as any other client with
-the bearer token. So the page itself adds no route, no session and no logic: soft
-deletes, password hashing, node transfers and validation all happen in the services, and
-the page shows the API's own `detail` on a 4xx. Value lists (`ruolo`, the apiary roles,
-`tipo_attivita`) are read from `/openapi.json`, so they stay declared once in
-`meshbee_core/limits.py`.
-
-| File | What it is |
-|---|---|
-| `index.html` | The markup, with [Alpine.js](https://alpinejs.dev) bindings. |
-| `admin.js` | `RESOURCES` — per tab: route, columns, form fields, row actions — and the component that drives them. A new admin operation is usually one entry there. |
-| `admin.css` | The little [Pico CSS](https://picocss.com) does not cover. |
-| `vendor/` | Alpine.js and Pico CSS, **vendored** with the version in the file name: no build step, no CDN, works on a LAN with no internet. To upgrade, replace the file and its references in `index.html`. |
-
-Things to know:
-
-- **No build step and no npm.** Edit the files; `--reload` is not even needed, they are
-  read on each request.
-- **Data reaches the DOM only through `x-text`**, which escapes it. Names are typed by
-  users; `x-html` or `innerHTML` would let one run script with the admin's token.
-  `tests/unit/api/test_admin_page.py` fails on either.
-- **The token lives in `sessionStorage`** (gone when the tab closes). There is no refresh
-  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): when it expires
-  the next request gets a 401 and the page asks for the login again.
-- Picking a hive on the readings or activities tab switches to the hive-scoped
-  `/api/user/arnie/{id_arnia}/…` route — the one with date filters, which admins pass.
-  To delete a hive's readings over a period, filter by hive and dates, tick the header
-  checkbox and delete the selection.
-- An apiary's **Condivisioni** use the owner's `/api/user/apiari/{id_apiario}/condivisioni`
-  routes, which admins pass too: there are no admin twins of them.
+`main.py` serves the static admin page at `/admin/`: `StaticFiles` over
+[`admin/`](../admin/README.md) at the repo root (`ADMIN_DIR`). It is a client of the
+routes above and adds none of its own. What it does and how it is built are in its own
+README.
 
 ## Configuration
 
@@ -340,8 +337,8 @@ access level against its minimum. It is what catches a missing or wrong gate.
 
 - **A new route needs three follow-ups**: `make openapi`, a row in the tables above,
   and a row in `test_main_authz.py`. None of them happen on their own.
-- **The image is not API-only.** It also carries `mqtt_handler/`, `scripts/` and
-  `tests/` plus `paho-mqtt`, so the whole suite — both entry points included — runs in
+- **The image is not API-only.** It also carries `admin/` (served at `/admin/`),
+  `mqtt_handler/`, `scripts/` and `tests/` plus `paho-mqtt`, so the whole suite — both entry points included — runs in
   this one container. That is why the build context is the repo root and not `api/`.
 - **The `seed` service runs from this same image**, with `python -m scripts.seed`.
 - **`/health` returning 200 says nothing.** Read `status` in the body.
@@ -350,6 +347,7 @@ access level against its minimum. It is what catches a missing or wrong gate.
 
 - [`meshbee_core/`](../meshbee_core/README.md) — the services and schemas every handler calls.
 - [`mqtt_handler/`](../mqtt_handler/README.md) — the other writer of the same database.
+- [`admin/`](../admin/README.md) — the admin page this API serves at `/admin/`.
 - [`tests/`](../tests/README.md) — how to run the suite and where a new test belongs.
 - [`database/`](../database/README.md) — the tables behind these responses.
 - Main [README](../README.md) — the stack as a whole.

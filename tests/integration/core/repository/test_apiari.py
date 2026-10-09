@@ -20,7 +20,7 @@ def test_a_user_lists_their_own_apiari_then_those_shared_with_them(
     make_apiario(other)  # not shared
     share(utente["id_utente"], theirs["id_apiario"], "viewer")
 
-    rows = apiari.list_for_utente(session, utente["id_utente"])
+    rows = apiari.list_for_utente(session, utente["id_utente"]).items
 
     assert [(a["id_apiario"], a["accesso"]) for a in rows] == [
         (utente["id_apiario_predefinito"], "owner"),

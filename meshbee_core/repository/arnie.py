@@ -7,7 +7,8 @@ from sqlalchemy import update as sql_update
 from sqlmodel import Session, select
 
 from meshbee_core.models import Apiario, Arnia, Lettura, Nodo, UtenteApiario
-from meshbee_core.repository import as_dict, mapping
+from meshbee_core.paging import EVERYTHING, Page, Paging
+from meshbee_core.repository import as_dict, fetch_page, mapping
 from meshbee_core.repository.accessi import OWNER
 
 # Sentinel for "leave this column alone entirely", which is not the same as
@@ -66,6 +67,12 @@ def stato_rows(session: Session, query) -> list[dict[str, Any]]:
     return [mapping(row) for row in session.exec(query).all()]
 
 
+def stato_page(session: Session, query, paging: Paging) -> Page:
+    return fetch_page(
+        session, query, paging, lambda rows: [mapping(row) for row in rows]
+    )
+
+
 def with_accesso(query, id_utente: int, *, accessible_only: bool):
     """
     Add what the user may do on each hive: "owner" when its apiary is theirs,
@@ -91,31 +98,43 @@ def in_apiario(query, id_apiario: int | None):
     return query if id_apiario is None else query.where(Arnia.id_apiario == id_apiario)
 
 
-def list_stato(session: Session, id_apiario: int | None = None) -> list[dict[str, Any]]:
-    return stato_rows(session, in_apiario(STATO, id_apiario).order_by(Arnia.id_arnia))
+def list_stato(
+    session: Session, id_apiario: int | None = None, paging: Paging = EVERYTHING
+) -> Page:
+    return stato_page(
+        session, in_apiario(STATO, id_apiario).order_by(Arnia.id_arnia), paging
+    )
 
 
 def list_stato_attive(
-    session: Session, id_utente: int, id_apiario: int | None = None
-) -> list[dict[str, Any]]:
+    session: Session,
+    id_utente: int,
+    id_apiario: int | None = None,
+    paging: Paging = EVERYTHING,
+) -> Page:
     """Every active arnia, with what `id_utente` may do on each."""
-    return stato_rows(
+    return stato_page(
         session,
         with_accesso(in_apiario(STATO, id_apiario), id_utente, accessible_only=False)
         .where(Arnia.attiva.is_(True))
-        .order_by(Arnia.nome_arnia),
+        .order_by(Arnia.nome_arnia, Arnia.id_arnia),
+        paging,
     )
 
 
 def list_stato_for_utente(
-    session: Session, id_utente: int, id_apiario: int | None = None
-) -> list[dict[str, Any]]:
+    session: Session,
+    id_utente: int,
+    id_apiario: int | None = None,
+    paging: Paging = EVERYTHING,
+) -> Page:
     """The active hives the user owns or has been shared, through their apiary."""
-    return stato_rows(
+    return stato_page(
         session,
         with_accesso(in_apiario(STATO, id_apiario), id_utente, accessible_only=True)
         .where(Arnia.attiva.is_(True))
-        .order_by(Arnia.nome_arnia),
+        .order_by(Arnia.nome_arnia, Arnia.id_arnia),
+        paging,
     )
 
 

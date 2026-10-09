@@ -16,8 +16,8 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 |---|---|
 | `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 54 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
+| `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
-| `admin/` | La pagina admin servita su `/admin/` — vedi [Pagina admin](#pagina-admin). |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
 | `Dockerfile` | Immagine del servizio `api` (e di `seed`). Il contesto di build è la root del repo. |
 | `requirements.txt` | Dipendenze di runtime. |
@@ -36,6 +36,8 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
   [Autenticazione e autorizzazione](#autenticazione-e-autorizzazione). Gli admin passano
   il controllo comunque.
 
+**Paginata** marca una rotta di elenco che accetta `limit` e `offset` — vedi [Paginazione](#paginazione).
+
 ### Autenticazione
 
 | Metodo | Percorso | Auth | Scopo |
@@ -50,26 +52,26 @@ sull'accesso del chiamante all'apiario di quell'arnia, o a quell'apiario.
 
 | Metodo | Percorso | Auth | Scopo |
 |---|---|---|---|
-| GET | `/api/user/arnie` | utente | Le arnie degli apiari di cui il chiamante è proprietario o che gli sono condivisi, ciascuna con l'ultima lettura, il suo apiario e `accesso` (l'accesso del chiamante). `id_apiario` opzionale la restringe a un apiario. |
+| GET | `/api/user/arnie` | utente | Le arnie degli apiari di cui il chiamante è proprietario o che gli sono condivisi, ciascuna con l'ultima lettura, il suo apiario e `accesso` (l'accesso del chiamante). `id_apiario` opzionale la restringe a un apiario. **Paginata**. |
 | GET | `/api/user/arnie/{id_arnia}` | utente + viewer | Una singola arnia con l'ultima lettura. |
 | PUT | `/api/user/arnie/{id_arnia}` | utente + manager | Rinomina/riposiziona un'arnia. `attiva` (dismetterla) vale solo per il proprietario. |
 | PUT | `/api/user/arnie/{id_arnia}/apiario` | utente + owner | Sposta l'arnia in un altro apiario del suo proprietario. Chi può vederla segue l'apiario. |
-| GET | `/api/user/arnie/{id_arnia}/letture` | utente + viewer | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). |
+| GET | `/api/user/arnie/{id_arnia}/letture` | utente + viewer | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). **Paginata**. |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + viewer | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | utente + viewer | Solo `{timestamp, umidita}`. |
 | GET | `/api/user/arnie/{id_arnia}/letture/peso` | utente + viewer | Solo `{timestamp, peso}`. |
 | GET | `/api/user/arnie/{id_arnia}/letture/batteria` | utente + viewer | Solo `{timestamp, batteria}` — tensione della batteria del nodo. |
-| GET | `/api/user/arnie/{id_arnia}/attivita` | utente + viewer | Log attività. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). |
+| GET | `/api/user/arnie/{id_arnia}/attivita` | utente + viewer | Log attività. `data_inizio`, `data_fine`, `tipo_attivita`, `limit` (1–1000, default 100). **Paginata**. |
 | POST | `/api/user/arnie/{id_arnia}/attivita` | utente + collaborator | Registra un'attività. |
 | PATCH | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + collaborator | Modifica un'attività — **solo le proprie**. |
 | DELETE | `/api/user/arnie/{id_arnia}/attivita/{id_log}` | utente + collaborator | Elimina un'attività — **solo le proprie**. |
 | PUT | `/api/user/password` | utente | Cambia la propria password. Richiede `current_password`. |
-| GET | `/api/user/apiari` | utente | Gli apiari di cui il chiamante è proprietario (prima quello predefinito), poi quelli condivisi con lui, ciascuno con `accesso`. |
+| GET | `/api/user/apiari` | utente | Gli apiari di cui il chiamante è proprietario (prima quello predefinito), poi quelli condivisi con lui, ciascuno con `accesso`. **Paginata**. |
 | POST | `/api/user/apiari` | utente | Crea un apiario del chiamante. |
 | GET | `/api/user/apiari/{id_apiario}` | utente + viewer | Un singolo apiario. |
 | PUT | `/api/user/apiari/{id_apiario}` | utente + manager | Lo modifica — anche quello predefinito. |
 | DELETE | `/api/user/apiari/{id_apiario}` | utente + owner | Lo elimina, con le sue condivisioni. **409** per quello predefinito, e finché contiene arnie attive. |
-| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo. **Paginata**. |
 | POST | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Lo condivide con un utente, tramite `email`, come `viewer` (default), `collaborator` o `manager`. Condividerlo di nuovo cambia il ruolo. |
 | PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Cambia il ruolo di quell'utente. |
 | DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Smette di condividerlo con quell'utente. |
@@ -82,33 +84,33 @@ whitelist in `meshbee_core/repository/letture.py`, non un'interpolazione di stri
 
 | Metodo | Percorso | Auth | Scopo |
 |---|---|---|---|
-| GET | `/api/admin/utenti` | admin | Tutti gli account. |
+| GET | `/api/admin/utenti` | admin | Tutti gli account. **Paginata**. |
 | POST | `/api/admin/utenti` | admin | Crea un account. |
 | PUT | `/api/admin/utenti/{id_utente}` | admin | Aggiorna un account. |
 | DELETE | `/api/admin/utenti/{id_utente}` | admin | Disattiva (soft delete). **Non puoi disattivare te stesso.** |
 | PUT | `/api/admin/utenti/{id_utente}/password` | admin | Reimposta la password di qualcuno — senza `current_password`. |
-| GET | `/api/admin/nodi` | admin | Tutti i nodi. |
+| GET | `/api/admin/nodi` | admin | Tutti i nodi. **Paginata**. |
 | POST | `/api/admin/nodi` | admin | Registra un nodo. |
 | GET | `/api/admin/nodi/{id_nodo}` | admin | Un singolo nodo. |
 | PUT | `/api/admin/nodi/{id_nodo}` | admin | Aggiorna un nodo (il body è un `NodoCreate` completo). |
 | DELETE | `/api/admin/nodi/{id_nodo}` | admin | Disattiva. Arnie e letture restano. |
 | PUT | `/api/admin/nodi/{id_nodo}/proprietario` | admin | Assegna il nodo a un utente (`id_utente`), lo trasferisce, o lo libera (`null`). Le sue arnie passano nell'apiario predefinito del nuovo proprietario. |
-| GET | `/api/admin/arnie` | admin | Tutte le arnie, comprese quelle dismesse. `id_apiario` opzionale. |
+| GET | `/api/admin/arnie` | admin | Tutte le arnie, comprese quelle dismesse. `id_apiario` opzionale. **Paginata**. |
 | POST | `/api/admin/arnie` | admin | Crea un'arnia. Finisce nell'apiario predefinito del proprietario del nodo, o in `id_apiario` se è di quel proprietario; l'arnia di un nodo non assegnato non è assegnata. |
 | GET | `/api/admin/arnie/{id_arnia}` | admin | Una singola arnia con l'ultima lettura. |
 | PUT | `/api/admin/arnie/{id_arnia}` | admin | Aggiorna un'arnia — **`attiva` compresa**, a differenza della rotta utente. |
 | DELETE | `/api/admin/arnie/{id_arnia}` | admin | Disattiva. Le letture storiche restano. |
-| GET | `/api/admin/apiari` | admin | Gli apiari di tutti gli utenti. `id_utente` opzionale. |
+| GET | `/api/admin/apiari` | admin | Gli apiari di tutti gli utenti. `id_utente` opzionale. **Paginata**. |
 | POST | `/api/admin/apiari` | admin | Crea un apiario per l'utente indicato in `id_utente_proprietario`. |
 | GET | `/api/admin/apiari/{id_apiario}` | admin | L'apiario di un utente qualsiasi. |
 | PUT | `/api/admin/apiari/{id_apiario}` | admin | Modifica l'apiario di un utente qualsiasi. |
 | DELETE | `/api/admin/apiari/{id_apiario}` | admin | Elimina l'apiario di un utente qualsiasi, con le regole del proprietario (**409** come sopra). |
-| GET | `/api/admin/letture` | admin | Tutte le letture. `limit` 1–10000, default 1000. |
+| GET | `/api/admin/letture` | admin | Tutte le letture. `limit` 1–10000, default 1000. **Paginata**. |
 | POST | `/api/admin/letture` | admin | Inserisce una lettura a mano — backfill e test. |
 | PATCH | `/api/admin/letture/{id_lettura}` | admin | Corregge una lettura: cambiano solo i campi inviati, una misura inviata come `null` viene cancellata, `timestamp` no. Arnia e nodo non si modificano. **404** se non esiste. |
 | DELETE | `/api/admin/letture/{id_lettura}` | admin | Elimina una lettura (eliminazione vera). **404** se non esiste. |
 | POST | `/api/admin/letture/elimina` | admin | Elimina letture in blocco: `{"id_letture": [...]}`, da 1 a 10000 id. Gli id inesistenti vengono saltati; il messaggio dice quante ne sono state eliminate. Si scelgono con i filtri per arnia e data di `GET /api/user/arnie/{id_arnia}/letture`. |
-| GET | `/api/admin/attivita` | admin | Tutte le attività. `limit` 1–1000, default 100. |
+| GET | `/api/admin/attivita` | admin | Tutte le attività. `limit` 1–1000, default 100. **Paginata**. |
 
 `POST /api/admin/letture` e il percorso MQTT finiscono nella stessa INSERT, ma **non**
 si comportano allo stesso modo sui riferimenti sconosciuti: questa rotta risponde
@@ -127,6 +129,39 @@ quello che invece deve restare identico è fissato da
 
 `/health` **risponde sempre 200** — il verdetto sta nel corpo (`"status": "healthy"` /
 `"unhealthy"`), mai il motivo: quello finisce nel log dell'API. Un sistema di monitoraggio deve leggere il corpo, non lo status code.
+
+## Paginazione
+
+Le 11 rotte marcate **Paginata** qui sopra accettano `limit` e `offset`
+([api/paging.py](paging.py)). Sono entrambi opzionali, e una richiesta senza nessuno dei
+due riceve esattamente quello che la rotta restituiva prima della paginazione: l'elenco
+intero, o le `limit` letture e attività più recenti.
+
+| Parametro | Significato |
+|---|---|
+| `offset` | Righe da saltare, ≥ 0, default 0. |
+| `limit` | Righe da restituire al massimo. Letture e attività mantengono default e massimo (sopra); gli altri elenchi sono interi per default, al massimo 1000 per pagina. |
+
+Una richiesta con uno dei due parametri riceve anche **`X-Total-Count`**: la dimensione
+dell'intero elenco, filtri applicati. Costa una query COUNT, ed è per questo che una
+richiesta senza parametri di paginazione non la paga. CORS espone l'header, così un
+browser su un'altra origine può leggerlo. Il corpo resta in ogni caso il semplice
+elenco JSON. `openapi.json` dichiara l'header nella risposta 200 di ogni rotta paginata.
+
+```http
+GET /api/admin/utenti?limit=25&offset=50
+
+200 OK
+X-Total-Count: 132
+
+[ ... ]
+```
+
+Ogni ordinamento paginato termina su una colonna unica (l'id, o l'email per le
+condivisioni), così pagine consecutive non ripetono né saltano righe con lo stesso
+timestamp o nome. Un offset oltre la fine è una pagina vuota, sempre con il suo totale.
+Le serie per i grafici (`/letture/{grandezza}`) non sono paginate: la finestra di date e
+`limit` le limitano già.
 
 ## Autenticazione e autorizzazione
 
@@ -215,49 +250,10 @@ colonne.
 
 ## Pagina admin
 
-`/admin/` serve una piccola pagina per gli amministratori
-([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): elencare, creare,
-modificare e disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un
-nodo, reimpostare una password, consultare letture e attività; gestire con chi è
-condiviso un apiario, inserire una lettura a mano, correggerne una ed eliminare letture
-una alla volta o come selezione
-([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
-[#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI su
-`/docs` resta il ripiego completo.
-
-È **un client di questa API, non una seconda API**. `main.py` monta `admin/` con
-`StaticFiles`; la pagina fa il login con `/api/auth/login`, rifiuta un account non admin
-dopo `/api/auth/me` e da lì chiama le stesse rotte di qualsiasi altro client, con il
-bearer token. Quindi la pagina in sé non aggiunge rotte, né sessioni né logica: soft
-delete, hash delle password, trasferimento dei nodi e validazione avvengono nei service,
-e su un 4xx la pagina mostra il `detail` dell'API. Gli elenchi di valori (`ruolo`, i
-ruoli sugli apiari, `tipo_attivita`) vengono letti da `/openapi.json`, così restano
-dichiarati una sola volta in `meshbee_core/limits.py`.
-
-| File | Cos'è |
-|---|---|
-| `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
-| `admin.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe — e il componente che li usa. Una nuova operazione admin di solito è una voce lì. |
-| `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
-| `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file: niente build, niente CDN, funziona in una LAN senza internet. Per aggiornarli si sostituisce il file e i riferimenti in `index.html`. |
-
-Da sapere:
-
-- **Niente build e niente npm.** Si modificano i file; non serve nemmeno `--reload`,
-  vengono letti a ogni richiesta.
-- **I dati arrivano nel DOM solo tramite `x-text`**, che li fa escape. I nomi li scrivono
-  gli utenti; `x-html` o `innerHTML` permetterebbero di eseguire script con il token
-  dell'admin. `tests/unit/api/test_admin_page.py` fallisce con l'uno o l'altro.
-- **Il token sta in `sessionStorage`** (sparisce chiudendo la scheda). Non c'è refresh
-  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): quando scade, la
-  richiesta successiva riceve un 401 e la pagina chiede di nuovo il login.
-- Scegliendo un'arnia nelle schede letture o attività si passa alla rotta
-  `/api/user/arnie/{id_arnia}/…` dell'arnia — quella con i filtri per data, che gli
-  admin superano. Per eliminare le letture di un'arnia in un periodo si filtra per arnia
-  e date, si spunta la casella dell'intestazione e si elimina la selezione.
-- Le **Condivisioni** di un apiario usano le rotte del proprietario
-  `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse: non
-  esistono equivalenti admin.
+`main.py` serve la pagina admin statica su `/admin/`: `StaticFiles` su
+[`admin/`](../admin/README.it.md) nella root del repo (`ADMIN_DIR`). È un client delle
+rotte qui sopra e non ne aggiunge di proprie. Cosa fa e come è fatta sta nel suo
+README.
 
 ## Configurazione
 
@@ -347,8 +343,8 @@ dimenticato o sbagliato.
 
 - **Una rotta nuova richiede tre cose dopo**: `make openapi`, una riga nelle tabelle qui
   sopra e una riga in `test_main_authz.py`. Nessuna delle tre succede da sola.
-- **L'immagine non contiene solo l'API.** Porta anche `mqtt_handler/`, `scripts/` e
-  `tests/` più `paho-mqtt`, così l'intera suite — entrambi gli entry point compresi —
+- **L'immagine non contiene solo l'API.** Porta anche `admin/` (servita su `/admin/`),
+  `mqtt_handler/`, `scripts/` e `tests/` più `paho-mqtt`, così l'intera suite — entrambi gli entry point compresi —
   gira in questo unico container. Per questo il contesto di build è la root del repo e
   non `api/`.
 - **Il servizio `seed` usa questa stessa immagine**, con `python -m scripts.seed`.
@@ -358,6 +354,7 @@ dimenticato o sbagliato.
 
 - [`meshbee_core/`](../meshbee_core/README.it.md) — i service e gli schemi che ogni handler chiama.
 - [`mqtt_handler/`](../mqtt_handler/README.it.md) — l'altro scrittore dello stesso database.
+- [`admin/`](../admin/README.it.md) — la pagina admin che questa API serve su `/admin/`.
 - [`tests/`](../tests/README.it.md) — come eseguire la suite e dove va un test nuovo.
 - [`database/`](../database/README.it.md) — le tabelle dietro queste risposte.
 - [README](../README.it.md) principale — lo stack nel suo insieme.

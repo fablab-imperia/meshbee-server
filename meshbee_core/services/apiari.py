@@ -10,6 +10,7 @@ from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import apiari, arnie
 
 DEFAULT_NOME = "Default"
@@ -34,17 +35,19 @@ def ensure_predefinito(session, id_utente: int) -> dict[str, Any]:
         )
 
 
-def list_for_utente(session, id_utente: int) -> list[dict[str, Any]]:
+def list_for_utente(session, id_utente: int, paging: Paging = EVERYTHING) -> Page:
     """
     The apiaries the user owns (the default first), then those shared with
     them, each with `accesso`: "owner" or the role shared.
     """
-    return apiari.list_for_utente(session, id_utente)
+    return apiari.list_for_utente(session, id_utente, paging)
 
 
-def list_all(session, id_utente: int | None = None) -> list[dict[str, Any]]:
+def list_all(
+    session, id_utente: int | None = None, paging: Paging = EVERYTHING
+) -> Page:
     """Everyone's apiaries, or one owner's — the admin view."""
-    return apiari.list_all(session, id_utente)
+    return apiari.list_all(session, id_utente, paging)
 
 
 def get_apiario(session, id_apiario: int) -> dict[str, Any]:

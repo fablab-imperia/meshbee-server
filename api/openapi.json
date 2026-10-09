@@ -2258,6 +2258,39 @@
               "description": "Solo gli apiari di questo utente",
               "title": "Id Utente"
             }
+          },
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -2273,7 +2306,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -2514,6 +2556,39 @@
               "description": "Solo le arnie di questo apiario",
               "title": "Id Apiario"
             }
+          },
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -2529,7 +2604,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -2750,18 +2834,33 @@
     },
     "/api/admin/attivita": {
       "get": {
-        "description": "Ottieni tutte le attività (solo admin)\n\nArgs:\n    limit: Numero massimo di attività da restituire\n\nReturns:\n    Lista di attività",
+        "description": "Ottieni tutte le attività (solo admin)\n\nArgs:\n    limit, offset: Paginazione (opzionale)\n\nReturns:\n    Lista di attività",
         "operationId": "get_all_attivita_api_admin_attivita_get",
         "parameters": [
           {
+            "description": "Numero massimo di attività",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "default": 100,
+              "description": "Numero massimo di attività",
               "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Attività da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Attività da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           }
@@ -2779,7 +2878,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -2805,18 +2913,33 @@
     },
     "/api/admin/letture": {
       "get": {
-        "description": "Ottieni tutte le letture (solo admin)\n\nArgs:\n    limit: Numero massimo di letture da restituire\n\nReturns:\n    Lista di letture",
+        "description": "Ottieni tutte le letture (solo admin)\n\nArgs:\n    limit, offset: Paginazione (opzionale)\n\nReturns:\n    Lista di letture",
         "operationId": "get_all_letture_api_admin_letture_get",
         "parameters": [
           {
+            "description": "Numero massimo di letture",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "default": 1000,
+              "description": "Numero massimo di letture",
               "maximum": 10000,
               "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Letture da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Letture da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           }
@@ -2834,7 +2957,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -3058,6 +3190,41 @@
       "get": {
         "description": "Ottieni lista di tutti i nodi (solo admin)\n\nReturns:\n    Lista di tutti i nodi trasmettitori",
         "operationId": "get_all_nodi_api_admin_nodi_get",
+        "parameters": [
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3071,7 +3238,26 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -3342,6 +3528,41 @@
       "get": {
         "description": "Ottieni lista di tutti gli utenti (solo admin)\n\nReturns:\n    Lista di tutti gli utenti",
         "operationId": "get_all_users_api_admin_utenti_get",
+        "parameters": [
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3355,7 +3576,26 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -3649,6 +3889,41 @@
       "get": {
         "description": "The apiaries the caller owns (the default one first), then those shared\nwith them; `accesso` says which. Their hives: `GET /api/user/arnie?id_apiario=...`.",
         "operationId": "get_user_apiari_api_user_apiari_get",
+        "parameters": [
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3662,7 +3937,26 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -3884,6 +4178,39 @@
               "title": "Id Apiario",
               "type": "integer"
             }
+          },
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -3899,7 +4226,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -4123,6 +4459,39 @@
               "description": "Solo le arnie di questo apiario",
               "title": "Id Apiario"
             }
+          },
+          {
+            "description": "Numero massimo di elementi",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Numero massimo di elementi",
+              "title": "Limit"
+            }
+          },
+          {
+            "description": "Elementi da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Elementi da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4138,7 +4507,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -4326,7 +4704,7 @@
     },
     "/api/user/arnie/{id_arnia}/attivita": {
       "get": {
-        "description": "Ottieni log attività di un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    data_inizio: Data inizio periodo (opzionale)\n    data_fine: Data fine periodo (opzionale)\n    tipo_attivita: Tipo di attività (opzionale)\n    limit: Numero massimo di risultati\n\nReturns:\n    Lista di attività ordinate per timestamp (più recente prima)",
+        "description": "Ottieni log attività di un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    data_inizio: Data inizio periodo (opzionale)\n    data_fine: Data fine periodo (opzionale)\n    tipo_attivita: Tipo di attività (opzionale)\n    limit, offset: Paginazione (opzionale)\n\nReturns:\n    Lista di attività ordinate per timestamp (più recente prima)",
         "operationId": "get_user_attivita_api_user_arnie__id_arnia__attivita_get",
         "parameters": [
           {
@@ -4407,6 +4785,19 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "Attività da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Attività da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4422,7 +4813,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -4626,7 +5026,7 @@
     },
     "/api/user/arnie/{id_arnia}/letture": {
       "get": {
-        "description": "Ottieni letture di un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    data_inizio: Data inizio periodo (opzionale)\n    data_fine: Data fine periodo (opzionale)\n    limit: Numero massimo di risultati\n\nReturns:\n    Lista di letture ordinate per timestamp (più recente prima)",
+        "description": "Ottieni letture di un'arnia\n\nArgs:\n    id_arnia: ID dell'arnia\n    data_inizio: Data inizio periodo (opzionale)\n    data_fine: Data fine periodo (opzionale)\n    limit, offset: Paginazione (opzionale)\n\nReturns:\n    Lista di letture ordinate per timestamp (più recente prima)",
         "operationId": "get_user_letture_api_user_arnie__id_arnia__letture_get",
         "parameters": [
           {
@@ -4689,6 +5089,19 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "Letture da saltare, per la paginazione",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Letture da saltare, per la paginazione",
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4704,7 +5117,16 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Size of the whole list, filters applied. Sent only when the request carries `limit` or `offset`.",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
           },
           "422": {
             "content": {

@@ -6,6 +6,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, delete, select
 
 from meshbee_core.models import Apiario, Arnia, Utente, UtenteApiario
+from meshbee_core.paging import EVERYTHING, Page, Paging
+from meshbee_core.repository import fetch_page
 
 PAIR = ["id_utente", "id_apiario"]
 
@@ -59,13 +61,17 @@ _CONDIVISIONE = select(
 ).join(Utente, Utente.id_utente == UtenteApiario.id_utente)
 
 
-def list_for_apiario(session: Session, id_apiario: int) -> list[dict[str, Any]]:
-    rows = session.exec(
+def list_for_apiario(
+    session: Session, id_apiario: int, paging: Paging = EVERYTHING
+) -> Page:
+    return fetch_page(
+        session,
         _CONDIVISIONE.where(UtenteApiario.id_apiario == id_apiario).order_by(
             Utente.email
-        )
-    ).all()
-    return [dict(row._mapping) for row in rows]
+        ),
+        paging,
+        lambda rows: [dict(row._mapping) for row in rows],
+    )
 
 
 def get(session: Session, id_utente: int, id_apiario: int) -> dict[str, Any] | None:

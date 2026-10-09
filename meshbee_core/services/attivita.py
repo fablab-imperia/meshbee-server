@@ -3,22 +3,22 @@
 from typing import Any
 
 from meshbee_core.errors import NotFound
+from meshbee_core.paging import Page, Paging
 from meshbee_core.repository import attivita
 from meshbee_core.services.letture import default_window
 
 
 def list_for_arnia(
-    session, id_arnia: int, data_inizio, data_fine, limit: int, tipo_attivita=None
-) -> list[dict[str, Any]]:
+    session, id_arnia: int, data_inizio, data_fine, paging: Paging, tipo_attivita=None
+) -> Page:
     data_inizio, data_fine = default_window(data_inizio, data_fine)
-    rows = attivita.list_by_arnia(
-        session, id_arnia, data_inizio, data_fine, limit, tipo_attivita
+    return attivita.list_by_arnia(
+        session, id_arnia, data_inizio, data_fine, paging, tipo_attivita
     )
-    return [dict(row) for row in rows]
 
 
-def list_all(session, limit: int) -> list[dict[str, Any]]:
-    return [dict(row) for row in attivita.list_all(session, limit)]
+def list_all(session, paging: Paging) -> Page:
+    return attivita.list_all(session, paging)
 
 
 def count_for_arnia(session, id_arnia: int) -> int:

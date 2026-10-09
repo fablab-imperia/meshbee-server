@@ -3,16 +3,17 @@
 from typing import Any
 
 from meshbee_core.errors import InvalidData, NotFound
+from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import accessi, apiari, utenti
 
 
-def list_condivisioni(session, id_apiario: int) -> list[dict[str, Any]]:
+def list_condivisioni(session, id_apiario: int, paging: Paging = EVERYTHING) -> Page:
     """
     Raises:
         NotFound: if the apiary does not exist.
     """
     _require_apiario(session, id_apiario)
-    return accessi.list_for_apiario(session, id_apiario)
+    return accessi.list_for_apiario(session, id_apiario, paging)
 
 
 def share(session, id_apiario: int, condivisione) -> dict[str, Any]:

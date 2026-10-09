@@ -6,10 +6,15 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from meshbee_core.models import LogAttivita
-from meshbee_core.repository import as_dict, as_dicts
+from meshbee_core.paging import Page, Paging
+from meshbee_core.repository import as_dict, fetch_page
 
 # Columns `update` will accept.
 UPDATABLE = ("timestamp", "tipo_attivita", "descrizione", "dati")
+
+
+# Newest first; the id breaks ties between entries with the same timestamp.
+NEWEST_FIRST = (LogAttivita.timestamp.desc(), LogAttivita.id_log.desc())
 
 
 def list_by_arnia(
@@ -17,9 +22,9 @@ def list_by_arnia(
     id_arnia: int,
     data_inizio,
     data_fine,
-    limit: int,
+    paging: Paging,
     tipo_attivita: str | None = None,
-) -> list[dict[str, Any]]:
+) -> Page:
     query = select(LogAttivita).where(
         LogAttivita.id_arnia == id_arnia,
         LogAttivita.timestamp >= data_inizio,
@@ -28,17 +33,11 @@ def list_by_arnia(
     if tipo_attivita:
         query = query.where(LogAttivita.tipo_attivita == tipo_attivita)
 
-    return as_dicts(
-        session.exec(query.order_by(LogAttivita.timestamp.desc()).limit(limit)).all()
-    )
+    return fetch_page(session, query.order_by(*NEWEST_FIRST), paging)
 
 
-def list_all(session: Session, limit: int) -> list[dict[str, Any]]:
-    return as_dicts(
-        session.exec(
-            select(LogAttivita).order_by(LogAttivita.timestamp.desc()).limit(limit)
-        ).all()
-    )
+def list_all(session: Session, paging: Paging) -> Page:
+    return fetch_page(session, select(LogAttivita).order_by(*NEWEST_FIRST), paging)
 
 
 def count_for_arnia(session: Session, id_arnia: int) -> int:

@@ -7,7 +7,8 @@ from sqlalchemy import update as sql_update
 from sqlmodel import Session, select
 
 from meshbee_core.models import Utente
-from meshbee_core.repository import as_dict
+from meshbee_core.paging import EVERYTHING, Page, Paging
+from meshbee_core.repository import as_dict, fetch_page
 
 # The public projection leaves out `password_hash`, so a response built straight
 # from these rows cannot leak it.
@@ -56,9 +57,13 @@ def get_ruolo(session: Session, id_utente: int) -> dict[str, Any] | None:
     return {"ruolo": ruolo} if ruolo is not None else None
 
 
-def list_all(session: Session) -> list[dict[str, Any]]:
-    rows = session.exec(select(Utente).order_by(Utente.id_utente)).all()
-    return [as_dict(row, exclude=PRIVATE) for row in rows]
+def list_all(session: Session, paging: Paging = EVERYTHING) -> Page:
+    return fetch_page(
+        session,
+        select(Utente).order_by(Utente.id_utente),
+        paging,
+        lambda rows: [as_dict(row, exclude=PRIVATE) for row in rows],
+    )
 
 
 def find_id_by_email(session: Session, email: str) -> dict[str, Any] | None:

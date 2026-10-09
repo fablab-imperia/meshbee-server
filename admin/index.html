@@ -6,6 +6,12 @@
     <title>Meshbee Admin</title>
     <link rel="stylesheet" href="vendor/pico-2.0.6.min.css" />
     <link rel="stylesheet" href="admin.css" />
+    <script src="resources.js"></script>
+    <script src="overview.js"></script>
+    <script src="charts.js"></script>
+    <script src="shares.js"></script>
+    <script src="pagination.js"></script>
+    <script src="url.js"></script>
     <script src="admin.js"></script>
     <script defer src="vendor/alpine-3.14.9.min.js"></script>
   </head>
@@ -40,7 +46,7 @@
             <ul>
               <template x-for="(r, name) in resources" :key="name">
                 <li>
-                  <a href="#" :aria-current="tab === name ? 'page' : null" @click.prevent="select(name)" x-text="r.label"></a>
+                  <a :href="`#/${name}`" :aria-current="tab === name ? 'page' : null" @click.prevent="select(name)" x-text="r.label"></a>
                 </li>
               </template>
             </ul>
@@ -59,27 +65,100 @@
               <label x-show="filterShown(f)">
                 <span x-text="f.label"></span>
                 <template x-if="f.type === 'select'">
-                  <select x-model="filters[f.name]" @change="refresh()">
+                  <select x-model="filters[f.name]" @change="applyFilters()">
                     <option value="">Tutti</option>
+                    <!-- :selected: a filter read from the URL is set before its options load. -->
                     <template x-for="o in options(f.options)" :key="o.value">
-                      <option :value="o.value" x-text="o.label"></option>
+                      <option :value="o.value" x-text="o.label" :selected="String(o.value) === filters[f.name]"></option>
                     </template>
                   </select>
                 </template>
                 <template x-if="f.type !== 'select'">
-                  <input :type="f.type" x-model="filters[f.name]" @change="refresh()" />
+                  <input :type="f.type" x-model="filters[f.name]" @change="applyFilters()" />
                 </template>
               </label>
             </template>
             <button class="secondary outline" @click="refresh()" :aria-busy="loading">Aggiorna</button>
             <button x-show="resource.create" @click="openCreate()">Nuovo</button>
-            <button class="contrast" x-show="resource.bulkDelete && selected.length" @click="deleteSelected()" x-text="`Elimina selezionate (${selected.length})`"></button>
+            <button class="secondary" x-show="resource.chart && filters.id_arnia" @click="toggleChart()" x-text="showChart ? 'Tabella' : 'Grafico'"></button>
+            <button class="secondary outline" x-show="resource.bulkDelete && !chartShown && allSelected && selected.length < total" @click="selectAllMatching()" x-text="`Seleziona tutte (${total})`"></button>
+            <button class="contrast" x-show="resource.bulkDelete && selected.length && !chartShown" @click="deleteSelected()" x-text="`Elimina selezionate (${selected.length})`"></button>
           </div>
 
           <p class="notice" x-show="notice" x-text="notice"></p>
           <p class="error" x-show="error" x-text="error"></p>
 
-          <div class="overflow-auto">
+          <!-- Overview -->
+          <template x-if="resource.view === 'overview'">
+            <section>
+              <div class="stats">
+                <template x-for="s in stats" :key="s.label">
+                  <article>
+                    <small x-text="s.label"></small>
+                    <strong x-text="s.value"></strong>
+                  </article>
+                </template>
+              </div>
+              <h3 x-text="`Nodi attivi senza messaggi da ${silentHours} ore`"></h3>
+              <div class="overflow-auto" x-show="silentNodes.length">
+                <table class="striped">
+                  <thead>
+                    <tr>
+                      <th>Nodo</th>
+                      <th>Nome</th>
+                      <th>Proprietario</th>
+                      <th>Ultimo messaggio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="n in paged('silent', silentNodes)" :key="n.id_nodo">
+                      <tr>
+                        <td x-text="n.id_nodo"></td>
+                        <td x-text="n.nome_nodo || '—'"></td>
+                        <td x-text="userName(n.id_proprietario)"></td>
+                        <td x-text="n.ultimo_messaggio ? new Date(n.ultimo_messaggio).toLocaleString('it-IT') : 'mai'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <nav class="pager" x-data="pager('silent', () => silentNodes.length)" x-show="needed" aria-label="Pagine"></nav>
+              <p x-show="!loading && silentNodes.length === 0"><em>Tutti i nodi attivi hanno trasmesso di recente.</em></p>
+            </section>
+          </template>
+
+          <!-- Readings as charts: the rows listed, drawn -->
+          <template x-if="chartShown">
+            <section>
+              <div class="charts">
+                <template x-for="m in measures" :key="m.name">
+                  <article x-data="{ get c() { return chart(m.name) } }">
+                    <header>
+                      <strong x-text="`${m.label} (${m.unit})`"></strong>
+                      <small x-show="!c.empty" x-text="`ultima ${c.last} · min ${c.min} · max ${c.max}`"></small>
+                    </header>
+                    <!-- Static viewBox, matching CHART_W × CHART_H in charts.js: the parser
+                         would lowercase a bound :viewBox, which SVG ignores. -->
+                    <svg x-show="!c.empty" viewBox="0 0 300 100" preserveAspectRatio="none" role="img" :aria-label="m.label">
+                      <path :d="c.d" vector-effect="non-scaling-stroke"></path>
+                    </svg>
+                    <p x-show="c.empty"><em>Nessun valore.</em></p>
+                    <footer x-show="!c.empty">
+                      <small x-text="c.from"></small>
+                      <small x-text="c.to"></small>
+                    </footer>
+                  </article>
+                </template>
+              </div>
+              <p>
+                <small x-text="chartTotal > chartRows.length
+                  ? `Disegnate le ${chartRows.length} letture più recenti di ${chartTotal} nel periodo: restringi le date per vedere le altre.`
+                  : `${chartRows.length} letture nel periodo scelto (senza date: l'ultimo anno).`"></small>
+              </p>
+            </section>
+          </template>
+
+          <div class="overflow-auto" x-show="!resource.view && !chartShown">
             <table class="striped">
               <thead>
                 <tr>
@@ -111,11 +190,13 @@
               </tbody>
             </table>
             <p x-show="!loading && rows.length === 0"><em>Nessun elemento.</em></p>
+            <nav class="pager" x-data="pager('main', () => total)" x-show="needed" aria-label="Pagine"></nav>
           </div>
         </main>
 
         <!-- Create / edit form -->
-        <dialog :open="!!dialog">
+        <!-- Modal: showModal() traps focus and Escape closes it. -->
+        <dialog x-effect="dialog ? $el.open || $el.showModal() : $el.open && $el.close()" @close="dialog = null">
           <template x-if="dialog && dialog.kind !== 'shares'">
             <article>
               <header>
@@ -183,7 +264,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="s in shares.rows" :key="s.id_utente">
+                  <template x-for="s in paged('shares', shares.rows)" :key="s.id_utente">
                     <tr>
                       <td x-text="s.email"></td>
                       <td>
@@ -202,6 +283,7 @@
                 </tbody>
               </table>
               <p x-show="shares.rows.length === 0"><em>Non condiviso con nessuno.</em></p>
+              <nav class="pager" x-data="pager('shares', () => shares.rows.length)" x-show="needed" aria-label="Pagine"></nav>
               <form @submit.prevent="addShare()">
                 <fieldset role="group">
                   <input type="email" placeholder="Email" aria-label="Email" x-model="shares.form.email" required />
@@ -219,6 +301,20 @@
           </template>
         </dialog>
       </div>
+    </template>
+
+    <!-- Every pager's controls, copied in by pager() (pagination.js). -->
+    <template id="pager">
+      <button type="button" class="outline secondary" aria-label="Prima pagina" :disabled="page === 1" @click="goTo(pager, count, 1)">«</button>
+      <button type="button" class="outline secondary" aria-label="Pagina precedente" :disabled="page === 1" @click="goTo(pager, count, page - 1)">‹</button>
+      <span x-text="`Pagina ${page} di ${pages} · ${count} elementi`"></span>
+      <button type="button" class="outline secondary" aria-label="Pagina successiva" :disabled="page === pages" @click="goTo(pager, count, page + 1)">›</button>
+      <button type="button" class="outline secondary" aria-label="Ultima pagina" :disabled="page === pages" @click="goTo(pager, count, pages)">»</button>
+      <select aria-label="Elementi per pagina" x-model.number="pagers[pager].size" @change="setPageSize(pager)">
+        <template x-for="n in pageSizes" :key="n">
+          <option :value="n" :selected="n === pagers[pager].size" x-text="`${n} per pagina`"></option>
+        </template>
+      </select>
     </template>
   </body>
 </html>

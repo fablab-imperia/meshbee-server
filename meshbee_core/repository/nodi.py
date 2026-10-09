@@ -8,11 +8,12 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, select
 
 from meshbee_core.models import Nodo
-from meshbee_core.repository import as_dict, as_dicts
+from meshbee_core.paging import EVERYTHING, Page, Paging
+from meshbee_core.repository import as_dict, fetch_page
 
 
-def list_all(session: Session) -> list[dict[str, Any]]:
-    return as_dicts(session.exec(select(Nodo).order_by(Nodo.id_nodo)).all())
+def list_all(session: Session, paging: Paging = EVERYTHING) -> Page:
+    return fetch_page(session, select(Nodo).order_by(Nodo.id_nodo), paging)
 
 
 def get(session: Session, id_nodo: str) -> dict[str, Any] | None:

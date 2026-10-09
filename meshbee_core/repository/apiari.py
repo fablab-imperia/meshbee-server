@@ -6,7 +6,8 @@ from sqlalchemy import case, func, or_
 from sqlmodel import Session, select
 
 from meshbee_core.models import Apiario, Arnia, UtenteApiario
-from meshbee_core.repository import as_dict, as_dicts
+from meshbee_core.paging import EVERYTHING, Page, Paging
+from meshbee_core.repository import as_dict, fetch_page
 from meshbee_core.repository.accessi import OWNER
 
 
@@ -25,20 +26,22 @@ def get_predefinito(session: Session, id_utente: int) -> dict[str, Any] | None:
     )
 
 
-def list_all(session: Session, id_utente: int | None = None) -> list[dict[str, Any]]:
+def list_all(
+    session: Session, id_utente: int | None = None, paging: Paging = EVERYTHING
+) -> Page:
     """Every apiary, or one owner's; the default first, then by name."""
     query = select(Apiario)
     if id_utente is not None:
         query = query.where(Apiario.id_utente_proprietario == id_utente)
-    return as_dicts(
-        session.exec(
-            query.order_by(
-                Apiario.id_utente_proprietario,
-                Apiario.predefinito.desc(),
-                Apiario.nome_apiario,
-                Apiario.id_apiario,
-            )
-        ).all()
+    return fetch_page(
+        session,
+        query.order_by(
+            Apiario.id_utente_proprietario,
+            Apiario.predefinito.desc(),
+            Apiario.nome_apiario,
+            Apiario.id_apiario,
+        ),
+        paging,
     )
 
 
@@ -61,17 +64,25 @@ def _with_accesso(id_utente: int):
     ), owned
 
 
+def _with_accesso_dicts(rows) -> list[dict[str, Any]]:
+    return [as_dict(apiario) | {"accesso": accesso} for apiario, accesso in rows]
+
+
 def _rows(session: Session, query) -> list[dict[str, Any]]:
-    return [
-        as_dict(apiario) | {"accesso": accesso}
-        for apiario, accesso in session.exec(query).all()
-    ]
+    return _with_accesso_dicts(session.exec(query).all())
 
 
-def list_for_utente(session: Session, id_utente: int) -> list[dict[str, Any]]:
+def list_for_utente(
+    session: Session, id_utente: int, paging: Paging = EVERYTHING
+) -> Page:
     """The apiaries the user owns, then those shared with them."""
     query, owned = _with_accesso(id_utente)
-    return _rows(session, query.where(or_(owned, UtenteApiario.id.is_not(None))))
+    return fetch_page(
+        session,
+        query.where(or_(owned, UtenteApiario.id.is_not(None))),
+        paging,
+        _with_accesso_dicts,
+    )
 
 
 def get_for_utente(

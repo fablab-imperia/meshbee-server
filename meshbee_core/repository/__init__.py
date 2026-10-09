@@ -9,10 +9,13 @@ Results are plain dicts, not model instances: what leaves this layer is data,
 detached from the session that produced it.
 """
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
-from sqlmodel import SQLModel
+from sqlalchemy import func
+from sqlmodel import Session, SQLModel, select
+
+from meshbee_core.paging import Page, Paging
 
 
 def as_dict(
@@ -41,3 +44,25 @@ def as_dicts(rows) -> list:
 def mapping(row) -> dict[str, Any] | None:
     """A result row of individual columns as a dict, or None for no row."""
     return dict(row._mapping) if row is not None else None
+
+
+def fetch_page(
+    session: Session,
+    query,
+    paging: Paging,
+    to_items: Callable[[list], list[dict[str, Any]]] = as_dicts,
+) -> Page:
+    """
+    One window of an ordered query, as `to_items` turns its rows into dicts.
+
+    The query's ORDER BY must end on a unique column, or rows that tie could
+    repeat on one page and be skipped on the next. The total counts the query
+    without its order and window, and only when `paging.total` asks for it.
+    """
+    window = query.offset(paging.offset or None).limit(paging.limit)
+    items = to_items(session.exec(window).all())
+    total = None
+    if paging.total:
+        counted = select(func.count()).select_from(query.order_by(None).subquery())
+        total = session.exec(counted).one()
+    return Page(items, total)

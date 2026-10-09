@@ -1,0 +1,155 @@
+/* Only what Pico does not already cover. */
+[x-cloak] {
+  display: none !important;
+}
+
+.login {
+  max-width: 28rem;
+  padding-top: 10vh;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar h2 {
+  margin: 0 auto 0 0;
+}
+
+.toolbar label,
+.toolbar button,
+.toolbar select,
+.toolbar input {
+  margin-bottom: 0;
+}
+
+.toolbar label {
+  font-size: 0.875rem;
+}
+
+td.actions {
+  white-space: nowrap;
+}
+
+td.actions button {
+  padding: 0.25rem 0.5rem;
+  margin: 0 0.25rem 0 0;
+  font-size: 0.8rem;
+}
+
+.error {
+  color: var(--pico-del-color);
+}
+
+.notice {
+  color: var(--pico-ins-color);
+}
+
+.mono {
+  font-family: var(--pico-font-family-monospace);
+}
+
+th.select,
+td.select {
+  width: 1%;
+}
+
+th.select input,
+td.select input {
+  margin: 0;
+}
+
+/* Pico makes a submit button full width; in the dialog footer it sits beside Annulla. */
+dialog article > footer button[type="submit"] {
+  width: auto;
+  margin-bottom: 0;
+}
+
+/* The sharing panel holds a table, wider than a form. */
+dialog article.wide {
+  max-width: 48rem;
+  width: 100%;
+}
+
+dialog article.wide td select {
+  margin-bottom: 0;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* The overview's counts. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
+}
+
+.stats article {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stats strong {
+  font-size: 1.75rem;
+}
+
+/* The readings charts: one card per measurement. */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  gap: 1rem;
+}
+
+.charts article {
+  margin: 0;
+}
+
+.charts header,
+.charts footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.charts svg {
+  display: block;
+  width: 100%;
+  height: 8rem;
+  overflow: visible;
+}
+
+.charts path {
+  fill: none;
+  stroke: var(--pico-primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* The pager under a table. Pico spreads a <nav> with space-between. */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pager button,
+.pager select {
+  width: auto;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+}
+
+/* Room for Pico's dropdown arrow. */
+.pager select {
+  padding-right: 2.5rem;
+}

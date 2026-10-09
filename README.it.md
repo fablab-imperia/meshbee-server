@@ -62,6 +62,8 @@ nodi ESP32 ──MQTT──▶ mosquitto/ ──▶ mqtt_handler/ ──┐
                                                     ├──▶ meshbee_core/ ──▶ database/
                                                     │
 app mobile ──HTTPS──▶ caddy/ ─────▶ api/ ───────────┘
+                                     ▲
+browser ──▶ admin/ (servita da api/) ┘
 ```
 
 | Nel diagramma | Cos'è | Dove vive |
@@ -71,6 +73,7 @@ app mobile ──HTTPS──▶ caddy/ ─────▶ api/ ─────�
 | `mqtt_handler/` | Si sottoscrive al broker, decodifica il payload, archivia la lettura. | [mqtt_handler/](mqtt_handler/README.it.md) |
 | `caddy/` | Reverse proxy che termina l'HTTPS su `:8443` davanti all'API. Opzionale. | [HTTPS locale](#https-locale) |
 | `api/` | L'API REST FastAPI. L'unico pezzo con cui parla l'app. | [api/](api/README.it.md) |
+| `admin/` | La pagina admin statica che l'API serve su `/admin/`, un client delle sue rotte. | [admin/](admin/README.it.md) |
 | `meshbee_core/` | La libreria condivisa che entrambi gli entry point importano: schemi, service e tutto l'SQL. | [meshbee_core/](meshbee_core/README.it.md) |
 | `database/` | Documentazione dello schema PostgreSQL, che `meshbee_core/models.py` definisce e Alembic applica. | [database/](database/README.it.md) |
 | app mobile | Dashboard, grafici e avvisi. Consuma l'API REST. | [meshbee-app](https://github.com/fablab-imperia/meshbee-app) |
@@ -172,7 +175,7 @@ docker-compose ps
 - HTTP: <http://localhost:8000/docs>
 - HTTPS: <https://localhost:8443/docs> (solo dopo `make certs`)
 - Pagina admin: <http://localhost:8000/admin/> — accedi con l'account admin
-  ([dettagli](api/README.it.md#pagina-admin))
+  ([dettagli](admin/README.it.md))
 
 ```bash
 curl -s localhost:8000/health | python3 -m json.tool
@@ -212,8 +215,8 @@ obbligatorio su `CoreSettings` deve esistere nell'ambiente di *ogni* servizio in
 
 ## Sviluppo
 
-Il container `api` esegue uvicorn con `--reload` e `api/`, `meshbee_core/` e `tests/`
-sono montati in bind, quindi basta modificare un file. **L'handler MQTT non ha hot
+Il container `api` esegue uvicorn con `--reload` e `api/`, `admin/`, `meshbee_core/` e
+`tests/` sono montati in bind, quindi basta modificare un file. **L'handler MQTT non ha hot
 reload** e va riavviato:
 
 ```bash

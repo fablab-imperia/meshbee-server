@@ -5,7 +5,8 @@ from typing import Any
 from sqlmodel import Session, delete, select
 
 from meshbee_core.models import Lettura
-from meshbee_core.repository import as_dict, as_dicts, mapping
+from meshbee_core.paging import Page, Paging
+from meshbee_core.repository import as_dict, fetch_page, mapping
 
 # The measurement columns exposed as chart series. A whitelist: `series` looks
 # the column up by name.
@@ -45,29 +46,28 @@ def insert(
     return as_dict(lettura)
 
 
+# Newest first; the id breaks ties between readings with the same timestamp.
+NEWEST_FIRST = (Lettura.timestamp.desc(), Lettura.id_lettura.desc())
+
+
 def list_by_arnia(
-    session: Session, id_arnia: int, data_inizio, data_fine, limit: int
-) -> list[dict[str, Any]]:
-    return as_dicts(
-        session.exec(
-            select(Lettura)
-            .where(
-                Lettura.id_arnia == id_arnia,
-                Lettura.timestamp >= data_inizio,
-                Lettura.timestamp <= data_fine,
-            )
-            .order_by(Lettura.timestamp.desc())
-            .limit(limit)
-        ).all()
+    session: Session, id_arnia: int, data_inizio, data_fine, paging: Paging
+) -> Page:
+    return fetch_page(
+        session,
+        select(Lettura)
+        .where(
+            Lettura.id_arnia == id_arnia,
+            Lettura.timestamp >= data_inizio,
+            Lettura.timestamp <= data_fine,
+        )
+        .order_by(*NEWEST_FIRST),
+        paging,
     )
 
 
-def list_all(session: Session, limit: int) -> list[dict[str, Any]]:
-    return as_dicts(
-        session.exec(
-            select(Lettura).order_by(Lettura.timestamp.desc()).limit(limit)
-        ).all()
-    )
+def list_all(session: Session, paging: Paging) -> Page:
+    return fetch_page(session, select(Lettura).order_by(*NEWEST_FIRST), paging)
 
 
 def get(session: Session, id_lettura: int) -> dict[str, Any] | None:

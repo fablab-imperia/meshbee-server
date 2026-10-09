@@ -23,7 +23,7 @@ def test_the_public_projection_never_carries_the_password_hash(
     row = utenti.get_by_email(session, utente["email"])
 
     assert "password_hash" not in row
-    assert "password_hash" not in utenti.list_all(session)[0]
+    assert "password_hash" not in utenti.list_all(session).items[0]
     assert "password_hash" not in utenti.update(
         session, utente["id_utente"], {"nome": "X"}
     )
