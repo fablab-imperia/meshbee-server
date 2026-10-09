@@ -62,6 +62,8 @@ ESP32 nodes ──MQTT──▶ mosquitto/ ──▶ mqtt_handler/ ──┐
                                                      ├──▶ meshbee_core/ ──▶ database/
                                                      │
 mobile app ──HTTPS──▶ caddy/ ─────▶ api/ ────────────┘
+                                     ▲
+browser ──▶ admin/ (served by api/) ─┘
 ```
 
 | In the diagram | What it is | Where it lives |
@@ -71,6 +73,7 @@ mobile app ──HTTPS──▶ caddy/ ─────▶ api/ ─────�
 | `mqtt_handler/` | Subscribes to the broker, decodes the payload, stores the reading. | [mqtt_handler/](mqtt_handler/README.md) |
 | `caddy/` | Reverse proxy terminating HTTPS on `:8443` in front of the API. Optional. | [Local HTTPS](#local-https) |
 | `api/` | The FastAPI REST API. The only piece the app talks to. | [api/](api/README.md) |
+| `admin/` | The static admin page the API serves at `/admin/`, a client of its routes. | [admin/](admin/README.md) |
 | `meshbee_core/` | The shared library both entry points import: schemas, services, and all the SQL. | [meshbee_core/](meshbee_core/README.md) |
 | `database/` | Docs for the PostgreSQL schema, which `meshbee_core/models.py` defines and Alembic applies. | [database/](database/README.md) |
 | mobile app | Dashboards, charts and alerts. Consumes the REST API. | [meshbee-app](https://github.com/fablab-imperia/meshbee-app) |
@@ -171,7 +174,7 @@ docker-compose ps
 - HTTP: <http://localhost:8000/docs>
 - HTTPS: <https://localhost:8443/docs> (only after `make certs`)
 - Admin page: <http://localhost:8000/admin/> — log in with the admin account
-  ([details](api/README.md#admin-page))
+  ([details](admin/README.md))
 
 ```bash
 curl -s localhost:8000/health | python3 -m json.tool
@@ -211,8 +214,8 @@ component's README lists its own fields.
 
 ## Development
 
-The `api` container runs uvicorn with `--reload` and `api/`, `meshbee_core/` and
-`tests/` are bind-mounted, so editing a file is enough. **The MQTT handler has no hot
+The `api` container runs uvicorn with `--reload` and `api/`, `admin/`, `meshbee_core/`
+and `tests/` are bind-mounted, so editing a file is enough. **The MQTT handler has no hot
 reload** and must be restarted:
 
 ```bash

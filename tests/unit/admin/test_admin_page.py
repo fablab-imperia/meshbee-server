@@ -1,14 +1,13 @@
-"""The static admin page mounted at /admin (api/admin/)."""
+"""The static admin page (admin/), which the API mounts at /admin."""
 
 import re
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from api import main
 
-ADMIN_DIR = Path(main.__file__).parent / "admin"
+ADMIN_DIR = main.ADMIN_DIR
 
 
 @pytest.fixture

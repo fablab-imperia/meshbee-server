@@ -18,7 +18,6 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
-| `admin/` | La pagina admin servita su `/admin/` — vedi [Pagina admin](#pagina-admin). |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
 | `Dockerfile` | Immagine del servizio `api` (e di `seed`). Il contesto di build è la root del repo. |
 | `requirements.txt` | Dipendenze di runtime. |
@@ -251,78 +250,10 @@ colonne.
 
 ## Pagina admin
 
-`/admin/` serve una piccola pagina per gli amministratori
-([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): una panoramica
-(conteggi e i nodi attivi silenziosi da 24 ore), elencare, creare, modificare e
-disattivare utenti, nodi, arnie e apiari, assegnare il proprietario di un nodo, spostare
-un'arnia in un altro apiario del suo proprietario, reimpostare una password, consultare
-letture (come tabella o come grafici) e attività; gestire con chi è
-condiviso un apiario, inserire una lettura a mano, correggerne una ed eliminare letture
-una alla volta o come selezione
-([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
-[#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI su
-`/docs` resta il ripiego completo.
-
-È **un client di questa API, non una seconda API**. `main.py` monta `admin/` con
-`StaticFiles`; la pagina fa il login con `/api/auth/login`, rifiuta un account non admin
-dopo `/api/auth/me` e da lì chiama le stesse rotte di qualsiasi altro client, con il
-bearer token. Quindi la pagina in sé non aggiunge rotte, né sessioni né logica: soft
-delete, hash delle password, trasferimento dei nodi e validazione avvengono nei service,
-e su un 4xx la pagina mostra il `detail` dell'API. Gli elenchi di valori (`ruolo`, i
-ruoli sugli apiari, `tipo_attivita`) vengono letti da `/openapi.json`, così restano
-dichiarati una sola volta in `meshbee_core/limits.py`.
-
-| File | Cos'è |
-|---|---|
-| `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
-| `resources.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe. Una nuova operazione admin di solito è una voce lì. |
-| `admin.js` | Il nucleo dell'unico componente Alpine: login, richieste, la tabella e il form generico guidati da `RESOURCES`. `admin()` vi unisce i file di funzionalità qui sotto. |
-| `overview.js`, `charts.js`, `shares.js`, `pagination.js`, `url.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario, la paginazione sotto ogni tabella, la vista tenuta nell'URL. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
-| `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
-| `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file: niente build, niente CDN, funziona in una LAN senza internet. Per aggiornarli si sostituisce il file e i riferimenti in `index.html`. |
-
-Da sapere:
-
-- **Niente build e niente npm.** Si modificano i file; non serve nemmeno `--reload`,
-  vengono letti a ogni richiesta.
-- **I dati arrivano nel DOM solo tramite `x-text`**, che li fa escape. I nomi li scrivono
-  gli utenti; `x-html` o `innerHTML` permetterebbero di eseguire script con il token
-  dell'admin. `tests/unit/api/test_admin_page.py` fallisce con l'uno o l'altro.
-- **Il token sta in `sessionStorage`** (sparisce chiudendo la scheda). Non c'è refresh
-  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): quando scade, la
-  richiesta successiva riceve un 401 e la pagina chiede di nuovo il login.
-- Scegliendo un'arnia nelle schede letture o attività si passa alla rotta
-  `/api/user/arnie/{id_arnia}/…` dell'arnia — quella con i filtri per data, che gli
-  admin superano. Per eliminare le letture di un'arnia in un periodo si filtra per arnia
-  e date, si spunta la casella dell'intestazione, si preme **Seleziona tutte** e si
-  elimina la selezione. L'intestazione copre solo la pagina mostrata; Seleziona tutte
-  recupera in una richiesta ogni lettura che i filtri trovano (fino a 10000, il massimo
-  che un'eliminazione multipla accetta).
-- **La tabella principale è paginata sul server**, 25 righe per cominciare: ogni pagina è
-  una richiesta con `limit` e `offset`, e [`X-Total-Count`](#paginazione) dimensiona la
-  paginazione. Cambiare pagina ricarica solo le righe. Cambiare un filtro riporta a
-  pagina 1; Aggiorna e un salvataggio mantengono la pagina. Gli elenchi dietro le
-  select e le celle leggibili (utenti, apiari, arnie, nodi) si caricano ancora interi,
-  così i nodi silenziosi e le condivisioni di un apiario sono paginati nel browser.
-- Le **Condivisioni** di un apiario usano le rotte del proprietario
-  `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse: non
-  esistono equivalenti admin. Lo stesso vale per **Sposta** di un'arnia, tramite
-  `PUT /api/user/arnie/{id_arnia}/apiario`.
-- I **grafici** caricano le proprie letture, perché la tabella ne contiene solo una
-  pagina: quelle dell'arnia scelta nel periodo scelto (l'ultimo anno senza date), fino
-  alle 10000 più recenti. SVG inline, nessuna libreria di grafici. Un valore mancante
-  interrompe la linea, così una misura che l'ingest ha messo a null appare come un buco.
-- La scheda **Panoramica** si calcola dagli elenchi che ogni scheda carica già; non ha
-  richieste proprie.
-- **L'hash dell'URL indica la vista**: la scheda, i suoi filtri, pagina e dimensione della
-  tabella principale e il passaggio ai grafici, per esempio
-  `#/letture?id_arnia=3&page=2&grafico=1`. Ogni passo è una voce della cronologia, così
-  Indietro lo annulla; un ricaricamento o un link copiato aprono la stessa vista dopo il
-  login. Una trentina di righe in `url.js`, nessuna libreria di routing: le schede
-  condividono una sola tabella, quindi template per rotta non avrebbero niente da
-  contenere.
-- **Ogni paginazione è un unico `<template id="pager">`**, che `pager(name, count)` in
-  `pagination.js` copia in ogni `<nav class="pager">`.
+`main.py` serve la pagina admin statica su `/admin/`: `StaticFiles` su
+[`admin/`](../admin/README.it.md) nella root del repo (`ADMIN_DIR`). È un client delle
+rotte qui sopra e non ne aggiunge di proprie. Cosa fa e come è fatta sta nel suo
+README.
 
 ## Configurazione
 
@@ -412,8 +343,8 @@ dimenticato o sbagliato.
 
 - **Una rotta nuova richiede tre cose dopo**: `make openapi`, una riga nelle tabelle qui
   sopra e una riga in `test_main_authz.py`. Nessuna delle tre succede da sola.
-- **L'immagine non contiene solo l'API.** Porta anche `mqtt_handler/`, `scripts/` e
-  `tests/` più `paho-mqtt`, così l'intera suite — entrambi gli entry point compresi —
+- **L'immagine non contiene solo l'API.** Porta anche `admin/` (servita su `/admin/`),
+  `mqtt_handler/`, `scripts/` e `tests/` più `paho-mqtt`, così l'intera suite — entrambi gli entry point compresi —
   gira in questo unico container. Per questo il contesto di build è la root del repo e
   non `api/`.
 - **Il servizio `seed` usa questa stessa immagine**, con `python -m scripts.seed`.
@@ -423,6 +354,7 @@ dimenticato o sbagliato.
 
 - [`meshbee_core/`](../meshbee_core/README.it.md) — i service e gli schemi che ogni handler chiama.
 - [`mqtt_handler/`](../mqtt_handler/README.it.md) — l'altro scrittore dello stesso database.
+- [`admin/`](../admin/README.it.md) — la pagina admin che questa API serve su `/admin/`.
 - [`tests/`](../tests/README.it.md) — come eseguire la suite e dove va un test nuovo.
 - [`database/`](../database/README.it.md) — le tabelle dietro queste risposte.
 - [README](../README.it.md) principale — lo stack nel suo insieme.

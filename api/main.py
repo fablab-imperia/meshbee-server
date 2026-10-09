@@ -1323,12 +1323,11 @@ def health_check():
 # ============================================
 
 # A static page that calls the admin routes above with the same bearer token
-# as any client — it adds no route, no session and no logic of its own.
-app.mount(
-    "/admin",
-    StaticFiles(directory=Path(__file__).parent / "admin", html=True),
-    name="admin",
-)
+# as any client — it adds no route, no session and no logic of its own. It is
+# its own component, at the repo root (admin/README.md); the API only serves it.
+ADMIN_DIR = Path(__file__).resolve().parent.parent / "admin"
+
+app.mount("/admin", StaticFiles(directory=ADMIN_DIR, html=True), name="admin")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,6 @@ here.
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `paging.py` | The optional `limit`/`offset` parameters of the list routes, and their `X-Total-Count` header — see [Paging](#paging). |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
-| `admin/` | The admin page served at `/admin/` — see [Admin page](#admin-page). |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
 | `Dockerfile` | Image for the `api` service (and for `seed`). Build context is the repo root. |
 | `requirements.txt` | Runtime dependencies. |
@@ -246,72 +245,10 @@ The 500 body stays vague on purpose: the exception text can name tables and colu
 
 ## Admin page
 
-`/admin/` serves a small page for administrators
-([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)): an overview (counts
-and the active nodes silent for 24 hours), list, create, edit and deactivate users,
-nodes, hives and apiaries, assign a node's owner, move a hive to another apiary of its
-owner, reset a password, browse readings (as a table or as charts) and activities; manage who an apiary is shared with, insert a
-reading by hand, correct one, and delete readings one at a time or as a selection
-([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
-[#21](https://github.com/fablab-imperia/meshbee-server/issues/21)). Swagger UI at
-`/docs` remains the full fallback.
-
-It is **a client of this API, not a second one**. `main.py` mounts `admin/` with
-`StaticFiles`; the page logs in through `/api/auth/login`, refuses a non-admin account
-after `/api/auth/me`, and from then on calls the same routes as any other client with
-the bearer token. So the page itself adds no route, no session and no logic: soft
-deletes, password hashing, node transfers and validation all happen in the services, and
-the page shows the API's own `detail` on a 4xx. Value lists (`ruolo`, the apiary roles,
-`tipo_attivita`) are read from `/openapi.json`, so they stay declared once in
-`meshbee_core/limits.py`.
-
-| File | What it is |
-|---|---|
-| `index.html` | The markup, with [Alpine.js](https://alpinejs.dev) bindings. |
-| `resources.js` | `RESOURCES` — per tab: route, columns, form fields, row actions. A new admin operation is usually one entry there. |
-| `admin.js` | The core of the one Alpine component: login, requests, the table and the generic form that `RESOURCES` drives. `admin()` merges the feature files below into it. |
-| `overview.js`, `charts.js`, `shares.js`, `pagination.js`, `url.js` | One feature each, with its own state: the Panoramica tab, the readings charts, an apiary's sharing panel, the pager under each table, the view kept in the URL. A new feature with state of its own gets a file like these, not more branches in `admin.js`. |
-| `admin.css` | The little [Pico CSS](https://picocss.com) does not cover. |
-| `vendor/` | Alpine.js and Pico CSS, **vendored** with the version in the file name: no build step, no CDN, works on a LAN with no internet. To upgrade, replace the file and its references in `index.html`. |
-
-Things to know:
-
-- **No build step and no npm.** Edit the files; `--reload` is not even needed, they are
-  read on each request.
-- **Data reaches the DOM only through `x-text`**, which escapes it. Names are typed by
-  users; `x-html` or `innerHTML` would let one run script with the admin's token.
-  `tests/unit/api/test_admin_page.py` fails on either.
-- **The token lives in `sessionStorage`** (gone when the tab closes). There is no refresh
-  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): when it expires
-  the next request gets a 401 and the page asks for the login again.
-- Picking a hive on the readings or activities tab switches to the hive-scoped
-  `/api/user/arnie/{id_arnia}/…` route — the one with date filters, which admins pass.
-  To delete a hive's readings over a period, filter by hive and dates, tick the header
-  checkbox, press **Seleziona tutte** and delete the selection. The header covers only the
-  page shown; Seleziona tutte fetches every reading the filters match (up to 10000, the
-  most a bulk delete takes) in one request.
-- **The main table pages on the server**, 25 rows to start: each page is one request
-  with `limit` and `offset`, and [`X-Total-Count`](#paging) sizes the pager. A page change
-  reloads only the rows. Changing a filter goes back to page 1; Aggiorna and a save keep
-  the page. The lookups behind the selects and the readable cells (users, apiaries,
-  hives, nodes) still load whole, so the silent nodes and an apiary's shares page in the
-  browser.
-- An apiary's **Condivisioni** use the owner's `/api/user/apiari/{id_apiario}/condivisioni`
-  routes, which admins pass too: there are no admin twins of them. So does a hive's
-  **Sposta**, through `PUT /api/user/arnie/{id_arnia}/apiario`.
-- The **charts** load their own readings, since the table holds only a page: the
-  picked hive's in the picked period (the last year without dates), up to the newest
-  10000. Inline SVG, no chart library. A missing value breaks the line, so a measurement
-  the ingest nulled shows as a gap.
-- The **Panoramica** tab is computed from the lists every tab already loads; it has no
-  request of its own.
-- **The URL hash names the view**: the tab, its filters, the main table's page and size,
-  and the charts toggle, e.g. `#/letture?id_arnia=3&page=2&grafico=1`. Each step is a
-  history entry, so Back undoes it; a reload or a copied link opens the same view after
-  the login. About thirty lines in `url.js`, no router library: the tabs share one
-  table, so per-route templates would have nothing to hold.
-- **Every pager is one `<template id="pager">`**, which `pager(name, count)` in
-  `pagination.js` copies into each `<nav class="pager">`.
+`main.py` serves the static admin page at `/admin/`: `StaticFiles` over
+[`admin/`](../admin/README.md) at the repo root (`ADMIN_DIR`). It is a client of the
+routes above and adds none of its own. What it does and how it is built are in its own
+README.
 
 ## Configuration
 
@@ -400,8 +337,8 @@ access level against its minimum. It is what catches a missing or wrong gate.
 
 - **A new route needs three follow-ups**: `make openapi`, a row in the tables above,
   and a row in `test_main_authz.py`. None of them happen on their own.
-- **The image is not API-only.** It also carries `mqtt_handler/`, `scripts/` and
-  `tests/` plus `paho-mqtt`, so the whole suite — both entry points included — runs in
+- **The image is not API-only.** It also carries `admin/` (served at `/admin/`),
+  `mqtt_handler/`, `scripts/` and `tests/` plus `paho-mqtt`, so the whole suite — both entry points included — runs in
   this one container. That is why the build context is the repo root and not `api/`.
 - **The `seed` service runs from this same image**, with `python -m scripts.seed`.
 - **`/health` returning 200 says nothing.** Read `status` in the body.
@@ -410,6 +347,7 @@ access level against its minimum. It is what catches a missing or wrong gate.
 
 - [`meshbee_core/`](../meshbee_core/README.md) — the services and schemas every handler calls.
 - [`mqtt_handler/`](../mqtt_handler/README.md) — the other writer of the same database.
+- [`admin/`](../admin/README.md) — the admin page this API serves at `/admin/`.
 - [`tests/`](../tests/README.md) — how to run the suite and where a new test belongs.
 - [`database/`](../database/README.md) — the tables behind these responses.
 - Main [README](../README.md) — the stack as a whole.
