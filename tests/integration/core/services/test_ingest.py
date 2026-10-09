@@ -68,12 +68,89 @@ def test_a_refused_reading_stamps_nothing(session, db):
                 {
                     "id_nodo": "NODE-BAD",
                     "id_sensore": "S1",
-                    "temperatura": 500,
+                    # Not an object: the one thing about a reading ingest can't clear.
+                    "dati_raw": "not an object",
                 },
             )
 
     db.execute("SELECT count(*) AS n FROM nodi WHERE id_nodo = 'NODE-BAD'")
     assert db.fetchone()["n"] == 0
+
+
+# ============================================
+# Invalid measurements are cleared, not refused
+# ============================================
+
+
+def stored_reading(db, id_nodo):
+    db.execute(
+        "SELECT temperatura, umidita, peso, batteria, dati_raw FROM letture"
+        " WHERE id_nodo = %s",
+        (id_nodo,),
+    )
+    rows = db.fetchall()
+    assert len(rows) == 1
+    return rows[0]
+
+
+def test_an_out_of_range_measurement_is_cleared_and_the_rest_kept(session, db):
+    """A load cell gone negative must not cost the node its temperature."""
+    ingest.record_node_reading(
+        session,
+        {
+            "id_nodo": "NODE-SCALE",
+            "id_sensore": "S1",
+            "temperatura": 22.5,
+            "umidita": 60,
+            "peso": -12.5,
+            "bat": 6.1,
+        },
+    )
+
+    row = stored_reading(db, "NODE-SCALE")
+    assert float(row["temperatura"]) == 22.5
+    assert float(row["umidita"]) == 60
+    assert row["peso"] is None
+    assert row["batteria"] is None
+    assert row["dati_raw"] == {"discarded": {"batteria": "6.1", "peso": "-12.5"}}
+    assert ultimo_messaggio(db, "NODE-SCALE")["is_now"] is True
+
+
+def test_a_measurement_that_is_not_a_number_is_cleared_too(session, db):
+    ingest.record_node_reading(
+        session,
+        {"id_nodo": "NODE-GARBLED", "id_sensore": "S1", "umidita": "n/a", "peso": 41},
+    )
+
+    row = stored_reading(db, "NODE-GARBLED")
+    assert row["umidita"] is None
+    assert float(row["peso"]) == 41
+    assert row["dati_raw"] == {"discarded": {"umidita": "n/a"}}
+
+
+def test_the_nodes_own_dati_raw_is_kept_beside_what_was_discarded(session, db):
+    ingest.record_node_reading(
+        session,
+        {
+            "id_nodo": "NODE-RAW",
+            "id_sensore": "S1",
+            "temperatura": 500,
+            "dati_raw": {"rssi": -67},
+        },
+    )
+
+    assert stored_reading(db, "NODE-RAW")["dati_raw"] == {
+        "rssi": -67,
+        "discarded": {"temperatura": "500"},
+    }
+
+
+def test_a_valid_reading_gets_no_discarded_entry(session, db):
+    ingest.record_node_reading(
+        session, {"id_nodo": "NODE-FINE", "id_sensore": "S1", "temperatura": 20}
+    )
+
+    assert stored_reading(db, "NODE-FINE")["dati_raw"] is None
 
 
 def test_a_reading_entered_through_the_api_does_not_stamp_the_node(

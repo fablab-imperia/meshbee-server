@@ -5,7 +5,7 @@
   "description": "One reading published by a node to beehive/<id_nodo>/data. Generated from mqtt_handler/contract.py in meshbee-server; the code that consumes it is mqtt_handler/payload.py. Every field is optional and unknown fields are preserved, so adding one is a backwards-compatible change. No field carries a payload version yet; see the contract docs for the planned versioning scheme.",
   "properties": {
     "bat": {
-      "description": "Node battery voltage in V. Out of range drops the whole message.",
+      "description": "Node battery voltage in V. Out of range: stored as null, the rest of the reading is kept.",
       "maximum": 5,
       "minimum": 0,
       "type": "number"
@@ -26,12 +26,12 @@
       "type": "string"
     },
     "peso": {
-      "description": "Hive weight in kg. Out of range drops the whole message.",
+      "description": "Hive weight in kg. Out of range: stored as null, the rest of the reading is kept.",
       "minimum": 0,
       "type": "number"
     },
     "temperatura": {
-      "description": "Temperature in °C. Out of range drops the whole message.",
+      "description": "Temperature in °C. Out of range: stored as null, the rest of the reading is kept.",
       "maximum": 100,
       "minimum": -50,
       "type": "number"
@@ -42,7 +42,7 @@
       "type": "string"
     },
     "umidita": {
-      "description": "Relative humidity in %. Out of range drops the whole message.",
+      "description": "Relative humidity in %. Out of range: stored as null, the rest of the reading is kept.",
       "maximum": 100,
       "minimum": 0,
       "type": "number"

@@ -123,21 +123,22 @@ def test_both_paths_write_the_measurements_they_were_given(
     assert row["id_nodo"] == arnia["id_nodo"]
 
 
-def test_both_paths_refuse_the_same_out_of_range_reading(
+def test_an_out_of_range_value_is_refused_by_the_api_and_cleared_by_ingest(
     db, deliver, as_user, make_utente, make_arnia
 ):
     """
-    A value the API rejects is now also rejected on ingest.
+    The same limits, applied differently on purpose.
 
-    Before the extraction the MQTT path had no validation: the reading reached
-    Postgres, tripped the CHECK constraint, and was rolled back and lost.
+    The API answers 422: whoever typed the value can correct it. A node can't,
+    so the MQTT path stores the reading with that one measurement cleared,
+    rather than losing the others with it.
     """
     arnia = make_arnia(id_nodo="NODE-PARITY")
     admin = make_utente(ruolo="admin")
 
     deliver(
         "beehive/NODE-PARITY/data",
-        {"id_sensore": arnia["id_sensore_fisico"], "temperatura": 500},
+        {"id_sensore": arnia["id_sensore_fisico"], "temperatura": 500, "umidita": 60},
     )
 
     response = as_user(admin).post(
@@ -146,11 +147,14 @@ def test_both_paths_refuse_the_same_out_of_range_reading(
             "id_arnia": arnia["id_arnia"],
             "id_nodo": arnia["id_nodo"],
             "temperatura": 500,
+            "umidita": 60,
         },
     )
 
     assert response.status_code == 422
-    assert stored(db, arnia["id_arnia"]) == []
+    (row,) = stored(db, arnia["id_arnia"])
+    assert row["temperatura"] is None
+    assert float(row["umidita"]) == 60
 
 
 def test_the_api_refuses_a_reading_for_an_unknown_arnia(as_user, make_utente):

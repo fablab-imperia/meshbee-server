@@ -322,7 +322,8 @@ is the handler connected and authenticated (`docker-compose logs -f mqtt-handler
 the node publishing to `beehive/<id>/data` and not to a deeper topic — the subscription
 is `beehive/+/data`, which matches exactly one level. Then check the payload against
 [`mqtt_handler/README.md`](mqtt_handler/README.md#payload): an out-of-range measurement
-is dropped, and logged as `Lettura scartata`.
+is stored as null and logged as a warning; a whole message is dropped (`Lettura
+scartata`) only when its hive can't be resolved or the payload itself is unusable.
 
 **Code changes in `mqtt_handler/` do nothing.** There is no hot reload:
 `docker-compose restart mqtt-handler`.
