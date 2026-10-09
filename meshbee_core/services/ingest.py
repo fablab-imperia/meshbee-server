@@ -5,17 +5,62 @@ because provisioning is where the two write paths legitimately differ: a node
 may start transmitting before anyone registered it, so the ingest path creates
 what it needs. The API's manual-insert endpoint refuses an unknown arnia
 instead, and that difference is intentional.
+
+Invalid measurements are the other intentional difference. The API refuses a
+reading with an out-of-range value (the person typing it can fix it); a node
+can't, and one faulty sensor must not cost the others. So ingest clears the
+bad measurement, keeps the rest of the reading, and records what it discarded
+in `dati_raw`.
 """
 
 import logging
 from typing import Any
 
+from pydantic import ValidationError
+
 from meshbee_core.errors import NotFound
+from meshbee_core.models import LetturaCreate
 from meshbee_core.repository import arnie, nodi
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import letture
 
 logger = logging.getLogger(__name__)
+
+MEASUREMENTS = ("temperatura", "umidita", "peso", "batteria")
+
+
+def clear_invalid_measurements(reading: dict[str, Any]) -> dict[str, Any]:
+    """
+    Null every measurement the reading model refuses, keeping the rest.
+
+    Validation is the model's own, so the ranges stay declared once (limits.py).
+    Each discarded value is kept as text under `dati_raw["discarded"]`, for
+    whoever has to find the faulty sensor. Errors in anything but a measurement
+    are left for `letture.record_reading` to report.
+    """
+    try:
+        LetturaCreate(**reading)
+        return reading
+    except ValidationError as exc:
+        bad = {
+            err["loc"][0]
+            for err in exc.errors()
+            if err["loc"] and err["loc"][0] in MEASUREMENTS
+        }
+    if not bad:
+        return reading
+
+    discarded = {field: str(reading[field]) for field in sorted(bad)}
+    logger.warning(
+        f"Misure fuori limite azzerate per nodo {reading.get('id_nodo')}: {discarded}"
+    )
+    cleared = {**reading, **dict.fromkeys(bad)}
+    dati_raw = reading.get("dati_raw")
+    # A dati_raw that isn't an object is invalid in itself: left as it is, for
+    # record_reading to refuse.
+    if dati_raw is None or isinstance(dati_raw, dict):
+        cleared["dati_raw"] = {**(dati_raw or {}), "discarded": discarded}
+    return cleared
 
 
 def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
@@ -68,29 +113,30 @@ def record_node_reading(session, payload: dict[str, Any]) -> dict[str, Any]:
     messaggio" means. A reading entered through the API is not one, so it
     leaves the column alone.
 
+    An invalid measurement does not refuse the reading: it is stored as null
+    (see `clear_invalid_measurements`).
+
     Raises:
         NotFound: se l'arnia non è determinabile.
-        InvalidData: se le misure non rispettano i limiti dichiarati.
+        InvalidData: se la lettura resta invalida per altri motivi.
     """
     id_nodo = payload["id_nodo"]
     id_arnia = register_node_and_resolve_arnia(
         session, id_nodo, payload.get("id_sensore")
     )
 
-    lettura = letture.record_reading(
-        session,
-        {
-            "id_arnia": id_arnia,
-            "id_nodo": id_nodo,
-            "timestamp": payload.get("timestamp"),
-            "temperatura": payload.get("temperatura"),
-            "umidita": payload.get("umidita"),
-            "peso": payload.get("peso"),
-            # The wire key is `bat`; everything past this point calls it batteria.
-            "batteria": payload.get("bat"),
-            "dati_raw": payload.get("dati_raw"),
-        },
-    )
+    reading = {
+        "id_arnia": id_arnia,
+        "id_nodo": id_nodo,
+        "timestamp": payload.get("timestamp"),
+        "temperatura": payload.get("temperatura"),
+        "umidita": payload.get("umidita"),
+        "peso": payload.get("peso"),
+        # The wire key is `bat`; everything past this point calls it batteria.
+        "batteria": payload.get("bat"),
+        "dati_raw": payload.get("dati_raw"),
+    }
+    lettura = letture.record_reading(session, clear_invalid_measurements(reading))
     # After the reading, inside the same transaction: a message that is
     # refused rolls this back with everything else.
     nodi.touch_ultimo_messaggio(session, id_nodo)

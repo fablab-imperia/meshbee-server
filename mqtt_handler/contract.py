@@ -97,18 +97,27 @@ class MqttPayload(BaseModel):
         default=None,
         ge=TEMPERATURA_MIN,
         le=TEMPERATURA_MAX,
-        description="Temperature in °C. Out of range drops the whole message.",
+        description=(
+            "Temperature in °C. Out of range: stored as null, the rest of the "
+            "reading is kept."
+        ),
     )
     umidita: float = Field(
         default=None,
         ge=UMIDITA_MIN,
         le=UMIDITA_MAX,
-        description="Relative humidity in %. Out of range drops the whole message.",
+        description=(
+            "Relative humidity in %. Out of range: stored as null, the rest of "
+            "the reading is kept."
+        ),
     )
     peso: float = Field(
         default=None,
         ge=PESO_MIN,
-        description="Hive weight in kg. Out of range drops the whole message.",
+        description=(
+            "Hive weight in kg. Out of range: stored as null, the rest of the "
+            "reading is kept."
+        ),
     )
     # The firmware's key is `bat`; it is stored as `letture.batteria`. The
     # rename happens in meshbee_core.services.ingest, not on the wire.
@@ -117,7 +126,8 @@ class MqttPayload(BaseModel):
         ge=BATTERIA_MIN,
         le=BATTERIA_MAX,
         description=(
-            "Node battery voltage in V. Out of range drops the whole message."
+            "Node battery voltage in V. Out of range: stored as null, the rest of "
+            "the reading is kept."
         ),
     )
     dati_raw: dict[str, Any] = Field(

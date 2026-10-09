@@ -328,7 +328,9 @@ schema sono un'altra cosa: passano da una migrazione — vedi
 su un topic più profondo — la sottoscrizione è `beehive/+/data`, che copre esattamente
 un livello. Poi controlla il payload rispetto a
 [`mqtt_handler/README.it.md`](mqtt_handler/README.it.md#payload): una misura fuori
-range viene scartata e loggata come `Lettura scartata`.
+range viene archiviata come null e loggata come warning; un messaggio viene scartato
+(`Lettura scartata`) solo quando la sua arnia non si può determinare o il payload stesso
+non è utilizzabile.
 
 **Le modifiche in `mqtt_handler/` non hanno effetto.** Non c'è hot reload:
 `docker-compose restart mqtt-handler`.

@@ -77,10 +77,13 @@ Quattro dettagli facili da sbagliare:
   Python 3.11); un valore che comunque non si interpreta viene loggato come warning e la
   lettura viene archiviata con l'ora del **server**. Il silenzio è peggio di un timestamp
   leggermente sbagliato.
-- **Ogni misura è opzionale, ma i limiti sono applicati.** Un payload con la sola
-  `peso` è valido; una `temperatura` di 200 no, e l'intero messaggio viene scartato. Gli
-  stessi limiti esistono come vincoli CHECK nello schema — vedi
-  [`database/`](../database/README.it.md).
+- **Ogni misura è opzionale, e un valore sbagliato non costa gli altri.** Un payload
+  con la sola `peso` è valido. Una `temperatura` di 200 (o `"n/a"`) viene archiviata come
+  null, il resto della lettura viene conservato, e il valore scartato viene registrato
+  come testo in `dati_raw.discarded` e loggato come warning. L'inserimento manuale
+  dell'API rifiuta lo stesso valore con un 422: una persona può correggerlo, un nodo no.
+  I limiti sono gli stessi nei due percorsi ed esistono come vincoli CHECK nello schema
+  — vedi [`database/`](../database/README.it.md).
 - **`timestamp` è l'ora della lettura, non l'"ultimo contatto" del nodo.** Ogni
   messaggio archiviato imposta `nodi.ultimo_messaggio` all'ora in cui è stato
   *ricevuto*, quindi un nodo con l'orologio sbagliato risulta comunque vivo, e letture

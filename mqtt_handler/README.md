@@ -76,9 +76,12 @@ Four details that are easy to get wrong:
   firmware sends the Zulu suffix, which `fromisoformat` rejected before Python 3.11);
   a value that still will not parse is logged as a warning and the reading is stored
   with the **server's** time. Silence is worse than a slightly wrong timestamp.
-- **Every measurement is optional, but the ranges are enforced.** A payload with only
-  `peso` is valid; a `temperatura` of 200 is not, and the whole message is dropped. The
-  same limits exist as CHECK constraints in the schema — see
+- **Every measurement is optional, and one bad value doesn't cost the others.** A
+  payload with only `peso` is valid. A `temperatura` of 200 (or `"n/a"`) is stored as
+  null, the rest of the reading is kept, and the discarded value is recorded as text in
+  `dati_raw.discarded` and logged as a warning. The API's manual insert refuses the same
+  value with a 422 instead: a person can correct it, a node can't. The limits are the
+  same in both paths and exist as CHECK constraints in the schema — see
   [`database/`](../database/README.md).
 - **`timestamp` is the reading's time, not the node's "last heard from".** Every stored
   message stamps `nodi.ultimo_messaggio` with the time it was *received*, so a node with
