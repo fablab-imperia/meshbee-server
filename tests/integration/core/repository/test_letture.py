@@ -9,6 +9,7 @@ from datetime import datetime
 
 import pytest
 
+from meshbee_core.paging import Paging
 from meshbee_core.repository import letture
 
 # A window wide enough for every fixture row. Datetimes, not strings: the API
@@ -137,7 +138,9 @@ def test_readings_come_back_newest_first(session, db, make_arnia, make_lettura):
     make_lettura(arnia, timestamp="2024-01-01 10:00", temperatura=1)
     make_lettura(arnia, timestamp="2024-06-01 10:00", temperatura=2)
 
-    rows = letture.list_by_arnia(session, arnia["id_arnia"], *EVER, 10)
+    rows = letture.list_by_arnia(
+        session, arnia["id_arnia"], *EVER, Paging(limit=10)
+    ).items
 
     assert [float(r["temperatura"]) for r in rows] == [2, 1]
 
@@ -148,6 +151,8 @@ def test_readings_are_scoped_to_their_arnia(session, db, make_arnia, make_lettur
     make_lettura(first, temperatura=1)
     make_lettura(second, temperatura=2)
 
-    rows = letture.list_by_arnia(session, first["id_arnia"], *EVER, 10)
+    rows = letture.list_by_arnia(
+        session, first["id_arnia"], *EVER, Paging(limit=10)
+    ).items
 
     assert [float(r["temperatura"]) for r in rows] == [1]

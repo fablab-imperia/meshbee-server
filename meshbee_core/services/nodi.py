@@ -3,12 +3,13 @@
 from typing import Any
 
 from meshbee_core.errors import Conflict, NotFound
+from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import arnie, nodi
 from meshbee_core.services import apiari
 
 
-def list_nodi(session) -> list[dict[str, Any]]:
-    return [dict(row) for row in nodi.list_all(session)]
+def list_nodi(session, paging: Paging = EVERYTHING) -> Page:
+    return nodi.list_all(session, paging)
 
 
 def get_nodo(session, id_nodo: str) -> dict[str, Any]:

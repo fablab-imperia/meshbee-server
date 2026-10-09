@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -28,6 +28,7 @@ from api.auth import (
     get_current_admin_user,
 )
 from api.config import settings
+from api.paging import TOTAL_HEADER, page_items, paging_query
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.models import (
@@ -66,6 +67,7 @@ from meshbee_core.models import (
     UserResponse,
     UserUpdate,
 )
+from meshbee_core.paging import Paging
 from meshbee_core.services import (
     accessi as accessi_service,
 )
@@ -123,6 +125,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # A cross-origin client can read a paged list's total only if it is exposed.
+    expose_headers=[TOTAL_HEADER],
 )
 
 
@@ -181,6 +185,12 @@ def require_apiario_access(current_user: dict, id_apiario: int, action: str):
 # Shared by every hive list that can be narrowed to one apiary.
 ID_APIARIO_FILTER = Query(None, description="Solo le arnie di questo apiario")
 
+# `limit` and `offset` on the list routes (api/paging.py). The readings and
+# activities keep the default and maximum `limit` they had before paging.
+PAGING = Depends(paging_query())
+LETTURE_PAGING = Depends(paging_query(1000, 10000, "letture"))
+ATTIVITA_PAGING = Depends(paging_query(100, 1000, "attività"))
+
 
 def message_for_deleted_apiario(id_apiario: int) -> dict:
     return {"message": f"Apiario {id_apiario} eliminato con successo"}
@@ -236,7 +246,9 @@ def get_me(current_user: dict = Depends(get_current_active_user)):
 
 @app.get("/api/user/arnie", response_model=list[ArniaConStato], tags=["Utente"])
 def get_user_arnie(
+    response: Response,
     id_apiario: int | None = ID_APIARIO_FILTER,
+    paging: Paging = PAGING,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
@@ -246,17 +258,27 @@ def get_user_arnie(
         Lista di arnie con ultime letture
     """
     with db_operation("recupero arnie utente") as session:
-        return arnie_service.list_for_utente(session, current_user, id_apiario)
+        return page_items(
+            response,
+            arnie_service.list_for_utente(session, current_user, id_apiario, paging),
+        )
 
 
 @app.get("/api/user/apiari", response_model=list[ApiarioConAccesso], tags=["Utente"])
-def get_user_apiari(current_user: dict = Depends(get_current_active_user)):
+def get_user_apiari(
+    response: Response,
+    paging: Paging = PAGING,
+    current_user: dict = Depends(get_current_active_user),
+):
     """
     The apiaries the caller owns (the default one first), then those shared
     with them; `accesso` says which. Their hives: `GET /api/user/arnie?id_apiario=...`.
     """
     with db_operation("recupero apiari utente") as session:
-        return apiari_service.list_for_utente(session, current_user["id_utente"])
+        return page_items(
+            response,
+            apiari_service.list_for_utente(session, current_user["id_utente"], paging),
+        )
 
 
 @app.post("/api/user/apiari", response_model=ApiarioResponse, tags=["Utente"])
@@ -331,7 +353,10 @@ def delete_apiario_user(
     tags=["Utente"],
 )
 def get_condivisioni(
-    id_apiario: int, current_user: dict = Depends(get_current_active_user)
+    response: Response,
+    id_apiario: int,
+    paging: Paging = PAGING,
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
     Who the apiary is shared with, and as what (owner only).
@@ -339,7 +364,9 @@ def get_condivisioni(
     require_apiario_access(current_user, id_apiario, "apiario.share")
 
     with db_operation("recupero condivisioni") as session:
-        return accessi_service.list_condivisioni(session, id_apiario)
+        return page_items(
+            response, accessi_service.list_condivisioni(session, id_apiario, paging)
+        )
 
 
 @app.post(
@@ -433,12 +460,13 @@ def move_arnia_user(
     tags=["Utente"],
 )
 def get_user_letture(
+    response: Response,
     id_arnia: int,
     data_inizio: datetime | None = Query(
         None, description="Data inizio (default: 1 anno fa)"
     ),
     data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
-    limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
+    paging: Paging = LETTURE_PAGING,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
@@ -448,7 +476,7 @@ def get_user_letture(
         id_arnia: ID dell'arnia
         data_inizio: Data inizio periodo (opzionale)
         data_fine: Data fine periodo (opzionale)
-        limit: Numero massimo di risultati
+        limit, offset: Paginazione (opzionale)
 
     Returns:
         Lista di letture ordinate per timestamp (più recente prima)
@@ -458,8 +486,11 @@ def get_user_letture(
     )
 
     with db_operation("recupero letture") as session:
-        return letture_service.list_for_arnia(
-            session, id_arnia, data_inizio, data_fine, limit
+        return page_items(
+            response,
+            letture_service.list_for_arnia(
+                session, id_arnia, data_inizio, data_fine, paging
+            ),
         )
 
 
@@ -469,13 +500,14 @@ def get_user_letture(
     tags=["Utente"],
 )
 def get_user_attivita(
+    response: Response,
     id_arnia: int,
     data_inizio: datetime | None = Query(
         None, description="Data inizio (default: 1 anno fa)"
     ),
     data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
     tipo_attivita: str | None = Query(None, description="Filtra per tipo attività"),
-    limit: int = Query(100, ge=1, le=1000, description="Numero massimo di attività"),
+    paging: Paging = ATTIVITA_PAGING,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
@@ -486,7 +518,7 @@ def get_user_attivita(
         data_inizio: Data inizio periodo (opzionale)
         data_fine: Data fine periodo (opzionale)
         tipo_attivita: Tipo di attività (opzionale)
-        limit: Numero massimo di risultati
+        limit, offset: Paginazione (opzionale)
 
     Returns:
         Lista di attività ordinate per timestamp (più recente prima)
@@ -496,8 +528,11 @@ def get_user_attivita(
     )
 
     with db_operation("recupero attività") as session:
-        return attivita_service.list_for_arnia(
-            session, id_arnia, data_inizio, data_fine, limit, tipo_attivita
+        return page_items(
+            response,
+            attivita_service.list_for_arnia(
+                session, id_arnia, data_inizio, data_fine, paging, tipo_attivita
+            ),
         )
 
 
@@ -704,7 +739,11 @@ def get_serie_batteria(
 
 
 @app.get("/api/admin/utenti", response_model=list[UserResponse], tags=["Admin"])
-def get_all_users(current_user: dict = Depends(get_current_admin_user)):
+def get_all_users(
+    response: Response,
+    paging: Paging = PAGING,
+    current_user: dict = Depends(get_current_admin_user),
+):
     """
     Ottieni lista di tutti gli utenti (solo admin)
 
@@ -712,7 +751,7 @@ def get_all_users(current_user: dict = Depends(get_current_admin_user)):
         Lista di tutti gli utenti
     """
     with db_operation("recupero utenti") as session:
-        return utenti_service.list_utenti(session)
+        return page_items(response, utenti_service.list_utenti(session, paging))
 
 
 @app.post("/api/admin/utenti", response_model=UserResponse, tags=["Admin"])
@@ -751,7 +790,11 @@ def update_user(
 
 
 @app.get("/api/admin/nodi", response_model=list[NodoResponse], tags=["Admin"])
-def get_all_nodi(current_user: dict = Depends(get_current_admin_user)):
+def get_all_nodi(
+    response: Response,
+    paging: Paging = PAGING,
+    current_user: dict = Depends(get_current_admin_user),
+):
     """
     Ottieni lista di tutti i nodi (solo admin)
 
@@ -759,12 +802,14 @@ def get_all_nodi(current_user: dict = Depends(get_current_admin_user)):
         Lista di tutti i nodi trasmettitori
     """
     with db_operation("recupero nodi") as session:
-        return nodi_service.list_nodi(session)
+        return page_items(response, nodi_service.list_nodi(session, paging))
 
 
 @app.get("/api/admin/arnie", response_model=list[ArniaConStato], tags=["Admin"])
 def get_all_arnie(
+    response: Response,
     id_apiario: int | None = ID_APIARIO_FILTER,
+    paging: Paging = PAGING,
     current_user: dict = Depends(get_current_admin_user),
 ):
     """
@@ -774,7 +819,7 @@ def get_all_arnie(
         Lista di tutte le arnie
     """
     with db_operation("recupero arnie") as session:
-        return arnie_service.list_all(session, id_apiario)
+        return page_items(response, arnie_service.list_all(session, id_apiario, paging))
 
 
 @app.post("/api/admin/arnie", response_model=ArniaResponse, tags=["Admin"])
@@ -796,38 +841,40 @@ def create_arnia(
 
 @app.get("/api/admin/letture", response_model=list[LetturaResponse], tags=["Admin"])
 def get_all_letture(
-    limit: int = Query(1000, ge=1, le=10000),
+    response: Response,
+    paging: Paging = LETTURE_PAGING,
     current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Ottieni tutte le letture (solo admin)
 
     Args:
-        limit: Numero massimo di letture da restituire
+        limit, offset: Paginazione (opzionale)
 
     Returns:
         Lista di letture
     """
     with db_operation("recupero letture") as session:
-        return letture_service.list_all(session, limit)
+        return page_items(response, letture_service.list_all(session, paging))
 
 
 @app.get("/api/admin/attivita", response_model=list[AttivitaResponse], tags=["Admin"])
 def get_all_attivita(
-    limit: int = Query(100, ge=1, le=1000),
+    response: Response,
+    paging: Paging = ATTIVITA_PAGING,
     current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Ottieni tutte le attività (solo admin)
 
     Args:
-        limit: Numero massimo di attività da restituire
+        limit, offset: Paginazione (opzionale)
 
     Returns:
         Lista di attività
     """
     with db_operation("recupero attività") as session:
-        return attivita_service.list_all(session, limit)
+        return page_items(response, attivita_service.list_all(session, paging))
 
 
 # ============================================
@@ -956,14 +1003,16 @@ def delete_arnia(id_arnia: int, current_user: dict = Depends(get_current_admin_u
     "/api/admin/apiari", response_model=list[ApiarioResponse], tags=["Admin - Apiari"]
 )
 def get_all_apiari(
+    response: Response,
     id_utente: int | None = Query(None, description="Solo gli apiari di questo utente"),
+    paging: Paging = PAGING,
     current_user: dict = Depends(get_current_admin_user),
 ):
     """
     Every user's apiaries, or one user's (admin only).
     """
     with db_operation("recupero apiari") as session:
-        return apiari_service.list_all(session, id_utente)
+        return page_items(response, apiari_service.list_all(session, id_utente, paging))
 
 
 @app.post("/api/admin/apiari", response_model=ApiarioResponse, tags=["Admin - Apiari"])

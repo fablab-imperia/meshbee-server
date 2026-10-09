@@ -4,13 +4,14 @@ from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import arnie, nodi
 from meshbee_core.services import apiari
 
 
 def list_for_utente(
-    session, current_user, id_apiario: int | None = None
-) -> list[dict[str, Any]]:
+    session, current_user, id_apiario: int | None = None, paging: Paging = EVERYTHING
+) -> Page:
     """
     Every active arnia for an admin, only the associated ones for a user.
 
@@ -22,17 +23,19 @@ def list_for_utente(
     to one apiary, and opens nothing the user could not already see.
     """
     if current_user["ruolo"] == "admin":
-        rows = arnie.list_stato_attive(session, current_user["id_utente"], id_apiario)
-    else:
-        rows = arnie.list_stato_for_utente(
-            session, current_user["id_utente"], id_apiario
+        return arnie.list_stato_attive(
+            session, current_user["id_utente"], id_apiario, paging
         )
-    return [dict(row) for row in rows]
+    return arnie.list_stato_for_utente(
+        session, current_user["id_utente"], id_apiario, paging
+    )
 
 
-def list_all(session, id_apiario: int | None = None) -> list[dict[str, Any]]:
+def list_all(
+    session, id_apiario: int | None = None, paging: Paging = EVERYTHING
+) -> Page:
     """Every arnia including the retired ones — the admin inventory."""
-    return [dict(row) for row in arnie.list_stato(session, id_apiario)]
+    return arnie.list_stato(session, id_apiario, paging)
 
 
 def list_ids(session) -> list[int]:

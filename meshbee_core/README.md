@@ -26,6 +26,7 @@ scripts/ ───────┘
 | `config.py` | `CoreSettings` — the database fields, and nothing else. |
 | `db.py` | The SQLAlchemy engine, `get_session()`, and `integrity_errors()`. |
 | `limits.py` | Every bound and value set, declared once. Read by `models.py` and by `mqtt_handler/contract.py`. |
+| `paging.py` | `Paging` (which window of a list, and whether to count it) and `Page` (its rows, and the total). |
 | `models.py` | The data model, declared once: each table and its API shapes (`XBase`, `XCreate`, `XUpdate`, `XResponse`) as one SQLModel family, plus the API-only models (login, tokens, series, messages). The source Alembic migrates from. |
 | `migrations/` | Alembic: `env.py`, `upgrade()`, and the revisions. See [`database/`](../database/README.md#changing-the-schema). |
 | `security.py` | Password hashing and verification. Framework-free. |
@@ -66,7 +67,9 @@ The layering is the reason this package exists, and it is worth stating flatly:
 - **`repository/` = tables and queries**, written against the models in `models.py`.
   No decisions, no validation, no errors beyond what the database raises. Every
   function takes a `session` as its first argument, flushes what it writes, and
-  returns plain dicts — never a model instance tied to the session.
+  returns plain dicts — never a model instance tied to the session. A list function
+  takes a `Paging` and returns a `Page` of them, through `repository.fetch_page`; its
+  ORDER BY ends on a unique column, so pages neither repeat nor skip rows.
 - **`services/` = Meshbee decisions.** They call the repository and raise
   `errors.NotFound` / `Conflict` / `InvalidData`. **Never `HTTPException`** — a service
   does not know it is being called over HTTP, and the MQTT handler calls the same code.

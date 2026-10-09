@@ -26,6 +26,7 @@ scripts/ ───────┘
 | `config.py` | `CoreSettings` — i campi del database, e nient'altro. |
 | `db.py` | L'engine SQLAlchemy, `get_session()` e `integrity_errors()`. |
 | `limits.py` | Ogni limite e insieme di valori, dichiarato una volta sola. Letto da `models.py` e da `mqtt_handler/contract.py`. |
+| `paging.py` | `Paging` (quale finestra di un elenco, e se contarlo) e `Page` (le sue righe, e il totale). |
 | `models.py` | Il modello dei dati, dichiarato una volta sola: ogni tabella e le sue forme API (`XBase`, `XCreate`, `XUpdate`, `XResponse`) come un'unica famiglia SQLModel, più i modelli solo-API (login, token, serie, messaggi). La fonte da cui migra Alembic. |
 | `migrations/` | Alembic: `env.py`, `upgrade()` e le revisioni. Vedi [`database/`](../database/README.it.md#cambiare-lo-schema). |
 | `security.py` | Hashing e verifica delle password. Senza framework. |
@@ -67,7 +68,10 @@ chiaramente:
 - **`repository/` = tabelle e query**, scritte sui modelli di `models.py`. Nessuna
   decisione, nessuna validazione, nessun errore oltre a quelli del database. Ogni
   funzione prende una `session` come primo argomento, fa flush di ciò che scrive e
-  restituisce dizionari semplici — mai un'istanza di modello legata alla sessione.
+  restituisce dizionari semplici — mai un'istanza di modello legata alla sessione. Una
+  funzione di elenco prende un `Paging` e ne restituisce una `Page`, tramite
+  `repository.fetch_page`; il suo ORDER BY termina su una colonna unica, così le pagine
+  non ripetono né saltano righe.
 - **`services/` = decisioni di Meshbee.** Chiamano il repository e sollevano
   `errors.NotFound` / `Conflict` / `InvalidData`. **Mai `HTTPException`** — un service
   non sa di essere chiamato via HTTP, e lo stesso codice lo chiama l'handler MQTT.

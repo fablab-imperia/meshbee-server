@@ -4,13 +4,14 @@ from typing import Any
 
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
 from meshbee_core.services import apiari
 
 
-def list_utenti(session) -> list[dict[str, Any]]:
-    return [dict(row) for row in utenti.list_all(session)]
+def list_utenti(session, paging: Paging = EVERYTHING) -> Page:
+    return utenti.list_all(session, paging)
 
 
 def create_utente(session, user) -> dict[str, Any]:

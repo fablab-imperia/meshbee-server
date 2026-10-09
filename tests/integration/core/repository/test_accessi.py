@@ -65,7 +65,7 @@ def test_sharing_again_changes_the_role(session, make_utente):
     accessi.upsert(session, utente["id_utente"], apiario, "viewer")
     accessi.upsert(session, utente["id_utente"], apiario, "manager")
 
-    shares = accessi.list_for_apiario(session, apiario)
+    shares = accessi.list_for_apiario(session, apiario).items
     assert [(s["id_utente"], s["ruolo"]) for s in shares] == [
         (utente["id_utente"], "manager")
     ]

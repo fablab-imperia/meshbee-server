@@ -6,6 +6,7 @@ from typing import Any
 from meshbee_core.db import integrity_errors
 from meshbee_core.errors import InvalidData, NotFound
 from meshbee_core.models import LetturaCreate, LetturaUpdate
+from meshbee_core.paging import Page, Paging
 from meshbee_core.repository import letture
 
 # How far back a query reaches when the caller gives no start date.
@@ -62,19 +63,14 @@ def record_reading(session, data: LetturaCreate | dict[str, Any]) -> dict[str, A
 
 
 def list_for_arnia(
-    session, id_arnia: int, data_inizio, data_fine, limit: int
-) -> list[dict[str, Any]]:
+    session, id_arnia: int, data_inizio, data_fine, paging: Paging
+) -> Page:
     data_inizio, data_fine = default_window(data_inizio, data_fine)
-    return [
-        dict(row)
-        for row in letture.list_by_arnia(
-            session, id_arnia, data_inizio, data_fine, limit
-        )
-    ]
+    return letture.list_by_arnia(session, id_arnia, data_inizio, data_fine, paging)
 
 
-def list_all(session, limit: int) -> list[dict[str, Any]]:
-    return [dict(row) for row in letture.list_all(session, limit)]
+def list_all(session, paging: Paging) -> Page:
+    return letture.list_all(session, paging)
 
 
 def update_lettura(session, id_lettura: int, changes: LetturaUpdate) -> dict[str, Any]:
