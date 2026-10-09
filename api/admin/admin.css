@@ -63,6 +63,12 @@ td.select input {
   margin: 0;
 }
 
+/* Pico makes a submit button full width; in the dialog footer it sits beside Annulla. */
+dialog article > footer button[type="submit"] {
+  width: auto;
+  margin-bottom: 0;
+}
+
 /* The sharing panel holds a table, wider than a form. */
 dialog article.wide {
   max-width: 48rem;

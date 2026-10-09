@@ -239,7 +239,9 @@ dichiarati una sola volta in `meshbee_core/limits.py`.
 | File | Cos'è |
 |---|---|
 | `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
-| `admin.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe — e il componente che li usa. Una nuova operazione admin di solito è una voce lì. |
+| `resources.js` | `RESOURCES` — per ogni scheda: rotta, colonne, campi dei form, azioni sulle righe. Una nuova operazione admin di solito è una voce lì. |
+| `admin.js` | Il nucleo dell'unico componente Alpine: login, richieste, la tabella e il form generico guidati da `RESOURCES`. `admin()` vi unisce i file di funzionalità qui sotto. |
+| `overview.js`, `charts.js`, `shares.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
 | `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
 | `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file: niente build, niente CDN, funziona in una LAN senza internet. Per aggiornarli si sostituisce il file e i riferimenti in `index.html`. |
 

@@ -6,6 +6,10 @@
     <title>Meshbee Admin</title>
     <link rel="stylesheet" href="vendor/pico-2.0.6.min.css" />
     <link rel="stylesheet" href="admin.css" />
+    <script src="resources.js"></script>
+    <script src="overview.js"></script>
+    <script src="charts.js"></script>
+    <script src="shares.js"></script>
     <script src="admin.js"></script>
     <script defer src="vendor/alpine-3.14.9.min.js"></script>
   </head>
@@ -128,7 +132,9 @@
                       <strong x-text="`${m.label} (${m.unit})`"></strong>
                       <small x-show="!c.empty" x-text="`ultima ${c.last} · min ${c.min} · max ${c.max}`"></small>
                     </header>
-                    <svg x-show="!c.empty" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="none" role="img" :aria-label="m.label">
+                    <!-- Static viewBox, matching CHART_W × CHART_H in charts.js: the parser
+                         would lowercase a bound :viewBox, which SVG ignores. -->
+                    <svg x-show="!c.empty" viewBox="0 0 300 100" preserveAspectRatio="none" role="img" :aria-label="m.label">
                       <path :d="c.d" vector-effect="non-scaling-stroke"></path>
                     </svg>
                     <p x-show="c.empty"><em>Nessun valore.</em></p>

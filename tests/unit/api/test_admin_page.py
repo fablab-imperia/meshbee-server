@@ -42,7 +42,10 @@ def test_the_page_never_inserts_markup():
     """Users, hives and apiaries are named by users. The page must only ever
     show them through x-text, which escapes; x-html or innerHTML would let a
     hive called `<img onerror=...>` run script with the admin's token."""
-    for name in ("index.html", "admin.js"):
+    # Every page file, not vendor/: the scripts are split by feature.
+    pages = ["index.html", *sorted(p.name for p in ADMIN_DIR.glob("*.js"))]
+    assert "admin.js" in pages and len(pages) > 2, pages
+    for name in pages:
         source = (ADMIN_DIR / name).read_text(encoding="utf-8")
         assert "x-html" not in source, name
         assert "innerHTML" not in source, name

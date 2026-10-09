@@ -233,7 +233,9 @@ the page shows the API's own `detail` on a 4xx. Value lists (`ruolo`, the apiary
 | File | What it is |
 |---|---|
 | `index.html` | The markup, with [Alpine.js](https://alpinejs.dev) bindings. |
-| `admin.js` | `RESOURCES` — per tab: route, columns, form fields, row actions — and the component that drives them. A new admin operation is usually one entry there. |
+| `resources.js` | `RESOURCES` — per tab: route, columns, form fields, row actions. A new admin operation is usually one entry there. |
+| `admin.js` | The core of the one Alpine component: login, requests, the table and the generic form that `RESOURCES` drives. `admin()` merges the feature files below into it. |
+| `overview.js`, `charts.js`, `shares.js` | One feature each, with its own state: the Panoramica tab, the readings charts, an apiary's sharing panel. A new feature with state of its own gets a file like these, not more branches in `admin.js`. |
 | `admin.css` | The little [Pico CSS](https://picocss.com) does not cover. |
 | `vendor/` | Alpine.js and Pico CSS, **vendored** with the version in the file name: no build step, no CDN, works on a LAN with no internet. To upgrade, replace the file and its references in `index.html`. |
 
