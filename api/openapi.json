@@ -22,8 +22,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90.0,
-                "minimum": -90.0,
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -40,8 +40,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180.0,
-                "minimum": -180.0,
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {
@@ -213,8 +213,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90.0,
-                "minimum": -90.0,
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -231,8 +231,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180.0,
-                "minimum": -180.0,
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {
@@ -392,8 +392,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90.0,
-                "minimum": -90.0,
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -410,8 +410,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180.0,
-                "minimum": -180.0,
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {
@@ -724,8 +724,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90.0,
-                "minimum": -90.0,
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -742,8 +742,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180.0,
-                "minimum": -180.0,
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {
@@ -956,8 +956,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90.0,
-                "minimum": -90.0,
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -974,8 +974,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180.0,
-                "minimum": -180.0,
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {
@@ -2212,7 +2212,7 @@
   "info": {
     "description": "Meshbee API - Open beehive telemetry server API",
     "title": "Meshbee API",
-    "version": "1.2.0"
+    "version": "2.0.0"
   },
   "openapi": "3.1.0",
   "paths": {
