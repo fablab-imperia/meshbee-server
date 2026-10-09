@@ -45,3 +45,19 @@ def page_items(response: Response, page: Page) -> list:
     if page.total is not None:
         response.headers[TOTAL_HEADER] = str(page.total)
     return page.items
+
+
+# The header in the OpenAPI contract, on each paged route's 200 response.
+PAGED_RESPONSES = {
+    200: {
+        "headers": {
+            TOTAL_HEADER: {
+                "description": (
+                    "Size of the whole list, filters applied. Sent only when the "
+                    "request carries `limit` or `offset`."
+                ),
+                "schema": {"type": "integer", "minimum": 0},
+            }
+        }
+    }
+}

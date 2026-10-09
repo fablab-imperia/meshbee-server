@@ -147,7 +147,7 @@ Una richiesta con uno dei due parametri riceve anche **`X-Total-Count`**: la dim
 dell'intero elenco, filtri applicati. Costa una query COUNT, ed è per questo che una
 richiesta senza parametri di paginazione non la paga. CORS espone l'header, così un
 browser su un'altra origine può leggerlo. Il corpo resta in ogni caso il semplice
-elenco JSON.
+elenco JSON. `openapi.json` dichiara l'header nella risposta 200 di ogni rotta paginata.
 
 ```http
 GET /api/admin/utenti?limit=25&offset=50

@@ -146,7 +146,8 @@ readings and activities.
 A request that carries either parameter also gets **`X-Total-Count`**: the size of the
 whole list, filters applied. It costs a COUNT query, which is why a request without
 paging parameters doesn't pay for it. CORS exposes the header, so a browser on another
-origin can read it. The body stays the plain JSON list in every case.
+origin can read it. The body stays the plain JSON list in every case. `openapi.json`
+declares the header on each paged route's 200 response.
 
 ```http
 GET /api/admin/utenti?limit=25&offset=50

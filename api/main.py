@@ -28,7 +28,7 @@ from api.auth import (
     get_current_admin_user,
 )
 from api.config import settings
-from api.paging import TOTAL_HEADER, page_items, paging_query
+from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.models import (
@@ -244,7 +244,12 @@ def get_me(current_user: dict = Depends(get_current_active_user)):
 # ============================================
 
 
-@app.get("/api/user/arnie", response_model=list[ArniaConStato], tags=["Utente"])
+@app.get(
+    "/api/user/arnie",
+    response_model=list[ArniaConStato],
+    tags=["Utente"],
+    responses=PAGED_RESPONSES,
+)
 def get_user_arnie(
     response: Response,
     id_apiario: int | None = ID_APIARIO_FILTER,
@@ -264,7 +269,12 @@ def get_user_arnie(
         )
 
 
-@app.get("/api/user/apiari", response_model=list[ApiarioConAccesso], tags=["Utente"])
+@app.get(
+    "/api/user/apiari",
+    response_model=list[ApiarioConAccesso],
+    tags=["Utente"],
+    responses=PAGED_RESPONSES,
+)
 def get_user_apiari(
     response: Response,
     paging: Paging = PAGING,
@@ -351,6 +361,7 @@ def delete_apiario_user(
     "/api/user/apiari/{id_apiario}/condivisioni",
     response_model=list[CondivisioneResponse],
     tags=["Utente"],
+    responses=PAGED_RESPONSES,
 )
 def get_condivisioni(
     response: Response,
@@ -458,6 +469,7 @@ def move_arnia_user(
     "/api/user/arnie/{id_arnia}/letture",
     response_model=list[LetturaResponse],
     tags=["Utente"],
+    responses=PAGED_RESPONSES,
 )
 def get_user_letture(
     response: Response,
@@ -498,6 +510,7 @@ def get_user_letture(
     "/api/user/arnie/{id_arnia}/attivita",
     response_model=list[AttivitaResponse],
     tags=["Utente"],
+    responses=PAGED_RESPONSES,
 )
 def get_user_attivita(
     response: Response,
@@ -738,7 +751,12 @@ def get_serie_batteria(
 # ============================================
 
 
-@app.get("/api/admin/utenti", response_model=list[UserResponse], tags=["Admin"])
+@app.get(
+    "/api/admin/utenti",
+    response_model=list[UserResponse],
+    tags=["Admin"],
+    responses=PAGED_RESPONSES,
+)
 def get_all_users(
     response: Response,
     paging: Paging = PAGING,
@@ -789,7 +807,12 @@ def update_user(
         return utenti_service.update_utente(session, id_utente, user_update)
 
 
-@app.get("/api/admin/nodi", response_model=list[NodoResponse], tags=["Admin"])
+@app.get(
+    "/api/admin/nodi",
+    response_model=list[NodoResponse],
+    tags=["Admin"],
+    responses=PAGED_RESPONSES,
+)
 def get_all_nodi(
     response: Response,
     paging: Paging = PAGING,
@@ -805,7 +828,12 @@ def get_all_nodi(
         return page_items(response, nodi_service.list_nodi(session, paging))
 
 
-@app.get("/api/admin/arnie", response_model=list[ArniaConStato], tags=["Admin"])
+@app.get(
+    "/api/admin/arnie",
+    response_model=list[ArniaConStato],
+    tags=["Admin"],
+    responses=PAGED_RESPONSES,
+)
 def get_all_arnie(
     response: Response,
     id_apiario: int | None = ID_APIARIO_FILTER,
@@ -839,7 +867,12 @@ def create_arnia(
         return arnie_service.create_arnia(session, arnia)
 
 
-@app.get("/api/admin/letture", response_model=list[LetturaResponse], tags=["Admin"])
+@app.get(
+    "/api/admin/letture",
+    response_model=list[LetturaResponse],
+    tags=["Admin"],
+    responses=PAGED_RESPONSES,
+)
 def get_all_letture(
     response: Response,
     paging: Paging = LETTURE_PAGING,
@@ -858,7 +891,12 @@ def get_all_letture(
         return page_items(response, letture_service.list_all(session, paging))
 
 
-@app.get("/api/admin/attivita", response_model=list[AttivitaResponse], tags=["Admin"])
+@app.get(
+    "/api/admin/attivita",
+    response_model=list[AttivitaResponse],
+    tags=["Admin"],
+    responses=PAGED_RESPONSES,
+)
 def get_all_attivita(
     response: Response,
     paging: Paging = ATTIVITA_PAGING,
@@ -1000,7 +1038,10 @@ def delete_arnia(id_arnia: int, current_user: dict = Depends(get_current_admin_u
 
 
 @app.get(
-    "/api/admin/apiari", response_model=list[ApiarioResponse], tags=["Admin - Apiari"]
+    "/api/admin/apiari",
+    response_model=list[ApiarioResponse],
+    tags=["Admin - Apiari"],
+    responses=PAGED_RESPONSES,
 )
 def get_all_apiari(
     response: Response,

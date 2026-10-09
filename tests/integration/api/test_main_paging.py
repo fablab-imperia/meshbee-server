@@ -130,3 +130,17 @@ def test_the_total_is_readable_cross_origin(world, as_user, make_utente):
     )
 
     assert TOTAL in response.headers["access-control-expose-headers"].lower()
+
+
+def test_the_contract_declares_the_total_on_exactly_the_paged_routes():
+    """Clients generated from openapi.json learn about the header from here."""
+    from api import main
+
+    declared = {
+        path
+        for path, ops in main.app.openapi()["paths"].items()
+        if "X-Total-Count"
+        in ops.get("get", {}).get("responses", {}).get("200", {}).get("headers", {})
+    }
+
+    assert declared == {route for _, route in ROUTES}
