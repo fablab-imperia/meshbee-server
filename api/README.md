@@ -169,7 +169,9 @@ offset past the end is an empty page, still with its total. The chart series
 Login returns two JWTs signed HS256 with `JWT_SECRET_KEY`. The claim that identifies
 the caller is `sub` (the email); the user row is re-read from the database on **every**
 request, so deactivating an account takes effect immediately without waiting for the
-token to expire.
+token to expire. A refresh token also carries a unique `jti`. Refresh doesn't trust its
+`sub`: it finds the user through the token's row in `token_sessione`, so changing the
+account's email doesn't break it.
 
 The dependencies stack, each building on the previous one:
 
@@ -222,6 +224,12 @@ Three things to know about tokens:
     new refresh token.
   - Presenting a spent or logged-out token again means a copy is out there, so **every
     session of that account is revoked** and the user logs in again.
+  - **A client must have only one refresh in flight.** Two refreshes with the same token
+    at once count as reuse too: one wins, the other is refused and logs the user out
+    everywhere. When several requests hit a 401 together, they should all wait on the
+    same refresh.
+  - Refresh answers the same 401 for an unknown, expired, spent or revoked token and for
+    a deactivated account.
   - Refresh and logout take the refresh token in the body and no `Authorization` header,
     because the access token has usually expired by then.
 - **What revokes a refresh token:** logout, deactivating the account (`PUT` with

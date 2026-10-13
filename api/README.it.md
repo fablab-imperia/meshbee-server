@@ -170,7 +170,9 @@ Le serie per i grafici (`/letture/{grandezza}`) non sono paginate: la finestra d
 Il login restituisce due JWT firmati HS256 con `JWT_SECRET_KEY`. Il claim che
 identifica il chiamante è `sub` (l'email); la riga dell'utente viene riletta dal
 database a **ogni** richiesta, quindi disattivare un account ha effetto immediato senza
-aspettare la scadenza del token.
+aspettare la scadenza del token. Un refresh token porta anche un `jti` univoco. Il refresh non si fida
+del suo `sub`: trova l'utente tramite la riga del token in `token_sessione`, quindi
+cambiare l'email dell'account non lo rompe.
 
 Le dipendenze si impilano, ciascuna sopra la precedente:
 
@@ -227,6 +229,12 @@ Tre cose da sapere sui token:
   - Ripresentare un token già consumato o chiuso col logout vuol dire che ne esiste una
     copia, quindi **tutte le sessioni di quell'account vengono revocate** e l'utente
     rifà il login.
+  - **Un client deve avere un solo refresh in corso.** Anche due refresh con lo stesso
+    token nello stesso momento contano come riuso: uno vince, l'altro viene rifiutato e
+    disconnette l'utente ovunque. Quando più richieste ricevono un 401 insieme, devono
+    aspettare tutte lo stesso refresh.
+  - Il refresh risponde con lo stesso 401 per un token sconosciuto, scaduto, consumato o
+    revocato e per un account disattivato.
   - Refresh e logout ricevono il refresh token nel body e nessun header `Authorization`,
     perché a quel punto l'access token di solito è scaduto.
 - **Cosa revoca un refresh token:** il logout, la disattivazione dell'account (`PUT`
