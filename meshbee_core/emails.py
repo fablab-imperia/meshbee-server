@@ -44,3 +44,50 @@ def password_changed(nome: str) -> Email:
             "accesso o contatta un amministratore.\n" + SIGNATURE
         ),
     )
+
+
+# What each role on an apiary means, in the words an email uses.
+RUOLI = {
+    "viewer": "visualizzatore (puoi vedere le arnie e le loro letture)",
+    "collaborator": "collaboratore (puoi anche registrare le attività)",
+    "manager": "gestore (puoi anche modificare l'apiario e le sue arnie)",
+}
+
+
+def apiary_shared(
+    mittente: str, nome_apiario: str, ruolo: str, app_url: str | None
+) -> Email:
+    """A notice to someone with an account: an apiary was shared with them (#55)."""
+    where = (
+        f"Lo trovi nell'app Meshbee: {app_url}\n"
+        if app_url
+        else ("Lo trovi nell'app Meshbee.\n")
+    )
+    return Email(
+        subject=f"Meshbee: {mittente} ha condiviso l'apiario {nome_apiario}",
+        text=(
+            "Ciao,\n\n"
+            f"{mittente} ha condiviso con te l'apiario «{nome_apiario}» come "
+            f"{RUOLI[ruolo]}.\n\n" + where + SIGNATURE
+        ),
+    )
+
+
+def invitation(
+    mittente: str, nome_apiario: str, ruolo: str, link: str, days: int
+) -> Email:
+    """An invitation to someone with no account: the link creates one (#55)."""
+    return Email(
+        subject=f"Meshbee: {mittente} ti invita nell'apiario {nome_apiario}",
+        text=(
+            "Ciao,\n\n"
+            f"{mittente} ti ha invitato a seguire l'apiario «{nome_apiario}» su "
+            f"Meshbee come {RUOLI[ruolo]}.\n\n"
+            "Per accettare, crea il tuo account da questo link:\n\n"
+            f"{link}\n\n"
+            f"Il link vale per {days} giorni e si può usare una volta sola. "
+            "L'account userà questo indirizzo email.\n\n"
+            "Se non conosci chi ti ha invitato, ignora questa email: senza un "
+            "account non succede nulla.\n" + SIGNATURE
+        ),
+    )

@@ -187,6 +187,10 @@ services:
       PASSWORD_RESET_MAX_PER_IP: ${PASSWORD_RESET_MAX_PER_IP:-10}
       # Share requests one user may make per hour (#40).
       SHARE_MAX_PER_HOUR: ${SHARE_MAX_PER_HOUR:-30}
+      # Apiary invitations by email (#55): link lifetime and the daily cap per user.
+      INVITE_EXPIRE_DAYS: ${INVITE_EXPIRE_DAYS:-7}
+      INVITE_MAX_PER_DAY: ${INVITE_MAX_PER_DAY:-20}
+      NOTICE_MAX_PER_DAY: ${NOTICE_MAX_PER_DAY:-20}
     ports:
       - "8000:8000"
     networks:

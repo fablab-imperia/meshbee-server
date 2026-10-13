@@ -104,6 +104,7 @@ APIARIO_SCOPED = [
     ("delete", "/api/user/apiari/{}/condivisioni/1", None, "owner"),
     ("put", "/api/user/apiari/{}/inviti/1", {"ruolo": "viewer"}, "owner"),
     ("delete", "/api/user/apiari/{}/inviti/1", None, "owner"),
+    ("post", "/api/user/apiari/{}/inviti/1/reinvia", None, "owner"),
 ]
 
 # From no access at all to owning: each level allows everything the one
@@ -177,20 +178,28 @@ def test_login_is_reachable_without_a_token(client):
     assert response.json()["detail"] == "Email o password non corretti"
 
 
-# Anonymous on purpose (#54): whoever forgot their password has no token to send.
-PASSWORD_RESET = [
+# Anonymous on purpose: whoever forgot their password (#54), or was invited and
+# has no account yet (#55), has no token to send.
+BY_EMAILED_TOKEN = [
     ("post", "/api/auth/password/forgot", {"email": "nobody@example.org"}),
     ("post", "/api/auth/password/reset", {"token": "x", "new_password": "secret123"}),
+    (
+        "post",
+        "/api/auth/invite/accept",
+        {"token": "x", "nome": "N", "cognome": "C", "password": "secret123"},
+    ),
 ]
 
 
-@pytest.mark.parametrize("method, path, body", PASSWORD_RESET, ids=ids(PASSWORD_RESET))
-def test_password_reset_is_reachable_without_a_token(client, method, path, body):
+@pytest.mark.parametrize(
+    "method, path, body", BY_EMAILED_TOKEN, ids=ids(BY_EMAILED_TOKEN)
+)
+def test_emailed_token_routes_are_reachable_without_a_token(client, method, path, body):
     """
     The handler runs rather than turning the request away for lack of a token.
 
-    Without email configured, forgot answers 503; reset rejects the token with
-    400. Neither is the 401 of an unauthenticated request.
+    Without email configured, forgot answers 503; reset and accept reject the
+    token with 400. None is the 401 of an unauthenticated request.
     """
     response = call(client, method, path, body)
 

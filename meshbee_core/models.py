@@ -328,6 +328,27 @@ class PasswordForgot(BaseModel):
         return normalize_email(v)
 
 
+class InvitoAccettazione(BaseModel):
+    """
+    Body of /api/auth/invite/accept: the emailed token and the new account's details.
+
+    No email: the account takes the address the invitation was sent to (#55).
+    """
+
+    token: str = Field(max_length=200)
+    nome: str = Field(min_length=1, max_length=100)
+    cognome: str = Field(min_length=1, max_length=100)
+    password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
+    )
+
+    @field_validator("password")
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
+
+
 class PasswordReset(BaseModel):
     """Body of /api/auth/password/reset: the emailed token and the new password."""
 

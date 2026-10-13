@@ -244,8 +244,9 @@ Only the `api` service reads these variables; the MQTT handler sends nothing.
 | `PUBLIC_BASE_URL` | unset | Where the app is reached, e.g. `https://meshbee.example.org`. Used for links in emails. |
 
 With email on and `PUBLIC_BASE_URL` set, users can **reset a forgotten password** on
-their own at `/reset-password`. Its settings and limits are in
-[`api/`](api/README.md#password-reset).
+their own at `/reset-password`, and sharing an apiary emails a notice, or an
+invitation to sign up at `/invite` for someone with no account yet. Settings and limits
+are in [`api/`](api/README.md#password-reset) and [`api/`](api/README.md#invitations).
 
 A half-done configuration (a host without `MAIL_FROM`, a user without a password) stops
 the API at startup instead of failing on the first email. Routes send mail after the

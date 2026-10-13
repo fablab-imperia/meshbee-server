@@ -65,3 +65,13 @@ def test_the_reset_password_page_is_served_at_reset_password(client):
 
 def test_the_admin_login_links_to_the_reset_page(client):
     assert 'href="/reset-password"' in client.get("/admin/").text
+
+
+def test_the_invite_page_is_served_at_invite(client):
+    """The link in an invitation email; like /reset-password, never cached."""
+    response = client.get("/invite")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "/admin/invite.js" in response.text

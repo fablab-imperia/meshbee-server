@@ -73,3 +73,13 @@ def _find(session: Session, id_invito: int, id_apiario: int) -> InvitoApiario | 
             InvitoApiario.id_apiario == id_apiario,
         )
     ).first()
+
+
+def exists_for_email(session: Session, email: str) -> bool:
+    """Whether any apiary still has a pending invitation to `email`."""
+    return (
+        session.exec(
+            select(InvitoApiario.id_invito).where(InvitoApiario.email == email).limit(1)
+        ).first()
+        is not None
+    )

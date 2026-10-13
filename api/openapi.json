@@ -1414,6 +1414,42 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InvitoAccettazione": {
+        "description": "Body of /api/auth/invite/accept: the emailed token and the new account's details.\n\nNo email: the account takes the address the invitation was sent to (#55).",
+        "properties": {
+          "cognome": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Cognome",
+            "type": "string"
+          },
+          "nome": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          },
+          "password": {
+            "description": "Password (minimo 8 caratteri, massimo 72 byte)",
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "nome",
+          "cognome",
+          "password"
+        ],
+        "title": "InvitoAccettazione",
+        "type": "object"
+      },
       "InvitoResponse": {
         "properties": {
           "data_invito": {
@@ -3996,6 +4032,48 @@
         ]
       }
     },
+    "/api/auth/invite/accept": {
+      "post": {
+        "description": "Create an account from an apiary invitation, and log it in.\n\nThe account takes the email the invitation was sent to, with role `user`, and\nevery apiary shared with that email becomes its own. Returns the same tokens\nas login. 400, with one message, for a token that is unknown, expired, used\nor withdrawn. This is the only way to sign up: there is no open registration.",
+        "operationId": "accept_invitation_api_auth_invite_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitoAccettazione"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Invitation",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
     "/api/auth/login": {
       "post": {
         "description": "Login utente e generazione token JWT\n\nReturns:\n    Access token e refresh token",
@@ -4613,7 +4691,7 @@
         ]
       },
       "post": {
-        "description": "Share the apiary with an email, as viewer, collaborator or manager (owner\nonly). Sharing again with the same email changes the role.\n\nAn email with no account gets a pending invitation, which becomes a share\nwhen the account is created. The answer is the same either way, so it does\nnot reveal which addresses are registered (#40); the share list shows which.",
+        "description": "Share the apiary with an email, as viewer, collaborator or manager (owner\nonly). Sharing again with the same email changes the role.\n\nAn email with no account gets a pending invitation, which becomes a share\nwhen the account is created. The answer is the same either way, so it does\nnot reveal which addresses are registered (#40); the share list shows which.\n\nWith email on, an account is sent a notice and an invitation an email with a\nlink to create the account (#55), after the response.",
         "operationId": "share_apiario_api_user_apiari__id_apiario__condivisioni_post",
         "parameters": [
           {
@@ -4911,6 +4989,69 @@
           }
         ],
         "summary": "Update Invito",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}/reinvia": {
+      "post": {
+        "description": "Send a pending invitation again, with a new link; the old one stops working\n(owner only). 429 past `INVITE_MAX_PER_DAY`, 503 without email.",
+        "operationId": "resend_invito_api_user_apiari__id_apiario__inviti__id_invito__reinvia_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_invito",
+            "required": true,
+            "schema": {
+              "title": "Id Invito",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Limite giornaliero di inviti raggiunto"
+          },
+          "503": {
+            "description": "Invio di email non attivo"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resend Invito",
         "tags": [
           "Utente"
         ]

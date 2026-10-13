@@ -11,7 +11,7 @@ from typing import Any
 
 from meshbee_core.errors import InvalidData, NotFound
 from meshbee_core.paging import EVERYTHING, Page, Paging
-from meshbee_core.repository import accessi, apiari, inviti, utenti
+from meshbee_core.repository import accessi, apiari, inviti, token_monouso, utenti
 
 ATTIVA, IN_ATTESA = "attiva", "in_attesa"
 INVITO_NOT_FOUND = "Invito non trovato"
@@ -22,7 +22,7 @@ def list_condivisioni(session, id_apiario: int, paging: Paging = EVERYTHING) -> 
     Raises:
         NotFound: if the apiary does not exist.
     """
-    _require_apiario(session, id_apiario)
+    require_apiario(session, id_apiario)
     return accessi.list_for_apiario(session, id_apiario, paging)
 
 
@@ -31,17 +31,22 @@ def share(session, id_apiario: int, condivisione) -> dict[str, Any]:
     Share the apiary with an email, or change the role it was given.
 
     Returns `id_apiario`, `email`, `ruolo` and `stato`: `attiva` with the
-    `id_utente` of the account, or `in_attesa` with the `id_invito` of the
-    invitation. Only the first three are for the person sharing (#40); the rest
-    is for whoever acts on it, such as sending an email.
+    `id_utente` of the account and `nuova` (False when only the role changed),
+    or `in_attesa` with the `id_invito` of the invitation. Only the first three are for the person sharing (#40); the rest,
+    and `nome_apiario`, is for whoever acts on it, such as sending an email.
 
     Raises:
         NotFound: if the apiary does not exist.
         InvalidData: if the email is the owner's, who already has full access.
     """
-    apiario = _require_apiario(session, id_apiario)
+    apiario = require_apiario(session, id_apiario)
     email, ruolo = condivisione.email, condivisione.ruolo
-    result = {"id_apiario": id_apiario, "email": email, "ruolo": ruolo}
+    result = {
+        "id_apiario": id_apiario,
+        "email": email,
+        "ruolo": ruolo,
+        "nome_apiario": apiario["nome_apiario"],
+    }
 
     found = utenti.find_id_by_email(session, email)
     if found is None:
@@ -50,8 +55,9 @@ def share(session, id_apiario: int, condivisione) -> dict[str, Any]:
 
     if found["id_utente"] == apiario["id_utente_proprietario"]:
         raise InvalidData("Il proprietario ha già accesso completo all'apiario")
+    nuova = accessi.get(session, found["id_utente"], id_apiario) is None
     accessi.upsert(session, found["id_utente"], id_apiario, ruolo)
-    return {**result, "stato": ATTIVA, "id_utente": found["id_utente"]}
+    return {**result, "stato": ATTIVA, "id_utente": found["id_utente"], "nuova": nuova}
 
 
 def change_ruolo(
@@ -92,12 +98,17 @@ def revoke_invito(session, id_apiario: int, id_invito: int) -> dict[str, Any]:
     """
     Withdraw a pending invitation; return what it was.
 
+    If no other apiary is still waiting for that email, its invitation link
+    (#55) stops working too: there would be nothing left to accept.
+
     Raises:
         NotFound: if the apiary has no such pending invitation.
     """
     invito = inviti.delete_one(session, id_invito, id_apiario)
     if invito is None:
         raise NotFound(INVITO_NOT_FOUND)
+    if not inviti.exists_for_email(session, invito["email"]):
+        token_monouso.spend_all_for_email(session, invito["email"], "invite")
     return invito
 
 
@@ -118,7 +129,7 @@ def accept_invitations(session, id_utente: int, email: str) -> int:
     return shared
 
 
-def _require_apiario(session, id_apiario: int) -> dict[str, Any]:
+def require_apiario(session, id_apiario: int) -> dict[str, Any]:
     apiario = apiari.get(session, id_apiario)
     if not apiario:
         raise NotFound("Apiario non trovato")

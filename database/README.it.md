@@ -179,8 +179,8 @@ Una riga per ogni refresh token emesso da `/api/auth/login` o `/api/auth/refresh
 ### `token_monouso` — token monouso inviati per email
 
 Una riga per ogni link inviato per email dal server, scritta e letta da
-`repository/token_monouso.py`: oggi il reset della password
-([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)), poi gli inviti
+`repository/token_monouso.py`: il reset della password
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)) o un invito a un apiario
 ([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)).
 
 - `token_hash` contiene lo **SHA-256** del token, mai il token.
@@ -282,7 +282,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
 | `0004` | Eliminata l'estensione `uuid-ossp`, installata da `init.sql` e mai usata. Senza CASCADE: se qualcosa ne dipende, la migrazione si ferma invece di eliminarlo. |
 | `0005` | Proprietà e apiari (#2, #36): `apiari` con un `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, e `utenti_apiari` al posto di `utenti_arnie`. Il proprietario di un'arnia diventa la sua associazione attiva meglio piazzata (`admin` > `write` > `read`, la più vecchia prima); un nodo va al proprietario della maggior parte delle sue arnie, e tutte le sue arnie nel Default di quel proprietario; ogni altra associazione attiva diventa un ruolo su quel Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), che può allargare l'accesso ma non toglierlo mai. Le arnie che nessuno poteva vedere restano non assegnate. Il downgrade ricostruisce l'accesso per arnia. |
-| `0006` | `token_monouso`, token monouso inviati per email (#54): oggi il reset della password, poi gli inviti (#55). |
+| `0006` | `token_monouso`, token monouso inviati per email: reset della password (#54) e inviti agli apiari (#55). |
 | `0007` | `inviti_apiari`, condivisioni in attesa verso email ancora senza account (#40). |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;

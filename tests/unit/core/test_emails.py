@@ -24,3 +24,32 @@ def test_the_change_notice_names_the_user():
 
     assert "Giulia" in email.text
     assert "cambiata" in email.subject
+
+
+INVITE_LINK = "https://meshbee.example.org/invite#token=abc"
+
+
+def test_the_invitation_names_the_sender_the_apiary_and_the_role():
+    email = emails.invitation("Giulia Rossi", "Collina", "collaborator", INVITE_LINK, 7)
+
+    assert "Giulia Rossi" in email.subject
+    assert "Collina" in email.text
+    assert emails.RUOLI["collaborator"] in email.text
+    assert f"\n{INVITE_LINK}\n" in email.text
+    assert "7 giorni" in email.text
+
+
+def test_the_share_notice_links_to_the_app_when_it_can():
+    with_url = emails.apiary_shared(
+        "Giulia Rossi", "Collina", "viewer", "https://x.org"
+    )
+    without = emails.apiary_shared("Giulia Rossi", "Collina", "viewer", None)
+
+    assert "https://x.org" in with_url.text
+    assert "Lo trovi nell'app Meshbee." in without.text
+
+
+def test_every_apiary_role_has_words_for_an_email():
+    from meshbee_core.limits import RUOLI_APIARIO
+
+    assert set(emails.RUOLI) == set(RUOLI_APIARIO)

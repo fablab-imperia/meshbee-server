@@ -58,6 +58,11 @@ It is plain script without Alpine. With a `#token=…` fragment it asks for the 
 password twice; without one it asks for an email and requests a link. The admin login
 links to it. See [`api/`](../api/README.md#password-reset).
 
+**`invite.html`** and **`invite.js`** are the same kind of page for an invitation email
+(#55), served at `/invite`: name, surname and a password, then the account exists. The
+sharing panel marks pending invitations and can send one again ("Reinvia"). See
+[`api/`](../api/README.md#invitations).
+
 ## Features
 
 - **A hive picked on the readings or activities tab** switches the list to the

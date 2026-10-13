@@ -65,6 +65,7 @@ from meshbee_core.models import (
     CondivisioneResponse,
     CondivisioneStato,
     CondivisioneUpdate,
+    InvitoAccettazione,
     InvitoResponse,
     LetturaCreate,
     LetturaResponse,
@@ -103,6 +104,9 @@ from meshbee_core.services import (
 )
 from meshbee_core.services import (
     auth as auth_service,
+)
+from meshbee_core.services import (
+    invitations as invitations_service,
 )
 from meshbee_core.services import (
     letture as letture_service,
@@ -319,6 +323,11 @@ FORGOT_ACCEPTED = (
 )
 
 
+def email_links_enabled(config: Settings, mailer: Mailer | None) -> bool:
+    """Whether emails with a link back to this server can go out: email on, and a public URL."""
+    return mailer is not None and bool(config.PUBLIC_BASE_URL)
+
+
 def notify_password_changed(
     background_tasks: BackgroundTasks, mailer: Mailer | None, user: dict
 ) -> None:
@@ -402,6 +411,27 @@ def reset_password_with_token(
         )
     notify_password_changed(background_tasks, mailer, user)
     return {"message": "Password aggiornata: accedi con quella nuova"}
+
+
+@app.post(
+    "/api/auth/invite/accept",
+    response_model=Token,
+    tags=["Autenticazione"],
+)
+def accept_invitation(body: InvitoAccettazione, request: Request):
+    """
+    Create an account from an apiary invitation, and log it in.
+
+    The account takes the email the invitation was sent to, with role `user`, and
+    every apiary shared with that email becomes its own. Returns the same tokens
+    as login. 400, with one message, for a token that is unknown, expired, used
+    or withdrawn. This is the only way to sign up: there is no open registration.
+    """
+    with db_operation("accettazione invito") as session:
+        user = invitations_service.accept(
+            session, body.token, body.nome, body.cognome, body.password
+        )
+        return issue_tokens(session, user, request)
 
 
 @app.get("/api/auth/me", response_model=UserResponse, tags=["Autenticazione"])
@@ -535,6 +565,9 @@ def delete_apiario_user(
 
 # Share requests one user may make per hour (#40).
 share_limiter = SlidingWindowLimiter(limit=settings.SHARE_MAX_PER_HOUR, window=3600)
+# Share notices one user may cause per day (#55): with the invitation cap, it keeps
+# one user from spending the provider's daily quota, and with it everyone's resets.
+notice_limiter = SlidingWindowLimiter(limit=settings.NOTICE_MAX_PER_DAY, window=86400)
 
 
 @app.get(
@@ -570,6 +603,9 @@ def get_condivisioni(
 def share_apiario(
     id_apiario: int,
     condivisione: CondivisioneCreate,
+    background_tasks: BackgroundTasks,
+    config: Annotated[Settings, Depends(get_settings)],
+    mailer: Annotated[Mailer | None, Depends(get_mailer)],
     current_user: dict = Depends(get_current_active_user),
 ):
     """
@@ -579,12 +615,71 @@ def share_apiario(
     An email with no account gets a pending invitation, which becomes a share
     when the account is created. The answer is the same either way, so it does
     not reveal which addresses are registered (#40); the share list shows which.
+
+    With email on, an account is sent a notice and an invitation an email with a
+    link to create the account (#55), after the response.
     """
     require_apiario_access(current_user, id_apiario, "apiario.share")
     enforce(share_limiter, str(current_user["id_utente"]))
 
+    lifetime = timedelta(days=config.INVITE_EXPIRE_DAYS)
     with db_operation("condivisione apiario") as session:
-        return accessi_service.share(session, id_apiario, condivisione)
+        result = invitations_service.share(
+            session,
+            id_apiario,
+            condivisione,
+            id_mittente=current_user["id_utente"],
+            invite_lifetime=lifetime if email_links_enabled(config, mailer) else None,
+            max_per_day=config.INVITE_MAX_PER_DAY,
+        )
+
+    if mailer is not None:
+        sender = f"{current_user['nome']} {current_user['cognome']}"
+        if result["stato"] == "attiva":
+            send_share_notice(
+                background_tasks, mailer, config, current_user, sender, result
+            )
+        elif result["token"] is not None:
+            send_invitation(background_tasks, mailer, config, sender, result)
+    return result
+
+
+def send_share_notice(
+    background_tasks: BackgroundTasks,
+    mailer: Mailer,
+    config: Settings,
+    current_user: dict,
+    sender: str,
+    share: dict,
+) -> None:
+    """Queue the notice of a new share, within the sender's daily cap."""
+    # A role change is no news worth an email.
+    if not share["nuova"]:
+        return
+    if notice_limiter.hit(str(current_user["id_utente"])) is not None:
+        logger.info(
+            f"Share notice by user {current_user['id_utente']} not sent: daily cap"
+        )
+        return
+    message = emails.apiary_shared(
+        sender, share["nome_apiario"], share["ruolo"], config.PUBLIC_BASE_URL
+    )
+    send_later(background_tasks, mailer, share["email"], message.subject, message.text)
+
+
+def send_invitation(
+    background_tasks: BackgroundTasks,
+    mailer: Mailer,
+    config: Settings,
+    sender: str,
+    invito: dict,
+) -> None:
+    """Queue the invitation email; the token rides in the link's fragment, as in #54."""
+    link = f"{config.PUBLIC_BASE_URL}/invite#token={invito['token']}"
+    message = emails.invitation(
+        sender, invito["nome_apiario"], invito["ruolo"], link, config.INVITE_EXPIRE_DAYS
+    )
+    send_later(background_tasks, mailer, invito["email"], message.subject, message.text)
 
 
 @app.put(
@@ -647,6 +742,55 @@ def update_invito(
         return accessi_service.change_invito_ruolo(
             session, id_apiario, id_invito, body.ruolo
         )
+
+
+@app.post(
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}/reinvia",
+    response_model=MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["Utente"],
+    responses={
+        429: {"description": "Limite giornaliero di inviti raggiunto"},
+        503: {"description": "Invio di email non attivo"},
+    },
+)
+def resend_invito(
+    id_apiario: int,
+    id_invito: int,
+    background_tasks: BackgroundTasks,
+    config: Annotated[Settings, Depends(get_settings)],
+    mailer: Annotated[Mailer | None, Depends(get_mailer)],
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Send a pending invitation again, with a new link; the old one stops working
+    (owner only). 429 past `INVITE_MAX_PER_DAY`, 503 without email.
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+    if not email_links_enabled(config, mailer):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="L'invio di email non è attivo su questo server",
+        )
+
+    with db_operation("reinvio invito") as session:
+        invito = invitations_service.resend(
+            session,
+            id_apiario,
+            id_invito,
+            id_mittente=current_user["id_utente"],
+            invite_lifetime=timedelta(days=config.INVITE_EXPIRE_DAYS),
+            max_per_day=config.INVITE_MAX_PER_DAY,
+        )
+    if invito is None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Hai raggiunto il limite giornaliero di inviti: riprova domani",
+        )
+
+    sender = f"{current_user['nome']} {current_user['cognome']}"
+    send_invitation(background_tasks, mailer, config, sender, invito)
+    return {"message": f"Invito inviato di nuovo a {invito['email']}"}
 
 
 @app.delete(
@@ -1513,6 +1657,20 @@ def health_check():
 ADMIN_DIR = Path(__file__).resolve().parent.parent / "admin"
 
 app.mount("/admin", StaticFiles(directory=ADMIN_DIR, html=True), name="admin")
+
+
+@app.get("/invite", include_in_schema=False)
+def invite_page():
+    """
+    The page an invitation email links to: it creates the account (#55).
+
+    Like /reset-password: with the admin page for its stylesheet, for anyone,
+    and the token stays in the URL fragment.
+    """
+    return FileResponse(
+        ADMIN_DIR / "invite.html",
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
 
 
 @app.get("/reset-password", include_in_schema=False)

@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 60 routes, and the `/reset-password` page. |
+| `main.py` | The application: lifespan, CORS, error translation and all 62 routes, and the `/reset-password` and `/invite` pages. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `mail.py` | `get_mailer` and `send_later`: email off the request path — see [Configuration](#configuration). |
 | `ratelimit.py` | In-memory request limits: per client address on the forgot-password route ([Password reset](#password-reset)), per user on sharing. |
@@ -28,7 +28,7 @@ here.
 
 ## Endpoints
 
-60 operations. `Auth` says what a request must carry:
+62 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -48,6 +48,7 @@ here.
 | POST | `/api/auth/refresh` | none | Exchange a refresh token for a new access and refresh token; the old one is spent. |
 | POST | `/api/auth/logout` | none | Revoke a refresh token. Always 200. |
 | POST | `/api/auth/password/forgot` | none | Email a single-use reset link. Always 202 with the same body; 429 past the per-IP limit; 503 without email. See [Password reset](#password-reset). |
+| POST | `/api/auth/invite/accept` | none | Create an account from an apiary invitation (`token`, `nome`, `cognome`, `password`) and log it in: returns login's tokens. One 400 for an unknown, expired, used or withdrawn link. See [Invitations](#invitations). |
 | POST | `/api/auth/password/reset` | none | Set a new password with the emailed token. One 400 for an unknown, expired or used token. |
 | GET | `/api/auth/me` | user | The authenticated account. |
 
@@ -78,11 +79,12 @@ the caller's access to that hive's apiary, or that apiary.
 | PUT | `/api/user/apiari/{id_apiario}` | user + manager | Edit it — the default one included. |
 | DELETE | `/api/user/apiari/{id_apiario}` | user + owner | Delete it, with its shares. **409** for the default one, and while active hives are still in it. |
 | GET | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Who it is shared with, and as what: active shares (`stato: attiva`, with `id_utente`) and pending invitations (`stato: in_attesa`, with `id_invito`), by email. **Paged**. |
-| POST | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Share it with an `email`, as `viewer` (default), `collaborator` or `manager`. An email with no account gets a pending invitation. The answer (`id_apiario`, `email`, `ruolo`) is the same either way. Sharing again changes the role. **429** past `SHARE_MAX_PER_HOUR`. |
+| POST | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Share it with an `email`, as `viewer` (default), `collaborator` or `manager`. An email with no account gets a pending invitation. The answer (`id_apiario`, `email`, `ruolo`) is the same either way. With email on, an account is sent a notice and an invitation a link to sign up. Sharing again changes the role. **429** past `SHARE_MAX_PER_HOUR`. |
 | PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Change that user's role. |
 | DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Stop sharing it with that user. |
 | PUT | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | user + owner | Change the role of a pending invitation. |
-| DELETE | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | user + owner | Withdraw a pending invitation. |
+| POST | `/api/user/apiari/{id_apiario}/inviti/{id_invito}/reinvia` | user + owner | Email the invitation again with a new link; the old one stops working. 202; **429** past `INVITE_MAX_PER_DAY`; **503** without email. |
+| DELETE | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | user + owner | Withdraw a pending invitation. If no other apiary waits for that email, its link stops working. |
 
 The four series endpoints exist because a chart needs two columns out of a row of
 nine; they drop rows where the field is NULL. The list of fields they accept is a
@@ -289,6 +291,37 @@ admin login), or from the app through `POST /api/auth/password/forgot`
 
 Neither the token nor the link is ever logged.
 
+## Invitations
+
+Sharing an apiary with an email that has no account stores a pending invitation (#40).
+With email on, the invited person is also sent a link to create their account
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)). The logic is
+`meshbee_core/services/invitations.py`, over `inviti_apiari` and `token_monouso`.
+
+- **Sign-up is by invitation only.** `POST /api/auth/invite/accept` creates an account
+  with role `user` for the address the invitation was sent to; the person cannot choose
+  another one. Every apiary shared with that address becomes theirs at once, and they are
+  logged in. There is no open registration
+  ([#62](https://github.com/fablab-imperia/meshbee-server/issues/62)).
+- **The link** is `{PUBLIC_BASE_URL}/invite#token=…`, valid for `INVITE_EXPIRE_DAYS` and
+  usable once. It works like the reset link: 256 random bits, only the SHA-256 is stored,
+  and the token stays in the fragment. It never appears in the share response, so only
+  the invited mailbox holds it. One link per address: inviting again, to any apiary, or
+  resending, replaces it. Withdrawing the last invitation to an address voids it.
+- **An existing account** gets a notice instead: "*sender* shared the apiary *name* with
+  you as *role*", with a link to `PUBLIC_BASE_URL` when it is set. Only a new share
+  sends one: sharing again to change the role does not.
+- **Limits**, so one user cannot spend the provider's daily quota and with it everyone's
+  password resets: at most `INVITE_MAX_PER_DAY` invitation emails per user, counted in
+  the database, and `NOTICE_MAX_PER_DAY` notices, counted in memory (notices are not
+  stored). Past either, sharing still works and answers as usual (#40) but sends
+  nothing, and resend answers 429. `SHARE_MAX_PER_HOUR` bounds every share request.
+- **Without email**, or without `PUBLIC_BASE_URL` for the invitation links, sharing works
+  as described in #40 and sends nothing. Resend answers 503. An invitation still turns
+  into a share when an admin creates the account.
+
+The emails carry no data about the sender beyond their name and the apiary's name.
+
 ## Error translation
 
 Services raise vocabulary from `meshbee_core.errors` and know nothing about HTTP. The
@@ -340,6 +373,9 @@ README.
 | `PASSWORD_RESET_MAX_PER_ACCOUNT` | int | `3` an hour |
 | `PASSWORD_RESET_MAX_PER_IP` | int | `10` an hour |
 | `SHARE_MAX_PER_HOUR` | int | `30` share requests per user |
+| `INVITE_EXPIRE_DAYS` | int | `7` (at most 30) |
+| `INVITE_MAX_PER_DAY` | int | `20` invitation emails per user |
+| `NOTICE_MAX_PER_DAY` | int | `20` share notices per user |
 
 `CORS_ORIGINS` is a list, so from the environment it must be **JSON**, not a
 comma-separated string:

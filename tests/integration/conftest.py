@@ -222,6 +222,7 @@ def client(use_db):
     # In memory, so it would carry one test's requests into the next.
     main.forgot_limiter.clear()
     main.share_limiter.clear()
+    main.notice_limiter.clear()
     yield TestClient(main.app)
     main.app.dependency_overrides.clear()
 

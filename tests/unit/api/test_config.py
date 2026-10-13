@@ -227,3 +227,25 @@ def test_the_share_limit_defaults_to_thirty_an_hour(build_settings):
 def test_the_share_limit_must_be_positive(build_settings):
     with pytest.raises(ValidationError):
         build_settings(SHARE_MAX_PER_HOUR=0)
+
+
+def test_invitation_defaults(build_settings):
+    settings = build_settings()
+
+    assert settings.INVITE_EXPIRE_DAYS == 7
+    assert settings.INVITE_MAX_PER_DAY == 20
+    assert settings.NOTICE_MAX_PER_DAY == 20
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("INVITE_EXPIRE_DAYS", 0),
+        ("INVITE_EXPIRE_DAYS", 31),
+        ("INVITE_MAX_PER_DAY", 0),
+        ("NOTICE_MAX_PER_DAY", 0),
+    ],
+)
+def test_invitation_limits_are_bounded(build_settings, field, value):
+    with pytest.raises(ValidationError):
+        build_settings(**{field: value})

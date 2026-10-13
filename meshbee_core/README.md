@@ -64,6 +64,7 @@ scripts/ ───────┘
 | `attivita.py` | The activity log. |
 | `accessi.py` | Sharing an apiary: granting, changing and revoking roles; pending invitations for emails with no account, and turning them into shares when the account appears (#40). |
 | `ingest.py` | The MQTT path: register the node, resolve or create the hive, store the reading. |
+| `invitations.py` | Apiary invitations by email (#55): the invitation token on sharing, resending, the per-sender cap, and accepting (which creates the account). |
 | `password_reset.py` | Password reset by email: who gets a token, the per-account cap, spending it. Hands the token back; the caller sends the email. |
 
 ## Layer rules

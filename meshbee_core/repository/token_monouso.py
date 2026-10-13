@@ -98,3 +98,30 @@ def delete_expired_before(session: Session, age: timedelta) -> None:
     session.exec(
         sql_delete(TokenMonouso).where(TokenMonouso.data_scadenza <= func.now() - age)
     )
+
+
+def count_by_sender_since(
+    session: Session, id_mittente: int, scopo: ScopoToken, window: timedelta
+) -> int:
+    """How many tokens of this purpose `id_mittente` caused within `window`, spent or not."""
+    return session.exec(
+        select(func.count()).where(
+            TokenMonouso.id_mittente == id_mittente,
+            TokenMonouso.scopo == scopo,
+            TokenMonouso.data_creazione > func.now() - window,
+        )
+    ).one()
+
+
+def spend_all_for_email(session: Session, email: str, scopo: ScopoToken) -> int:
+    """Spend every unspent token of this purpose sent to `email`; returns how many."""
+    result = session.exec(
+        sql_update(TokenMonouso)
+        .where(
+            TokenMonouso.email == email,
+            TokenMonouso.scopo == scopo,
+            TokenMonouso.data_utilizzo.is_(None),
+        )
+        .values(data_utilizzo=func.now())
+    )
+    return result.rowcount

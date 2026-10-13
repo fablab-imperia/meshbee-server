@@ -64,6 +64,7 @@ scripts/ ───────┘
 | `attivita.py` | Il log attività. |
 | `accessi.py` | La condivisione di un apiario: concedere, cambiare e revocare i ruoli; gli inviti in attesa per email senza account, e la loro trasformazione in condivisioni quando l'account compare (#40). |
 | `ingest.py` | Il percorso MQTT: registra il nodo, risolve o crea l'arnia, archivia la lettura. |
+| `invitations.py` | Inviti agli apiari via email (#55): il token di invito alla condivisione, il reinvio, il limite per mittente e l'accettazione (che crea l'account). |
 | `password_reset.py` | Reimpostare la password via email: chi riceve un token, il limite per account, il suo consumo. Restituisce il token; l'email la invia il chiamante. |
 
 ## Regole dei livelli

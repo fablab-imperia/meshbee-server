@@ -6,11 +6,11 @@
 
 function sharesMixin() {
   return {
-    // The panel's data: { apiario, rows, form: { email, ruolo } }.
+    // The panel's data: { apiario, rows, form: { email, ruolo }, notice }.
     shares: null,
 
     async openShares(apiario) {
-      this.shares = { apiario, rows: [], form: { email: "", ruolo: "viewer" } };
+      this.shares = { apiario, rows: [], form: { email: "", ruolo: "viewer" }, notice: "" };
       this.resetPage("shares"); // pagination.js
       this.dialogError = "";
       this.dialog = { kind: "shares", title: `Condivisioni: ${apiario.nome_apiario}` };
@@ -59,6 +59,14 @@ function sharesMixin() {
 
     async changeShare(share, ruolo) {
       await this.entryCall("PUT", share, { ruolo });
+    },
+
+    // A new invitation email, with a new link (#55); the old link stops working.
+    async resendInvite(share) {
+      this.dialogError = "";
+      this.shares.notice = "";
+      const data = await this.api("POST", `${this.sharePath(share)}/reinvia`, undefined, (m) => (this.dialogError = m));
+      if (data) this.shares.notice = data.message;
     },
 
     async revokeShare(share) {

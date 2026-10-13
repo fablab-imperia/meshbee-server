@@ -60,6 +60,11 @@ pagina. È semplice script, senza Alpine. Con un frammento `#token=…` chiede d
 la nuova password; senza, chiede un'email e richiede un link. Il login admin la
 collega. Vedi [`api/`](../api/README.it.md#reimpostare-la-password).
 
+**`invite.html`** e **`invite.js`** sono lo stesso tipo di pagina per un'email di invito
+(#55), servita su `/invite`: nome, cognome e una password, e l'account esiste. Il
+pannello di condivisione segna gli inviti in attesa e può inviarne uno di nuovo
+("Reinvia"). Vedi [`api/`](../api/README.it.md#inviti).
+
 ## Funzionalità
 
 - **Un'arnia scelta nelle schede letture o attività** fa passare l'elenco alla rotta

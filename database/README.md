@@ -177,8 +177,8 @@ One row per refresh token issued by `/api/auth/login` or `/api/auth/refresh`
 
 One row per link emailed by the server, written and read by
 `repository/token_monouso.py`: a password reset
-([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)) today, an invitation
-([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)) next.
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)) or an apiary invitation
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)).
 
 - `token_hash` holds the token's **SHA-256**, never the token.
 - `scopo` is what the token is for: CHECK over `password_reset`, `invite`
@@ -277,7 +277,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0003` | Dropped `trigger_aggiorna_nodo`, its function and `v_arnie_stato`: their logic moved to `services/ingest.py` and `repository/arnie.py` (#17). |
 | `0004` | Dropped the `uuid-ossp` extension, which `init.sql` installed and nothing ever used. Without CASCADE: anything depending on it makes the migration stop instead. |
 | `0005` | Ownership and apiaries (#2, #36): `apiari` with a `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, and `utenti_apiari` replacing `utenti_arnie`. A hive's owner becomes its best-placed active association (`admin` > `write` > `read`, earliest first); a node goes to the owner of most of its hives, and all its hives to that owner's Default; every other active association becomes a role on that Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), which can widen access but never removes it. Hives nobody could access stay unassigned. Downgrade rebuilds per-hive access. |
-| `0006` | `token_monouso`, single-use tokens sent by email (#54): password reset now, invitations (#55) next. |
+| `0006` | `token_monouso`, single-use tokens sent by email: password reset (#54) and apiary invitations (#55). |
 | `0007` | `inviti_apiari`, pending shares to emails with no account yet (#40). |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
