@@ -1232,6 +1232,7 @@
         "description": "Share an apiary with a user, found by email.",
         "properties": {
           "email": {
+            "maxLength": 255,
             "title": "Email",
             "type": "string"
           },

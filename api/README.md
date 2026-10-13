@@ -320,7 +320,11 @@ With email on, the invited person is also sent a link to create their account
   as described in #40 and sends nothing. Resend answers 503. An invitation still turns
   into a share when an admin creates the account.
 
-The emails carry no data about the sender beyond their name and the apiary's name.
+The emails carry no data about the sender beyond their name and the apiary's name,
+each cut to one line of at most 60 characters, so a name chosen by a user cannot carry a
+message of its own. A share is to **one** plain address: a list such as
+`a@x.org, b@y.org` is a 422, since it would be one invitation reaching many people past
+the caps. The mailer refuses anything else too.
 
 ## Error translation
 

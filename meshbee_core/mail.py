@@ -29,6 +29,27 @@ SmtpSecurity = Literal["ssl", "starttls", "none"]
 DEFAULT_PORTS: dict[str, int] = {"ssl": 465, "starttls": 587, "none": 25}
 
 
+def tls_context() -> ssl.SSLContext:
+    """
+    A TLS context that verifies the server: a trusted certificate, for this host name.
+
+    `create_default_context()` already does both; they are set again so that
+    nobody loosens them by accident, and so a reader need not know the default.
+    """
+    context = ssl.create_default_context()
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+    return context
+
+
+def is_single_address(value: str) -> bool:
+    """Whether `value` is exactly one plain address: no list, no display name, no line break."""
+    if any(c in value for c in ',;<>"\r\n') or any(c.isspace() for c in value):
+        return False
+    local, at, domain = value.partition("@")
+    return bool(at and local and "." in domain and "@" not in domain)
+
+
 def default_port(security: SmtpSecurity) -> int:
     """The conventional port for `security`: 465 (SMTPS), 587 (submission) or 25."""
     return DEFAULT_PORTS[security]
@@ -78,7 +99,15 @@ class Mailer:
         return message
 
     def send(self, to: str, subject: str, text: str, html: str | None = None) -> None:
-        """Send one message, or raise `Unavailable` saying which server failed."""
+        """
+        Send one message to one address, or raise `Unavailable`.
+
+        `to` must be a single plain address. A list such as "a@x.org, b@y.org"
+        would reach every address on it, past any cap that counts messages.
+        """
+        if not is_single_address(to):
+            logger.warning("Email not sent: the recipient is not a single address")
+            raise Unavailable("Servizio email non disponibile")
         message = self.build_message(to, subject, text, html)
         where = f"{self.config.host}:{self.config.port}"
         try:
@@ -100,12 +129,12 @@ class Mailer:
                 config.host,
                 config.port,
                 timeout=config.timeout,
-                context=ssl.create_default_context(),
+                context=tls_context(),
             )
         smtp = smtplib.SMTP(config.host, config.port, timeout=config.timeout)
         if config.security == "starttls":
             try:
-                smtp.starttls(context=ssl.create_default_context())
+                smtp.starttls(context=tls_context())
             except BaseException:
                 smtp.close()
                 raise

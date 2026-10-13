@@ -9,6 +9,21 @@ from dataclasses import dataclass
 
 SIGNATURE = "\n-- \nMeshbee"
 
+# How much of a name chosen by a user (a person's, an apiary's) an email repeats.
+INLINE_MAX = 60
+
+
+def inline(value: str, limit: int = INLINE_MAX) -> str:
+    """
+    User-chosen text as it may appear in an email: one line, at most `limit` characters.
+
+    Emails go to addresses the user picked, from the server's own domain. Names
+    are kept short and on one line, so a name can't carry a message of its own,
+    or break the Subject header with a newline.
+    """
+    flat = " ".join(value.split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
 
 @dataclass(frozen=True)
 class Email:
@@ -21,7 +36,7 @@ def password_reset(nome: str, link: str, minutes: int) -> Email:
     return Email(
         subject="Meshbee: reimposta la password",
         text=(
-            f"Ciao {nome},\n\n"
+            f"Ciao {inline(nome)},\n\n"
             "abbiamo ricevuto una richiesta di reimpostare la password del tuo "
             "account Meshbee. Per sceglierne una nuova apri questo link:\n\n"
             f"{link}\n\n"
@@ -37,7 +52,7 @@ def password_changed(nome: str) -> Email:
     return Email(
         subject="Meshbee: la tua password è stata cambiata",
         text=(
-            f"Ciao {nome},\n\n"
+            f"Ciao {inline(nome)},\n\n"
             "la password del tuo account Meshbee è appena stata cambiata, e i "
             "dispositivi collegati dovranno accedere di nuovo.\n\n"
             "Se non sei stato tu, reimposta subito la password dalla pagina di "
@@ -63,6 +78,7 @@ def apiary_shared(
         if app_url
         else ("Lo trovi nell'app Meshbee.\n")
     )
+    mittente, nome_apiario = inline(mittente), inline(nome_apiario)
     return Email(
         subject=f"Meshbee: {mittente} ha condiviso l'apiario {nome_apiario}",
         text=(
@@ -77,6 +93,7 @@ def invitation(
     mittente: str, nome_apiario: str, ruolo: str, link: str, days: int
 ) -> Email:
     """An invitation to someone with no account: the link creates one (#55)."""
+    mittente, nome_apiario = inline(mittente), inline(nome_apiario)
     return Email(
         subject=f"Meshbee: {mittente} ti invita nell'apiario {nome_apiario}",
         text=(

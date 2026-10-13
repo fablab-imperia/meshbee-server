@@ -82,12 +82,15 @@ from meshbee_core.limits import (
     StatoCondivisione,
     TipoAttivita,
 )
+from meshbee_core.mail import is_single_address
 
 NOW = {"server_default": text("CURRENT_TIMESTAMP")}
 TRUE = {"server_default": text("true")}
 FALSE = {"server_default": text("false")}
 
 ID = String(ID_MAX_LENGTH)
+
+APIARIO_FK = "apiari.id_apiario"
 
 
 def in_range(column: str, low=None, high=None) -> str:
@@ -517,7 +520,7 @@ class ArniaBase(SQLModel):
     longitudine: Decimal | None = longitudine_column()
     # The hive's owner is this apiary's owner. Null while its node is
     # unassigned; on creation, the node owner's default apiary.
-    id_apiario: int | None = Field(None, foreign_key="apiari.id_apiario")
+    id_apiario: int | None = Field(None, foreign_key=APIARIO_FK)
 
 
 class ArniaCreate(ArniaBase):
@@ -821,13 +824,24 @@ class AttivitaQueryParams(BaseModel):
 class CondivisioneCreate(BaseModel):
     """Share an apiary with a user, found by email."""
 
-    email: str
+    email: str = Field(max_length=255)
     ruolo: RuoloApiario = "viewer"
 
     @field_validator("email")
     @classmethod
-    def normalize_email_case(cls, v):
-        return normalize_email(v)
+    def single_address(cls, v):
+        """
+        One plain address, as a 422 otherwise.
+
+        It may be emailed an invitation (#55): a list such as "a@x.org, b@y.org"
+        would reach every address on it as one invitation, past the daily caps.
+        Refusing a malformed address reveals nothing about which ones are
+        registered (#40): no account could have it.
+        """
+        v = normalize_email(v)
+        if not is_single_address(v):
+            raise ValueError("Email non valida: indica un solo indirizzo")
+        return v
 
 
 class CondivisioneUpdate(BaseModel):
@@ -838,7 +852,7 @@ class CondivisioneUpdate(BaseModel):
 
 class CondivisioneBase(SQLModel):
     id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
-    id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
+    id_apiario: int = Field(foreign_key=APIARIO_FK, ondelete="CASCADE")
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
     data_condivisione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
 
@@ -909,7 +923,7 @@ class CondivisioneStato(BaseModel):
 class InvitoBase(SQLModel):
     """An apiary shared with an email that has no account yet (#40)."""
 
-    id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
+    id_apiario: int = Field(foreign_key=APIARIO_FK, ondelete="CASCADE")
     email: str = Field(sa_type=String(255))
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
     data_invito: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)

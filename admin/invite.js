@@ -65,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     show(null, "");
-    accept(form, token);
+    // The handler returns nothing to wait for: accept() reports its own errors.
+    void accept(form, token);
   });
 });

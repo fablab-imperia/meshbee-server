@@ -12,6 +12,7 @@ import pytest
 from meshbee_core.errors import InvalidData, NotFound
 from meshbee_core.models import CondivisioneCreate
 from meshbee_core.repository import accessi as accessi_repo
+from meshbee_core.repository import token_monouso
 from meshbee_core.security import hash_token
 from meshbee_core.services import accessi, invitations
 
@@ -269,11 +270,17 @@ def test_an_address_that_got_an_account_meanwhile_is_refused(
         accept(session, token)
 
 
-def test_a_malformed_invited_address_is_one_more_invalid_link(session, apiario, owner):
-    """Sharing does not validate the address; no account could ever have it."""
-    token = share(session, apiario, owner, email="not-an-email")["token"]
+def test_a_malformed_invited_address_is_one_more_invalid_link(session):
+    """
+    Sharing no longer accepts one, but a row from before must not reach a 500.
+
+    No account could ever have the address, so the link is simply invalid.
+    """
+    token_monouso.insert(
+        session, "invite", hash_token("odd"), LIFETIME, email="not-an-email"
+    )
 
     with pytest.raises(InvalidData) as exc_info:
-        accept(session, token)
+        accept(session, "odd")
 
     assert str(exc_info.value) == invitations.INVALID_LINK

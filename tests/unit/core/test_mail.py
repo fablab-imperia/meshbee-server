@@ -251,3 +251,52 @@ def test_a_success_is_logged_without_the_body(caplog):
 
 def test_the_password_is_not_in_the_config_repr():
     assert PASSWORD not in repr(make_config())
+
+
+# ============================================
+# One recipient, a verified server
+# ============================================
+
+
+@pytest.mark.parametrize(
+    "to",
+    [
+        "a@example.org, b@example.org",
+        "a@example.org;b@example.org",
+        "Name <a@example.org>",
+        "a@example.org\nBcc: b@example.org",
+        "a @example.org",
+        "not-an-email",
+        "a@b@example.org",
+    ],
+)
+def test_only_a_single_plain_address_is_sent_to(fake_smtplib, to):
+    """A list would reach every address on it, past any cap that counts messages."""
+    with pytest.raises(Unavailable):
+        Mailer(make_config()).send(to, "S", "T")
+
+    assert FakeSMTP.instances == []
+
+
+def test_the_tls_context_verifies_the_server():
+    import ssl
+
+    context = mail.tls_context()
+
+    assert context.check_hostname is True
+    assert context.verify_mode == ssl.CERT_REQUIRED
+
+
+def test_both_tls_modes_use_the_verifying_context(monkeypatch):
+    marker = object()
+    monkeypatch.setattr(mail, "tls_context", lambda: marker)
+    seen = []
+    monkeypatch.setattr(
+        FakeSMTP, "starttls", lambda self, context=None: seen.append(context)
+    )
+
+    Mailer(make_config(security="ssl", port=465)).send("a@example.org", "S", "T")
+    Mailer(make_config(security="starttls")).send("a@example.org", "S", "T")
+
+    assert FakeSMTP.instances[0].context is marker
+    assert seen == [marker]

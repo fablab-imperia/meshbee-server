@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     show(null, "");
-    if (token) resetPassword(form, token);
-    else requestLink(form);
+    // The handler returns nothing to wait for: each call reports its own errors.
+    void (token ? resetPassword(form, token) : requestLink(form));
   });
 });

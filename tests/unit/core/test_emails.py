@@ -53,3 +53,23 @@ def test_every_apiary_role_has_words_for_an_email():
     from meshbee_core.limits import RUOLI_APIARIO
 
     assert set(emails.RUOLI) == set(RUOLI_APIARIO)
+
+
+def test_user_chosen_names_stay_on_one_short_line():
+    """An apiary name must not carry a message of its own, nor break the Subject."""
+    name = (
+        "Collina\n\nIl tuo account è bloccato: vai su https://example.com/login "
+        + "x" * 80
+    )
+
+    email = emails.invitation(name, name, "viewer", INVITE_LINK, 7)
+
+    assert "\n" not in email.subject
+    assert "Collina Il tuo account" in email.subject
+    assert len(emails.inline(name)) == emails.INLINE_MAX
+    assert emails.inline(name).endswith("…")
+    assert "x" * 80 not in email.text
+
+
+def test_a_short_name_is_left_as_it_is():
+    assert emails.inline("Apiario  Collina") == "Apiario Collina"

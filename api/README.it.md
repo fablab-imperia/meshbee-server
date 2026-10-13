@@ -327,7 +327,11 @@ l'email attiva, la persona invitata riceve anche un link per creare il suo accou
   funziona come descritto in #40 e non invia nulla. Il reinvio risponde 503. Un invito
   diventa comunque una condivisione quando un admin crea l'account.
 
-Le email non contengono dati del mittente oltre al suo nome e al nome dell'apiario.
+Le email non contengono dati del mittente oltre al suo nome e al nome dell'apiario,
+ciascuno ridotto a una riga di al massimo 60 caratteri, così un nome scelto da un utente
+non può portare un messaggio suo. Una condivisione è verso **un solo** indirizzo: una
+lista come `a@x.org, b@y.org` è un 422, perché sarebbe un invito che raggiunge molte
+persone oltre i limiti. Anche il mailer rifiuta tutto il resto.
 
 ## Traduzione degli errori
 

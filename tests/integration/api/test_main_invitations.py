@@ -328,3 +328,17 @@ def test_notices_stop_at_the_daily_cap_but_shares_do_not(
     assert [r.status_code for r in responses] == [200, 200, 200]
     assert len(mailer.outbox) == 2
     assert {s["stato"] for s in shares_of(client, apiario)} == {"attiva"}
+
+
+@pytest.mark.parametrize(
+    "email", ["a@example.org, b@example.org", "Name <a@example.org>", "not-an-email"]
+)
+def test_sharing_takes_exactly_one_address(as_user, mailer, owner, apiario, email):
+    """A list would be one invitation to many people, past the daily caps."""
+    client = as_user(owner)
+
+    response = share(client, apiario, email=email)
+
+    assert response.status_code == 422
+    assert mailer.outbox == []
+    assert shares_of(client, apiario) == []
