@@ -88,6 +88,13 @@ Its `deliver` fixture wraps each message in a SAVEPOINT, because in production e
 message gets its own transaction and the test must not let one message see another's
 uncommitted work.
 
+**`integration/core/services/test_auth_sessioni_concurrency.py` — the one test that
+commits.** Two refreshes with the same token, in two threads with two connections; a
+barrier holds both right after they read the session row, so the race happens on every
+run. A race needs two transactions that really commit, which the rolled-back test
+transaction can't give, so this test writes committed rows and deletes them at the end.
+Copy it for any other check-then-write that two requests can hit at once.
+
 **`integration/api/test_main_authz.py` — the gate.** Its tables list **all 56
 endpoints**: every protected one is swept for anonymous and authenticated-but-not-admin
 access, and every hive- or apiary-scoped one carries the **least access** that may call
