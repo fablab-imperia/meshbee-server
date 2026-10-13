@@ -1,0 +1,75 @@
+# Production layer over docker-compose.yml (which is the development setup).
+# Select both files once, in the server's .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+# then plain `docker compose up -d` uses them. What changes:
+#   - only Caddy (80, 443, 8000) and MQTT (1883) are published; Postgres, the
+#     WebSocket listener and the API itself are reachable only inside the network;
+#   - services run the code baked into their images: no --reload, no bind mounts;
+#   - Caddy terminates HTTPS for MESHBEE_DOMAIN with a Let's Encrypt certificate;
+#   - container logs rotate.
+# Needs MESHBEE_DOMAIN and ACME_EMAIL in .env. See README.md, "Production".
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    ports: !reset []
+    logging: *logging
+
+  mosquitto:
+    # The nodes need 1883; nothing uses the WebSocket listener on 9001.
+    ports: !override
+      - "1883:1883"
+    logging: *logging
+
+  migrate:
+    volumes: !reset []
+    logging: *logging
+
+  seed:
+    volumes: !reset []
+    logging: *logging
+
+  mqtt-handler:
+    volumes: !reset []
+    logging: *logging
+
+  api:
+    # Caddy owns 80/443/8000 and forwards to api:8000 on the network.
+    ports: !reset []
+    volumes: !reset []
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      # Trust X-Forwarded-* from any peer: only Caddy can reach the API, and it keeps
+      # redirects (e.g. /admin → /admin/) on https.
+      FORWARDED_ALLOW_IPS: "*"
+      # The app is native and /admin is same-origin; no other site may call the API.
+      CORS_ORIGINS: '["https://${MESHBEE_DOMAIN:?set MESHBEE_DOMAIN in .env}"]'
+    logging: *logging
+
+  caddy:
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "8000:8000"
+    volumes: !override
+      - ./caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      # Certificates and the ACME account: keep them, or every restart asks Let's
+      # Encrypt again and hits its rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      MESHBEE_DOMAIN: ${MESHBEE_DOMAIN:?set MESHBEE_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    # The dev service wraps Caddy in a script that waits for mkcert certificates.
+    entrypoint: !reset null
+    command: !override ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:

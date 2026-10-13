@@ -1,0 +1,33 @@
+# Production reverse proxy, used by docker-compose.prod.yml (the dev one is ./Caddyfile).
+# Caddy gets and renews a Let's Encrypt certificate for MESHBEE_DOMAIN by itself; port
+# 80 must be reachable from the internet for the HTTP-01 challenge.
+{
+	email {$ACME_EMAIL}
+	admin off
+	# No HTTP/3: it runs over UDP, and the firewall only needs to open TCP 80/443.
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$MESHBEE_DOMAIN} {
+	encode zstd gzip
+	header {
+		# Short on purpose until HTTPS has proven stable; raise it then.
+		# No includeSubDomains: it would bind every name under this one.
+		Strict-Transport-Security "max-age=300"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	reverse_proxy api:8000
+}
+
+# Plain HTTP by IP on :80, and anything on :8000 (the API's old address), so clients
+# that predate the domain keep working while they move to https. The domain's own
+# http:// requests are not served here: Caddy's automatic redirect to https wins.
+http://:80, http://:8000 {
+	header -Server
+	reverse_proxy api:8000
+}
