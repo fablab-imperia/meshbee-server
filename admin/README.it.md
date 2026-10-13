@@ -97,10 +97,10 @@ un URL dell'API.
   - Sono una trentina di righe in `url.js`, senza librerie di routing. Le schede
     condividono una sola tabella, quindi template per rotta non avrebbero niente da
     contenere.
-- **Il token sta in `sessionStorage`**, quindi sparisce chiudendo la scheda. Non c'è
-  refresh ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): quando il
-  token scade, la richiesta successiva riceve un 401 e la pagina chiede di nuovo il
-  login.
+- **Il token sta in `sessionStorage`**, quindi sparisce chiudendo la scheda. La pagina
+  conserva solo l'access token e non usa `/api/auth/refresh`
+  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): quando il token
+  scade, la richiesta successiva riceve un 401 e la pagina chiede di nuovo il login.
 
 ## Sviluppo
 

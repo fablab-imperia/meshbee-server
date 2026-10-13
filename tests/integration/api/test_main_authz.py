@@ -10,11 +10,12 @@ try again", **403** means "you are authenticated but not allowed".
 
 import pytest
 
-# Reachable without a token and always 200. Login is public too, but answers 401
-# on bad credentials, so it gets its own test below.
+# Reachable without a token and always 200. Login and refresh are public too, but
+# answer 401 on bad credentials, so they get their own tests below.
 PUBLIC_OPEN = [
     ("get", "/", None),
     ("get", "/health", None),
+    ("post", "/api/auth/logout", {"refresh_token": "x"}),
 ]
 
 # Admin-only: Depends(get_current_admin_user).
@@ -154,7 +155,7 @@ def test_a_non_bearer_authorization_header_is_unauthorized(client, header):
 
 @pytest.mark.parametrize("method, path, body", PUBLIC_OPEN, ids=ids(PUBLIC_OPEN))
 def test_public_endpoints_do_not_require_a_token(client, method, path, body):
-    """Root and health stay reachable without credentials."""
+    """Root, health and logout stay reachable without credentials."""
     assert call(client, method, path, body).status_code == 200
 
 
@@ -365,3 +366,14 @@ def test_editing_an_activity_is_allowed_to_a_collaborator(
     )
 
     assert response.status_code == 200
+
+
+def test_refresh_is_reachable_without_an_access_token(client):
+    """
+    Refresh runs its handler with no Authorization header: the access token it
+    replaces has usually expired. The 401 is about the refresh token.
+    """
+    response = client.post("/api/auth/refresh", json={"refresh_token": "x"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Refresh token non valido"

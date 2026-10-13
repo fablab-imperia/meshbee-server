@@ -142,12 +142,21 @@ ogni query per i grafici, e `id_nodo`.
 | `descrizione` | TEXT | |
 | `dati` | JSONB | Dettaglio strutturato — telaini di miele, covata presente, e così via. |
 
-### `token_sessione` — inutilizzata, di proposito
+### `token_sessione` — sessioni dei refresh token
 
-I refresh token sono **JWT stateless** e non esiste un endpoint `/api/auth/refresh`,
-quindi niente nell'applicazione legge o scrive questa tabella. Resta perché ha la forma
-giusta per la funzionalità quando arriverà (revoca, `ip_address`, `user_agent`):
-[issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
+Una riga per ogni refresh token emesso da `/api/auth/login` o `/api/auth/refresh`
+([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)), scritta e letta da
+`repository/sessioni.py`:
+
+- `refresh_token` contiene lo **SHA-256** del token, mai il token. Una copia del database
+  non dà token utilizzabili.
+- `revocato` viene impostato quando il token è consumato da un refresh, dal logout, dalla
+  disattivazione dell'account o da una nuova password. Le righe revocate restano finché
+  non scadono, perché un token revocato che ritorna è il modo in cui si scopre una copia
+  rubata.
+- `data_scadenza` è calcolata con l'orologio del database. Le righe scadute di un utente
+  vengono cancellate al suo login successivo.
+- `ip_address` e `user_agent` registrano chi ha chiesto il token.
 
 ## Niente viste, niente trigger
 

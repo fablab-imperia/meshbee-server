@@ -199,6 +199,12 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class RefreshRequest(BaseModel):
+    """Body of /api/auth/refresh and /api/auth/logout"""
+
+    refresh_token: str
+
+
 class TokenData(BaseModel):
     """Dati contenuti nel token"""
 
@@ -821,7 +827,11 @@ class UtenteApiario(CondivisioneBase, table=True):
 
 
 class TokenSessione(SQLModel, table=True):
-    """Unused on purpose: refresh tokens are stateless (#16). Kept for later."""
+    """
+    One row per issued refresh token (#16), so it can be redeemed once and revoked.
+
+    `refresh_token` holds the token's SHA-256 (`security.hash_token`), never the token.
+    """
 
     __tablename__ = "token_sessione"
 

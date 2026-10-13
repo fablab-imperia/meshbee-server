@@ -42,6 +42,10 @@ def get_by_email(session: Session, email: str) -> dict[str, Any] | None:
     return as_dict(by_email(session, email), exclude=PRIVATE)
 
 
+def get_by_id(session: Session, id_utente: int) -> dict[str, Any] | None:
+    return as_dict(session.get(Utente, id_utente), exclude=PRIVATE)
+
+
 def touch_ultimo_accesso(session: Session, id_utente: int) -> None:
     session.exec(
         sql_update(Utente)

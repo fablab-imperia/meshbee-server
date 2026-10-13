@@ -142,12 +142,20 @@ every chart query uses, and `id_nodo`.
 | `descrizione` | TEXT | |
 | `dati` | JSONB | Structured detail — frames of honey, brood present, and so on. |
 
-### `token_sessione` — unused, deliberately
+### `token_sessione` — refresh-token sessions
 
-Refresh tokens are **stateless JWTs** and there is no `/api/auth/refresh` endpoint, so
-nothing in the application reads or writes this table. It is kept because it is the
-right shape for the feature when it lands (revocation, `ip_address`, `user_agent`):
-[issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
+One row per refresh token issued by `/api/auth/login` or `/api/auth/refresh`
+([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)), written and read by
+`repository/sessioni.py`:
+
+- `refresh_token` holds the token's **SHA-256**, never the token. A copy of the database
+  yields no usable tokens.
+- `revocato` is set when the token is spent by a refresh, by logout, by deactivating the
+  account, or by a new password. Revoked rows are kept until they expire, because a
+  revoked token that comes back is how a stolen copy is detected.
+- `data_scadenza` is set from the database clock. A user's expired rows are deleted at
+  their next login.
+- `ip_address` and `user_agent` record who asked for the token.
 
 ## No views, no triggers
 

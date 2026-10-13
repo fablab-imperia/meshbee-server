@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -22,10 +22,10 @@ from api.auth import (
     authenticate_user,
     check_user_apiario_access,
     check_user_arnia_access,
-    create_access_token,
-    create_refresh_token,
     get_current_active_user,
     get_current_admin_user,
+    is_refresh_token,
+    issue_tokens,
 )
 from api.config import settings
 from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
@@ -57,6 +57,7 @@ from meshbee_core.models import (
     NodoProprietarioUpdate,
     NodoResponse,
     PasswordChange,
+    RefreshRequest,
     SerieBatteriaResponse,
     SeriePesoResponse,
     SerieTemperaturaResponse,
@@ -79,6 +80,9 @@ from meshbee_core.services import (
 )
 from meshbee_core.services import (
     attivita as attivita_service,
+)
+from meshbee_core.services import (
+    auth as auth_service,
 )
 from meshbee_core.services import (
     letture as letture_service,
@@ -218,7 +222,7 @@ def message_for_deleted_apiario(id_apiario: int) -> dict:
 
 
 @app.post("/api/auth/login", response_model=Token, tags=["Autenticazione"])
-def login(user_login: UserLogin):
+def login(user_login: UserLogin, request: Request):
     """
     Login utente e generazione token JWT
 
@@ -233,15 +237,51 @@ def login(user_login: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Crea token
-    access_token = create_access_token(data={"sub": user["email"]})
-    refresh_token = create_refresh_token(data={"sub": user["email"]})
+    with db_operation("login") as session:
+        return issue_tokens(session, user, request)
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-    }
+
+@app.post("/api/auth/refresh", response_model=Token, tags=["Autenticazione"])
+def refresh(body: RefreshRequest, request: Request):
+    """
+    Exchange a refresh token for a new access and refresh token.
+
+    The presented token is spent: use the new one next time. Presenting a spent
+    token again revokes every session of the account.
+    """
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Refresh token non valido",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if not is_refresh_token(body.refresh_token):
+        raise invalid
+
+    with db_operation("refresh") as session:
+        user = auth_service.redeem_refresh_token(session, body.refresh_token)
+        if user is None:
+            # Not raised inside the block: a detected reuse has just revoked
+            # the account's sessions, and that must commit.
+            tokens = None
+        else:
+            tokens = issue_tokens(session, user, request)
+
+    if tokens is None:
+        raise invalid
+    return tokens
+
+
+@app.post("/api/auth/logout", response_model=MessageResponse, tags=["Autenticazione"])
+def logout(body: RefreshRequest):
+    """
+    Revoke a refresh token. Needs no access token, which may have expired.
+
+    Answers the same for a token it does not know, so it reveals nothing.
+    """
+    if is_refresh_token(body.refresh_token):
+        with db_operation("logout") as session:
+            auth_service.close_session(session, body.refresh_token)
+    return {"message": "Logout effettuato"}
 
 
 @app.get("/api/auth/me", response_model=UserResponse, tags=["Autenticazione"])

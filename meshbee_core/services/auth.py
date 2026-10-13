@@ -1,16 +1,17 @@
 """Authentication, and authorization on apiaries and their hives.
 
-Token handling is *not* here: a JWT is an HTTP transport concern and lives in
-the API entry point. What lives here is who a password belongs to and what a
-user is allowed to do with an arnia — the MQTT handler does not need it today,
-but neither is it an HTTP concept.
+Minting and decoding a JWT is *not* here: that is an HTTP transport concern and
+lives in the API entry point. What lives here is who a password belongs to, which
+refresh tokens are still good (`token_sessione`), and what a user is allowed to
+do with an arnia — the MQTT handler does not need it today, but neither is it an
+HTTP concept.
 """
 
 from typing import Any
 
-from meshbee_core.repository import accessi, utenti
+from meshbee_core.repository import accessi, sessioni, utenti
 from meshbee_core.repository.accessi import OWNER
-from meshbee_core.security import verify_password
+from meshbee_core.security import hash_token, verify_password
 
 # What each role shared on an apiary allows, on the apiary and its hives. The
 # owner may do everything, so any action listed in no role is owner-only.
@@ -60,6 +61,65 @@ def get_utente_by_email(session, email: str) -> dict[str, Any] | None:
         return None
 
     return dict(user)
+
+
+def open_session(
+    session,
+    id_utente: int,
+    refresh_token: str,
+    lifetime_days: int,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> None:
+    """Record a newly issued refresh token, so it can be redeemed and revoked."""
+    sessioni.delete_expired(session, id_utente)
+    sessioni.insert(
+        session,
+        id_utente,
+        hash_token(refresh_token),
+        lifetime_days,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
+
+def redeem_refresh_token(session, refresh_token: str) -> dict[str, Any] | None:
+    """
+    Spend a refresh token: revoke its session and return the active user behind it.
+
+    None for an unknown, expired or revoked token, or a disabled account. A
+    revoked token coming back means it was copied — the legitimate client already
+    swapped it for a new one — so every session of that user is revoked too. That
+    is returned, not raised, so the caller's transaction still commits it.
+    """
+    row = sessioni.get_by_hash(session, hash_token(refresh_token))
+
+    if row is None or row["scaduto"] or row["id_utente"] is None:
+        return None
+
+    if row["revocato"]:
+        sessioni.revoke_all(session, row["id_utente"])
+        return None
+
+    sessioni.revoke(session, row["id_token"])
+
+    user = utenti.get_by_id(session, row["id_utente"])
+    if user is None or not user["attivo"]:
+        return None
+
+    return user
+
+
+def close_session(session, refresh_token: str) -> None:
+    """Revoke one refresh token (logout). Silent for a token it does not know."""
+    row = sessioni.get_by_hash(session, hash_token(refresh_token))
+    if row is not None:
+        sessioni.revoke(session, row["id_token"])
+
+
+def revoke_sessions(session, id_utente: int) -> None:
+    """Revoke every refresh token of a user: deactivation, a new password."""
+    sessioni.revoke_all(session, id_utente)
 
 
 def allows(accesso: str | None, action: str) -> bool:
