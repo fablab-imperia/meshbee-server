@@ -15,8 +15,10 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 56 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 58 routes, and the `/reset-password` page. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
+| `mail.py` | `get_mailer` and `send_later`: email off the request path — see [Configuration](#configuration). |
+| `ratelimit.py` | An in-memory per-client limit for anonymous routes that send email — see [Password reset](#password-reset). |
 | `paging.py` | The optional `limit`/`offset` parameters of the list routes, and their `X-Total-Count` header — see [Paging](#paging). |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -26,7 +28,7 @@ here.
 
 ## Endpoints
 
-56 operations. `Auth` says what a request must carry:
+58 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -45,6 +47,8 @@ here.
 | POST | `/api/auth/login` | none | Exchange email + password for an access and a refresh token. |
 | POST | `/api/auth/refresh` | none | Exchange a refresh token for a new access and refresh token; the old one is spent. |
 | POST | `/api/auth/logout` | none | Revoke a refresh token. Always 200. |
+| POST | `/api/auth/password/forgot` | none | Email a single-use reset link. Always 202 with the same body; 429 past the per-IP limit; 503 without email. See [Password reset](#password-reset). |
+| POST | `/api/auth/password/reset` | none | Set a new password with the emailed token. One 400 for an unknown, expired or used token. |
 | GET | `/api/auth/me` | user | The authenticated account. |
 
 ### Utente
@@ -246,6 +250,38 @@ Login answers the same 401 for an unknown email, a wrong password and a deactiva
 account — one answer for every failure mode, so the endpoint cannot be used to
 enumerate registered emails.
 
+## Password reset
+
+A user who forgot their password asks for a link on `/reset-password` (linked from the
+admin login), or from the app through `POST /api/auth/password/forgot`
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)). The logic is
+`meshbee_core/services/password_reset.py`, over the `token_monouso` table.
+
+- **Same answer for every address.** `forgot` answers 202 and the same body whether the
+  account exists, is deactivated, or has hit its cap. Only an active account is sent
+  anything, after the response.
+- **The token** is 256 random bits (not a JWT), single-use, and valid for
+  `PASSWORD_RESET_EXPIRE_MINUTES`. Only its SHA-256 is stored. A new request spends the
+  account's earlier link, and a reset spends all of them.
+- **The link** is `{PUBLIC_BASE_URL}/reset-password#token=…`. The token is in the
+  fragment, so it never reaches the API's or Caddy's logs and is never sent as a Referer.
+  The page drops it from the address bar once read. The link is never built from the
+  request's `Host`, which a caller controls.
+- **A reset logs out every device**: it revokes all of the account's refresh tokens, as
+  any new password does. Access tokens already issued stay valid until they expire
+  (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+- **Notices**: a successful reset, and a change through `PUT /api/user/password`, email
+  the account a short "your password was changed" notice when email is on.
+- **Limits**: at most `PASSWORD_RESET_MAX_PER_ACCOUNT` emails per account per hour,
+  counted in the database. At most `PASSWORD_RESET_MAX_PER_IP` requests per client
+  address per hour, counted in memory (`ratelimit.py`), so per API process and reset by a
+  restart.
+- **Without email** (`SMTP_HOST` or `PUBLIC_BASE_URL` unset), `forgot` answers 503 and
+  says to ask an admin; `PUT /api/admin/utenti/{id}/password` works as before. A link
+  sent before email was switched off still works.
+
+Neither the token nor the link is ever logged.
+
 ## Error translation
 
 Services raise vocabulary from `meshbee_core.errors` and know nothing about HTTP. The
@@ -293,6 +329,9 @@ README.
 | `SMTP_TIMEOUT` | float | `10` |
 | `MAIL_FROM` | str | unset; required with `SMTP_HOST` |
 | `PUBLIC_BASE_URL` | str | unset; trailing `/` dropped |
+| `PASSWORD_RESET_EXPIRE_MINUTES` | int | `30` (at most 1440) |
+| `PASSWORD_RESET_MAX_PER_ACCOUNT` | int | `3` an hour |
+| `PASSWORD_RESET_MAX_PER_IP` | int | `10` an hour |
 
 `CORS_ORIGINS` is a list, so from the environment it must be **JSON**, not a
 comma-separated string:

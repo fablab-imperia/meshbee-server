@@ -245,6 +245,10 @@ non invia nulla.
 | `MAIL_FROM` | non impostata | Obbligatoria con `SMTP_HOST`, es. `Meshbee <noreply@example.org>`. Usa un indirizzo su un dominio verificato dal provider. |
 | `PUBLIC_BASE_URL` | non impostata | Dove si raggiunge l'app, es. `https://meshbee.example.org`. Serve per i link nelle email. |
 
+Con l'email attiva e `PUBLIC_BASE_URL` impostata, gli utenti possono **reimpostare da
+soli una password dimenticata** su `/reset-password`. Impostazioni e limiti sono in
+[`api/`](api/README.it.md#reimpostare-la-password).
+
 Una configurazione a metà (un host senza `MAIL_FROM`, un utente senza password) ferma
 l'API all'avvio invece di fallire alla prima email. Le route inviano la posta dopo la
 risposta, così un server lento non blocca mai una richiesta. Un invio fallito finisce

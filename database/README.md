@@ -158,6 +158,25 @@ One row per refresh token issued by `/api/auth/login` or `/api/auth/refresh`
 - `ip_address` and `user_agent` record who asked for the token. Behind Caddy the
   address is the user's, from `X-Forwarded-For` (see the root README, *Production*).
 
+### `token_monouso` — single-use tokens sent by email
+
+One row per link emailed by the server, written and read by
+`repository/token_monouso.py`: a password reset
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)) today, an invitation
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)) next.
+
+- `token_hash` holds the token's **SHA-256**, never the token.
+- `scopo` is what the token is for: CHECK over `password_reset`, `invite`
+  (`limits.py::ScopoToken`).
+- `email` is where the link went, always. `id_utente` is the account the token acts on,
+  and may be empty only for an invitation, sent to someone who has no account yet
+  (CHECK `token_monouso_utente_check`). `id_mittente` is who caused the email, such as
+  the sharer of an invitation, so caps can count per sender. It is empty for a reset,
+  which is anonymous.
+- `data_utilizzo` is set when the token is spent: used, or replaced by a newer one.
+- Rows are deleted a day after `data_scadenza`. Until then they count towards the caps
+  on requests.
+
 ## No views, no triggers
 
 **The database holds no logic**: no view, no trigger, no function of ours.

@@ -160,6 +160,26 @@ Una riga per ogni refresh token emesso da `/api/auth/login` o `/api/auth/refresh
   l'indirizzo è quello dell'utente, da `X-Forwarded-For` (vedi il README principale,
   *Produzione*).
 
+### `token_monouso` — token monouso inviati per email
+
+Una riga per ogni link inviato per email dal server, scritta e letta da
+`repository/token_monouso.py`: oggi il reset della password
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)), poi gli inviti
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)).
+
+- `token_hash` contiene lo **SHA-256** del token, mai il token.
+- `scopo` è a cosa serve il token: CHECK su `password_reset`, `invite`
+  (`limits.py::ScopoToken`).
+- `email` è dove è andato il link, sempre. `id_utente` è l'account su cui agisce il
+  token, e può essere vuoto solo per un invito, mandato a chi non ha ancora un account
+  (CHECK `token_monouso_utente_check`). `id_mittente` è chi ha causato l'email, per
+  esempio chi condivide in un invito, così i limiti possono contare per mittente. È
+  vuoto per un reset, che è anonimo.
+- `data_utilizzo` viene impostata quando il token è consumato: usato, o sostituito da
+  uno più nuovo.
+- Le righe vengono cancellate un giorno dopo `data_scadenza`. Fino ad allora contano per
+  i limiti sulle richieste.
+
 ## Niente viste, niente trigger
 
 **Il database non contiene logica**: nessuna vista, nessun trigger, nessuna funzione

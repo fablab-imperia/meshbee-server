@@ -181,6 +181,10 @@ services:
       SMTP_TIMEOUT: ${SMTP_TIMEOUT:-10}
       MAIL_FROM: ${MAIL_FROM:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      # Password reset by email (#54): link lifetime and the hourly caps.
+      PASSWORD_RESET_EXPIRE_MINUTES: ${PASSWORD_RESET_EXPIRE_MINUTES:-30}
+      PASSWORD_RESET_MAX_PER_ACCOUNT: ${PASSWORD_RESET_MAX_PER_ACCOUNT:-3}
+      PASSWORD_RESET_MAX_PER_IP: ${PASSWORD_RESET_MAX_PER_IP:-10}
     ports:
       - "8000:8000"
     networks:

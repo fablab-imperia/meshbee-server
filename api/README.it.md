@@ -14,8 +14,10 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 56 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 58 rotte, e la pagina `/reset-password`. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
+| `mail.py` | `get_mailer` e `send_later`: le email fuori dal percorso della richiesta — vedi [Configurazione](#configurazione). |
+| `ratelimit.py` | Un limite per client, in memoria, per le rotte anonime che inviano email — vedi [Reimpostare la password](#reimpostare-la-password). |
 | `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -25,7 +27,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-56 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+58 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -45,6 +47,8 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 | POST | `/api/auth/login` | nessuna | Scambia email + password per un access e un refresh token. |
 | POST | `/api/auth/refresh` | nessuna | Scambia un refresh token per un nuovo access e refresh token; il vecchio è consumato. |
 | POST | `/api/auth/logout` | nessuna | Revoca un refresh token. Risponde sempre 200. |
+| POST | `/api/auth/password/forgot` | nessuna | Invia per email un link monouso per reimpostare la password. Sempre 202 con lo stesso corpo; 429 oltre il limite per IP; 503 senza email. Vedi [Reimpostare la password](#reimpostare-la-password). |
+| POST | `/api/auth/password/reset` | nessuna | Imposta una nuova password con il token ricevuto per email. Un solo 400 per token sconosciuto, scaduto o già usato. |
 | GET | `/api/auth/me` | utente | L'account autenticato. |
 
 ### Utente
@@ -251,6 +255,38 @@ Il login risponde con lo stesso 401 per email sconosciuta, password sbagliata e 
 disattivato — una sola risposta per ogni modo di fallire, così l'endpoint non può essere
 usato per enumerare le email registrate.
 
+## Reimpostare la password
+
+Chi ha dimenticato la password chiede un link su `/reset-password` (collegata dal login
+admin), o dall'app tramite `POST /api/auth/password/forgot`
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)). La logica è in
+`meshbee_core/services/password_reset.py`, sopra la tabella `token_monouso`.
+
+- **Stessa risposta per ogni indirizzo.** `forgot` risponde 202 con lo stesso corpo sia
+  che l'account esista, sia disattivato o abbia raggiunto il suo limite. Solo un account
+  attivo riceve qualcosa, dopo la risposta.
+- **Il token** è di 256 bit casuali (non un JWT), monouso, e vale
+  `PASSWORD_RESET_EXPIRE_MINUTES`. Se ne salva solo lo SHA-256. Una nuova richiesta
+  consuma il link precedente dell'account, e un reset li consuma tutti.
+- **Il link** è `{PUBLIC_BASE_URL}/reset-password#token=…`. Il token sta nel frammento,
+  quindi non arriva mai nei log dell'API o di Caddy e non viene mai inviato come Referer.
+  La pagina lo toglie dalla barra degli indirizzi appena letto. Il link non viene mai
+  costruito dall'`Host` della richiesta, che il chiamante controlla.
+- **Un reset disconnette ogni dispositivo**: revoca tutti i refresh token dell'account,
+  come ogni nuova password. Gli access token già emessi restano validi finché non
+  scadono (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+- **Avvisi**: un reset riuscito, e un cambio tramite `PUT /api/user/password`, mandano
+  all'account un breve avviso "la tua password è stata cambiata" quando l'email è attiva.
+- **Limiti**: al massimo `PASSWORD_RESET_MAX_PER_ACCOUNT` email per account all'ora,
+  contate nel database. Al massimo `PASSWORD_RESET_MAX_PER_IP` richieste per indirizzo
+  client all'ora, contate in memoria (`ratelimit.py`), quindi per processo dell'API e
+  azzerate da un riavvio.
+- **Senza email** (`SMTP_HOST` o `PUBLIC_BASE_URL` non impostate), `forgot` risponde 503
+  e dice di rivolgersi a un amministratore; `PUT /api/admin/utenti/{id}/password`
+  funziona come prima. Un link inviato prima di spegnere l'email funziona ancora.
+
+Né il token né il link finiscono mai nei log.
+
 ## Traduzione degli errori
 
 I service sollevano il vocabolario di `meshbee_core.errors` e non sanno nulla di HTTP.
@@ -299,6 +335,9 @@ README.
 | `SMTP_TIMEOUT` | float | `10` |
 | `MAIL_FROM` | str | non impostata; obbligatoria con `SMTP_HOST` |
 | `PUBLIC_BASE_URL` | str | non impostata; lo `/` finale viene tolto |
+| `PASSWORD_RESET_EXPIRE_MINUTES` | int | `30` (al massimo 1440) |
+| `PASSWORD_RESET_MAX_PER_ACCOUNT` | int | `3` all'ora |
+| `PASSWORD_RESET_MAX_PER_IP` | int | `10` all'ora |
 
 `CORS_ORIGINS` è una lista, quindi dall'ambiente va passata in **JSON**, non come
 stringa separata da virgole:

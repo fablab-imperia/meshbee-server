@@ -1847,6 +1847,43 @@
         "title": "PasswordChange",
         "type": "object"
       },
+      "PasswordForgot": {
+        "description": "Body of /api/auth/password/forgot: where to send the reset link.",
+        "properties": {
+          "email": {
+            "maxLength": 255,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "PasswordForgot",
+        "type": "object"
+      },
+      "PasswordReset": {
+        "description": "Body of /api/auth/password/reset: the emailed token and the new password.",
+        "properties": {
+          "new_password": {
+            "description": "Nuova password (minimo 8 caratteri, massimo 72 byte)",
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "PasswordReset",
+        "type": "object"
+      },
       "RefreshRequest": {
         "description": "Body of /api/auth/refresh and /api/auth/logout",
         "properties": {
@@ -3941,6 +3978,96 @@
         ]
       }
     },
+    "/api/auth/password/forgot": {
+      "post": {
+        "description": "Email a single-use link to reset the password.\n\nAnswers 202 with the same body whether or not the address belongs to an\nactive account, so it reveals nothing about which ones exist. The email goes\nout after the response. 503 when the server has no email configured.",
+        "operationId": "forgot_password_api_auth_password_forgot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordForgot"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Troppe richieste da questo indirizzo"
+          },
+          "503": {
+            "description": "Recupero password via email non attivo"
+          }
+        },
+        "summary": "Forgot Password",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "description": "Set a new password with the token from a reset email.\n\nThe token is spent, and every session of the account is logged out. 400,\nwith one message, for a token that is unknown, expired or already used.",
+        "operationId": "reset_password_with_token_api_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password With Token",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "description": "Exchange a refresh token for a new access and refresh token.\n\nThe presented token is spent: use the new one next time. Presenting a spent\ntoken again revokes every session of the account.",
@@ -5666,7 +5793,7 @@
     },
     "/api/user/password": {
       "put": {
-        "description": "Cambia la propria password.",
+        "description": "Cambia la propria password. With email on, the account is sent a notice.",
         "operationId": "change_own_password_api_user_password_put",
         "requestBody": {
           "content": {

@@ -11,7 +11,8 @@ try again", **403** means "you are authenticated but not allowed".
 import pytest
 
 # Reachable without a token and always 200. Login and refresh are public too, but
-# answer 401 on bad credentials, so they get their own tests below.
+# answer 401 on bad credentials, and the password-reset pair is public on purpose
+# (#54), so those get their own tests below.
 PUBLIC_OPEN = [
     ("get", "/", None),
     ("get", "/health", None),
@@ -172,6 +173,27 @@ def test_login_is_reachable_without_a_token(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Email o password non corretti"
+
+
+# Anonymous on purpose (#54): whoever forgot their password has no token to send.
+PASSWORD_RESET = [
+    ("post", "/api/auth/password/forgot", {"email": "nobody@example.org"}),
+    ("post", "/api/auth/password/reset", {"token": "x", "new_password": "secret123"}),
+]
+
+
+@pytest.mark.parametrize("method, path, body", PASSWORD_RESET, ids=ids(PASSWORD_RESET))
+def test_password_reset_is_reachable_without_a_token(client, method, path, body):
+    """
+    The handler runs rather than turning the request away for lack of a token.
+
+    Without email configured, forgot answers 503; reset rejects the token with
+    400. Neither is the 401 of an unauthenticated request.
+    """
+    response = call(client, method, path, body)
+
+    assert response.status_code in (400, 503)
+    assert "WWW-Authenticate" not in response.headers
 
 
 # ============================================

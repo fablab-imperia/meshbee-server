@@ -243,6 +243,10 @@ Only the `api` service reads these variables; the MQTT handler sends nothing.
 | `MAIL_FROM` | unset | Required with `SMTP_HOST`, e.g. `Meshbee <noreply@example.org>`. Use an address on a domain the provider has verified. |
 | `PUBLIC_BASE_URL` | unset | Where the app is reached, e.g. `https://meshbee.example.org`. Used for links in emails. |
 
+With email on and `PUBLIC_BASE_URL` set, users can **reset a forgotten password** on
+their own at `/reset-password`. Its settings and limits are in
+[`api/`](api/README.md#password-reset).
+
 A half-done configuration (a host without `MAIL_FROM`, a user without a password) stops
 the API at startup instead of failing on the first email. Routes send mail after the
 response, so a slow server never holds a request. A failed send is logged with the

@@ -29,9 +29,10 @@ scripts/ ───────┘
 | `paging.py` | `Paging` (which window of a list, and whether to count it) and `Page` (its rows, and the total). |
 | `models.py` | The data model, declared once: each table and its API shapes (`XBase`, `XCreate`, `XUpdate`, `XResponse`) as one SQLModel family, plus the API-only models (login, tokens, series, messages). The source Alembic migrates from. |
 | `migrations/` | Alembic: `env.py`, `upgrade()`, and the revisions. See [`database/`](../database/README.md#changing-the-schema). |
-| `security.py` | Password hashing and verification. Framework-free. |
+| `security.py` | Password hashing and verification, token hashing, and `new_token()` for emailed links. Framework-free. |
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData`, `Unavailable` — the vocabulary services raise. |
 | `mail.py` | Outgoing email over any SMTP server (`SmtpConfig`, `Mailer`). Standard library only; every failure becomes `Unavailable`. The API builds the config from its own settings. |
+| `emails.py` | The text of each email the server sends, as subject and body. Plain Italian strings. |
 | `repository/` | SQL. One module per table. |
 | `services/` | Business decisions. One module per domain area. |
 
@@ -46,6 +47,8 @@ scripts/ ───────┘
 | `letture.py` | `letture`. `insert` is the single INSERT both entry points reach; `series` whitelists the column name. |
 | `attivita.py` | `log_attivita`, with ownership-scoped update and delete. |
 | `accessi.py` | `utenti_apiari` — the shares — and a user's access (`owner`, a role, or none) to an apiary or a hive. |
+| `sessioni.py` | `token_sessione`: refresh tokens, found by their SHA-256. |
+| `token_monouso.py` | `token_monouso`: single-use emailed tokens. `spend` is one conditional UPDATE, so a token cannot be used twice even concurrently. |
 
 ### `services/` — decisions
 
@@ -60,6 +63,7 @@ scripts/ ───────┘
 | `attivita.py` | The activity log. |
 | `accessi.py` | Sharing an apiary: granting, changing and revoking roles. |
 | `ingest.py` | The MQTT path: register the node, resolve or create the hive, store the reading. |
+| `password_reset.py` | Password reset by email: who gets a token, the per-account cap, spending it. Hands the token back; the caller sends the email. |
 
 ## Layer rules
 

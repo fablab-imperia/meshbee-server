@@ -57,6 +57,16 @@ class Settings(CoreSettings):
     # Where the app is reached, to build links in emails: https://meshbee.example.org
     PUBLIC_BASE_URL: str | None = None
 
+    # Password reset by email (#54). Needs email and PUBLIC_BASE_URL; otherwise
+    # the forgot route answers 503 and only an admin can set a new password.
+    # A token's lifetime; at most a day, as a reset link has no reason to live longer.
+    PASSWORD_RESET_EXPIRE_MINUTES: int = Field(default=30, gt=0, le=1440)
+    # Reset emails one account can be sent per hour, whoever asks.
+    PASSWORD_RESET_MAX_PER_ACCOUNT: int = Field(default=3, gt=0)
+    # Reset requests one client address can make per hour, whatever the address
+    # asked for. Counted in memory, per API process.
+    PASSWORD_RESET_MAX_PER_IP: int = Field(default=10, gt=0)
+
     @field_validator(*EMPTY_MEANS_UNSET, mode="before")
     @classmethod
     def _empty_means_unset(cls, value):

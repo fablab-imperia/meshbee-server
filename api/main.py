@@ -11,11 +11,22 @@ so FastAPI must run them in its threadpool rather than on the event loop.
 
 import logging
 from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.auth import (
@@ -27,10 +38,14 @@ from api.auth import (
     is_refresh_token,
     issue_tokens,
 )
-from api.config import settings
+from api.config import Settings, get_settings, settings
+from api.mail import get_mailer, send_later
 from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
+from api.ratelimit import SlidingWindowLimiter, enforce
+from meshbee_core import emails
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound, Unavailable
+from meshbee_core.mail import Mailer
 from meshbee_core.models import (
     ApiarioAdminCreate,
     ApiarioConAccesso,
@@ -57,6 +72,8 @@ from meshbee_core.models import (
     NodoProprietarioUpdate,
     NodoResponse,
     PasswordChange,
+    PasswordForgot,
+    PasswordReset,
     RefreshRequest,
     SerieBatteriaResponse,
     SeriePesoResponse,
@@ -89,6 +106,9 @@ from meshbee_core.services import (
 )
 from meshbee_core.services import (
     nodi as nodi_service,
+)
+from meshbee_core.services import (
+    password_reset as password_reset_service,
 )
 from meshbee_core.services import (
     utenti as utenti_service,
@@ -283,6 +303,102 @@ def logout(body: RefreshRequest):
         with db_operation("logout") as session:
             auth_service.close_session(session, body.refresh_token)
     return {"message": "Logout effettuato"}
+
+
+# Requests one client address may make to the forgot route per hour.
+forgot_limiter = SlidingWindowLimiter(
+    limit=settings.PASSWORD_RESET_MAX_PER_IP, window=3600
+)
+
+FORGOT_ACCEPTED = (
+    "Se l'indirizzo corrisponde a un account attivo, riceverai un'email "
+    "con il link per reimpostare la password"
+)
+
+
+def notify_password_changed(
+    background_tasks: BackgroundTasks, mailer: Mailer | None, user: dict
+) -> None:
+    """Tell the owner of an account that its password changed, if email is on."""
+    if mailer is not None:
+        notice = emails.password_changed(user["nome"])
+        send_later(background_tasks, mailer, user["email"], notice.subject, notice.text)
+
+
+@app.post(
+    "/api/auth/password/forgot",
+    response_model=MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["Autenticazione"],
+    responses={
+        429: {"description": "Troppe richieste da questo indirizzo"},
+        503: {"description": "Recupero password via email non attivo"},
+    },
+)
+def forgot_password(
+    body: PasswordForgot,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    config: Annotated[Settings, Depends(get_settings)],
+    mailer: Annotated[Mailer | None, Depends(get_mailer)],
+):
+    """
+    Email a single-use link to reset the password.
+
+    Answers 202 with the same body whether or not the address belongs to an
+    active account, so it reveals nothing about which ones exist. The email goes
+    out after the response. 503 when the server has no email configured.
+    """
+    if mailer is None or not config.PUBLIC_BASE_URL:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Il recupero della password via email non è attivo: chiedi a un amministratore",
+        )
+    enforce(forgot_limiter, request)
+
+    minutes = config.PASSWORD_RESET_EXPIRE_MINUTES
+    with db_operation("richiesta reset password") as session:
+        issued = password_reset_service.request_reset(
+            session,
+            body.email,
+            lifetime=timedelta(minutes=minutes),
+            max_per_window=config.PASSWORD_RESET_MAX_PER_ACCOUNT,
+        )
+
+    if issued is not None:
+        user, token = issued
+        # In the fragment, so the token never reaches a server or proxy log, nor a Referer.
+        link = f"{config.PUBLIC_BASE_URL}/reset-password#token={token}"
+        message = emails.password_reset(user["nome"], link, minutes)
+        send_later(
+            background_tasks, mailer, user["email"], message.subject, message.text
+        )
+
+    return {"message": FORGOT_ACCEPTED}
+
+
+@app.post(
+    "/api/auth/password/reset",
+    response_model=MessageResponse,
+    tags=["Autenticazione"],
+)
+def reset_password_with_token(
+    body: PasswordReset,
+    background_tasks: BackgroundTasks,
+    mailer: Annotated[Mailer | None, Depends(get_mailer)],
+):
+    """
+    Set a new password with the token from a reset email.
+
+    The token is spent, and every session of the account is logged out. 400,
+    with one message, for a token that is unknown, expired or already used.
+    """
+    with db_operation("reset password con token") as session:
+        user = password_reset_service.reset_password(
+            session, body.token, body.new_password
+        )
+    notify_password_changed(background_tasks, mailer, user)
+    return {"message": "Password aggiornata: accedi con quella nuova"}
 
 
 @app.get("/api/auth/me", response_model=UserResponse, tags=["Autenticazione"])
@@ -1210,15 +1326,19 @@ def update_arnia_user(
 
 @app.put("/api/user/password", response_model=MessageResponse, tags=["Utente"])
 def change_own_password(
-    body: PasswordChange, current_user: dict = Depends(get_current_active_user)
+    body: PasswordChange,
+    background_tasks: BackgroundTasks,
+    mailer: Annotated[Mailer | None, Depends(get_mailer)],
+    current_user: dict = Depends(get_current_active_user),
 ):
     """
-    Cambia la propria password.
+    Cambia la propria password. With email on, the account is sent a notice.
     """
     with db_operation("cambio password") as session:
         utenti_service.change_own_password(
             session, current_user["id_utente"], body.current_password, body.new_password
         )
+    notify_password_changed(background_tasks, mailer, current_user)
     return {"message": "Password aggiornata con successo"}
 
 
@@ -1337,3 +1457,17 @@ def health_check():
 ADMIN_DIR = Path(__file__).resolve().parent.parent / "admin"
 
 app.mount("/admin", StaticFiles(directory=ADMIN_DIR, html=True), name="admin")
+
+
+@app.get("/reset-password", include_in_schema=False)
+def reset_password_page():
+    """
+    The page a reset email links to; it also asks for a link, from the login form.
+
+    It sits with the admin page to share its stylesheet, but is for every user.
+    The token arrives in the URL fragment, which the browser never sends here.
+    """
+    return FileResponse(
+        ADMIN_DIR / "reset-password.html",
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )

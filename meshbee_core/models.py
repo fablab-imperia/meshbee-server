@@ -69,6 +69,7 @@ from meshbee_core.limits import (
     PESO_MIN,
     RUOLI,
     RUOLI_APIARIO,
+    SCOPI_TOKEN,
     TEMPERATURA_MAX,
     TEMPERATURA_MIN,
     TIPI_ATTIVITA,
@@ -77,6 +78,7 @@ from meshbee_core.limits import (
     Ruolo,
     # Re-exported: the value sets are part of this module's public surface.
     RuoloApiario,
+    ScopoToken,
     TipoAttivita,
 )
 
@@ -303,6 +305,36 @@ class PasswordChange(BaseModel):
         description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
     )
     current_password: str | None = None  # Richiesta solo per cambio proprio
+
+    @field_validator("new_password")
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
+
+
+class PasswordForgot(BaseModel):
+    """Body of /api/auth/password/forgot: where to send the reset link."""
+
+    email: str = Field(max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email_case(cls, v):
+        """
+        Normalize like UserLogin, without rejecting a bad format: a malformed
+        address gets the same 202 as an unknown one, not a 422 that singles it out.
+        """
+        return normalize_email(v)
+
+
+class PasswordReset(BaseModel):
+    """Body of /api/auth/password/reset: the emailed token and the new password."""
+
+    token: str = Field(max_length=200)
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
+    )
 
     @field_validator("new_password")
     @classmethod
@@ -847,6 +879,49 @@ class TokenSessione(SQLModel, table=True):
     revocato: bool | None = Field(default=None, sa_column_kwargs=FALSE)
     ip_address: str | None = Field(default=None, sa_type=String(45))
     user_agent: str | None = Field(default=None, sa_type=Text)
+
+
+class TokenMonouso(SQLModel, table=True):
+    """
+    A single-use token sent by email: a password-reset link (#54), an invitation (#55).
+
+    `email` is where the link went, always. `id_utente` is the account the token
+    acts on, which an invitation does not have yet: the invited person signs up
+    with that `email`. `id_mittente` is whoever caused the email (the sharer of
+    an invitation), for caps per sender; nobody, for an anonymous reset request.
+
+    `token_hash` holds the token's SHA-256 (`security.hash_token`), never the
+    token. `data_utilizzo` is set once the token is spent, whether it was used
+    or replaced by a newer one; rows stay a while after they expire, since the
+    caps on requests count them.
+    """
+
+    __tablename__ = "token_monouso"
+    __table_args__ = (
+        CheckConstraint(one_of("scopo", SCOPI_TOKEN), name="token_monouso_scopo_check"),
+        # A reset acts on an account; only an invitation may be sent to an address alone.
+        CheckConstraint(
+            "id_utente IS NOT NULL OR scopo = 'invite'",
+            name="token_monouso_utente_check",
+        ),
+        Index("idx_token_monouso_utente_scopo", "id_utente", "scopo"),
+        Index("idx_token_monouso_email_scopo", "email", "scopo"),
+        Index("idx_token_monouso_mittente", "id_mittente"),
+    )
+
+    id_token: int | None = Field(default=None, primary_key=True)
+    id_utente: int | None = Field(
+        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+    )
+    email: str = Field(sa_type=String(255))
+    id_mittente: int | None = Field(
+        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+    )
+    token_hash: str = Field(sa_type=String(64), unique=True)
+    scopo: ScopoToken = Field(sa_type=String(20))
+    data_creazione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+    data_scadenza: datetime = Field(sa_type=DateTime)
+    data_utilizzo: datetime | None = Field(default=None, sa_type=DateTime)
 
 
 # ============================================

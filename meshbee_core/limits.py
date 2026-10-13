@@ -34,6 +34,9 @@ Ruolo = Literal["user", "admin"]
 # What an apiary's owner can grant another user on it (#36). The owner is not
 # a role: owning an apiary allows everything on it.
 RuoloApiario = Literal["viewer", "collaborator", "manager"]
+# What a single-use token sent by email is for: resetting a password (#54), or
+# accepting an invitation to an apiary from someone who has no account yet (#55).
+ScopoToken = Literal["password_reset", "invite"]
 TipoAttivita = Literal[
     "ispezione",
     "trattamento",
@@ -47,4 +50,5 @@ TipoAttivita = Literal[
 
 RUOLI = get_args(Ruolo)
 RUOLI_APIARIO = get_args(RuoloApiario)
+SCOPI_TOKEN = get_args(ScopoToken)
 TIPI_ATTIVITA = get_args(TipoAttivita)

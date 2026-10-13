@@ -51,6 +51,13 @@ The page has no server of its own. `api/main.py` mounts this directory at `/admi
 - Without a Caddy proxy, the page is at <http://localhost:8000/admin/>. With
   [`make certs`](../README.md#local-https), it is also at <https://localhost:8443/admin/>.
 
+This directory also holds **`reset-password.html`** and **`reset-password.js`**, the
+public page a password-reset email links to (#54). The API serves it at
+`/reset-password` (`no-store`, `no-referrer`), and it borrows this page's stylesheet.
+It is plain script without Alpine. With a `#token=…` fragment it asks for the new
+password twice; without one it asks for an email and requests a link. The admin login
+links to it. See [`api/`](../api/README.md#password-reset).
+
 ## Features
 
 - **A hive picked on the readings or activities tab** switches the list to the

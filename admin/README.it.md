@@ -53,6 +53,13 @@ un URL dell'API.
 - Senza il proxy Caddy la pagina è su <http://localhost:8000/admin/>. Con
   [`make certs`](../README.it.md#https-locale) è anche su <https://localhost:8443/admin/>.
 
+Questa directory contiene anche **`reset-password.html`** e **`reset-password.js`**, la
+pagina pubblica a cui porta l'email di reset della password (#54). L'API la serve su
+`/reset-password` (`no-store`, `no-referrer`), e usa il foglio di stile di questa
+pagina. È semplice script, senza Alpine. Con un frammento `#token=…` chiede due volte
+la nuova password; senza, chiede un'email e richiede un link. Il login admin la
+collega. Vedi [`api/`](../api/README.it.md#reimpostare-la-password).
+
 ## Funzionalità
 
 - **Un'arnia scelta nelle schede letture o attività** fa passare l'elenco alla rotta

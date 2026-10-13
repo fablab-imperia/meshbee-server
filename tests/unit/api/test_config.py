@@ -195,3 +195,26 @@ def test_the_smtp_password_is_not_exposed_by_repr(build_settings):
 
     assert "s3cr3t-smtp" not in repr(settings)
     assert "s3cr3t-smtp" not in repr(settings.smtp_config)
+
+
+def test_password_reset_defaults(build_settings):
+    settings = build_settings()
+
+    assert settings.PASSWORD_RESET_EXPIRE_MINUTES == 30
+    assert settings.PASSWORD_RESET_MAX_PER_ACCOUNT == 3
+    assert settings.PASSWORD_RESET_MAX_PER_IP == 10
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("PASSWORD_RESET_EXPIRE_MINUTES", 0),
+        ("PASSWORD_RESET_EXPIRE_MINUTES", 1441),
+        ("PASSWORD_RESET_MAX_PER_ACCOUNT", 0),
+        ("PASSWORD_RESET_MAX_PER_IP", 0),
+    ],
+)
+def test_password_reset_limits_are_bounded(build_settings, field, value):
+    """A reset link lives at most a day, and a cap of zero would silently disable it."""
+    with pytest.raises(ValidationError):
+        build_settings(**{field: value})
