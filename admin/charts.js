@@ -54,7 +54,7 @@ function chartsMixin() {
       const min = Math.min(...values);
       const max = Math.max(...values);
       const t0 = points[0].t;
-      const tSpan = points[points.length - 1].t - t0 || 1;
+      const tSpan = points.at(-1).t - t0 || 1;
       const vSpan = max - min || 1;
       let d = "";
       let pen = "M";
@@ -76,9 +76,9 @@ function chartsMixin() {
         d,
         min,
         max,
-        last: values[values.length - 1],
+        last: values.at(-1),
         from: date(t0),
-        to: date(points[points.length - 1].t),
+        to: date(points.at(-1).t),
       };
     },
   };

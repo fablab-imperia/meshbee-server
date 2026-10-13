@@ -156,8 +156,10 @@ def test_readings_accept_values_inside_the_range(field, value):
 )
 def test_readings_reject_values_outside_the_range(field, value):
     """A sensor glitch is refused at the edge of the API, not stored."""
+    fields = {field: Decimal(value)}
+
     with pytest.raises(ValidationError):
-        LetturaBase(**{field: Decimal(value)})
+        LetturaBase(**fields)
 
 
 def test_readings_are_all_optional():
@@ -204,8 +206,10 @@ def test_coordinates_accept_values_inside_the_range(field, value):
 )
 def test_coordinates_reject_values_outside_the_range(field, value):
     """Out-of-range coordinates are refused before they reach the database."""
+    fields = {field: Decimal(value)}
+
     with pytest.raises(ValidationError):
-        arnia(**{field: Decimal(value)})
+        arnia(**fields)
 
 
 def test_coordinates_are_optional():
@@ -218,8 +222,10 @@ def test_coordinates_are_optional():
 )
 def test_arnia_update_applies_the_same_coordinate_bounds(field, value):
     """Editing an arnia cannot bypass the bounds that creation enforces."""
+    fields = {field: Decimal(value)}
+
     with pytest.raises(ValidationError):
-        ArniaUpdate(**{field: Decimal(value)})
+        ArniaUpdate(**fields)
 
 
 def test_arnia_response_applies_the_same_coordinate_bounds():

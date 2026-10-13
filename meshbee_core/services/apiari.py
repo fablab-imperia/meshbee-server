@@ -14,6 +14,7 @@ from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import apiari, arnie
 
 DEFAULT_NOME = "Default"
+NOT_FOUND = "Apiario non trovato"
 
 
 def ensure_predefinito(session, id_utente: int) -> dict[str, Any]:
@@ -57,7 +58,7 @@ def get_apiario(session, id_apiario: int) -> dict[str, Any]:
     """
     row = apiari.get(session, id_apiario)
     if not row:
-        raise NotFound("Apiario non trovato")
+        raise NotFound(NOT_FOUND)
     return row
 
 
@@ -71,7 +72,7 @@ def get_for_utente(session, id_apiario: int, id_utente: int) -> dict[str, Any]:
     """
     row = apiari.get_for_utente(session, id_apiario, id_utente)
     if not row:
-        raise NotFound("Apiario non trovato")
+        raise NotFound(NOT_FOUND)
     return row
 
 
@@ -129,7 +130,7 @@ def update_apiario(session, id_apiario: int, apiario) -> dict[str, Any]:
         metadati=apiario.metadati,
     )
     if not row:
-        raise NotFound("Apiario non trovato")
+        raise NotFound(NOT_FOUND)
     return row
 
 

@@ -73,9 +73,9 @@ def test_a_missing_measurement_is_allowed(fake_session):
 
     [lettura] = session.added
     assert lettura.temperatura == 20
-    assert lettura.umidita is None and lettura.peso is None, (
-        "le misure assenti arrivano come NULL"
-    )
+    # le misure assenti arrivano come NULL
+    assert lettura.umidita is None
+    assert lettura.peso is None
 
 
 def test_an_already_validated_model_is_not_revalidated(fake_session):

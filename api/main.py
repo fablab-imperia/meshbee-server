@@ -160,17 +160,28 @@ def db_operation(descrizione: str):
     except tuple(ERROR_STATUS) as e:
         raise HTTPException(status_code=ERROR_STATUS[type(e)], detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Errore {descrizione}: {e}")
+        logger.exception(f"Errore {descrizione}: {e}")
         raise HTTPException(status_code=500, detail="Errore interno del server") from e
 
 
-def require_arnia_access(current_user: dict, id_arnia: int, action: str, detail: str):
+# The 403 detail for each action an arnia-scoped route checks.
+ARNIA_DENIED = {
+    "arnia.read": "Non hai accesso a questa arnia",
+    "arnia.update": "Permessi insufficienti su questa arnia",
+    "arnia.move": "Solo il proprietario può spostare l'arnia",
+    "attivita.write": "Non hai permessi di scrittura su questa arnia",
+}
+
+
+def require_arnia_access(current_user: dict, id_arnia: int, action: str):
     """
     Guard an arnia-scoped endpoint, answering 403 when the user may not
     perform `action` (see `meshbee_core/services/auth.py`).
     """
     if not check_user_arnia_access(current_user["id_utente"], id_arnia, action):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=ARNIA_DENIED[action]
+        )
 
 
 def require_apiario_access(current_user: dict, id_apiario: int, action: str):
@@ -184,6 +195,11 @@ def require_apiario_access(current_user: dict, id_apiario: int, action: str):
 
 # Shared by every hive list that can be narrowed to one apiary.
 ID_APIARIO_FILTER = Query(None, description="Solo le arnie di questo apiario")
+
+# The period and size filters shared by the readings and activity routes.
+DATA_INIZIO_FILTER = Query(None, description="Data inizio (default: 1 anno fa)")
+DATA_FINE_FILTER = Query(None, description="Data fine (default: ora)")
+LETTURE_LIMIT = Query(1000, ge=1, le=10000, description="Numero massimo di letture")
 
 # `limit` and `offset` on the list routes (api/paging.py). The readings and
 # activities keep the default and maximum `limit` they had before paging.
@@ -454,12 +470,7 @@ def move_arnia_user(
     Move a hive into another apiary of its owner (owner only).
     Who can see it follows the apiary it lands in.
     """
-    require_arnia_access(
-        current_user,
-        id_arnia,
-        "arnia.move",
-        "Solo il proprietario può spostare l'arnia",
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.move")
 
     with db_operation("spostamento arnia") as session:
         return arnie_service.move_arnia(session, id_arnia, body.id_apiario)
@@ -474,10 +485,8 @@ def move_arnia_user(
 def get_user_letture(
     response: Response,
     id_arnia: int,
-    data_inizio: datetime | None = Query(
-        None, description="Data inizio (default: 1 anno fa)"
-    ),
-    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = DATA_INIZIO_FILTER,
+    data_fine: datetime | None = DATA_FINE_FILTER,
     paging: Paging = LETTURE_PAGING,
     current_user: dict = Depends(get_current_active_user),
 ):
@@ -493,9 +502,7 @@ def get_user_letture(
     Returns:
         Lista di letture ordinate per timestamp (più recente prima)
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("recupero letture") as session:
         return page_items(
@@ -515,10 +522,8 @@ def get_user_letture(
 def get_user_attivita(
     response: Response,
     id_arnia: int,
-    data_inizio: datetime | None = Query(
-        None, description="Data inizio (default: 1 anno fa)"
-    ),
-    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
+    data_inizio: datetime | None = DATA_INIZIO_FILTER,
+    data_fine: datetime | None = DATA_FINE_FILTER,
     tipo_attivita: str | None = Query(None, description="Filtra per tipo attività"),
     paging: Paging = ATTIVITA_PAGING,
     current_user: dict = Depends(get_current_active_user),
@@ -536,9 +541,7 @@ def get_user_attivita(
     Returns:
         Lista di attività ordinate per timestamp (più recente prima)
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("recupero attività") as session:
         return page_items(
@@ -569,12 +572,7 @@ def create_attivita(
     Returns:
         Attività creata
     """
-    require_arnia_access(
-        current_user,
-        id_arnia,
-        "attivita.write",
-        "Non hai permessi di scrittura su questa arnia",
-    )
+    require_arnia_access(current_user, id_arnia, "attivita.write")
 
     with db_operation("creazione attività") as session:
         return attivita_service.create_attivita(
@@ -596,12 +594,7 @@ def update_user_attivita(
     """
     Aggiorna un'attività di un'arnia (solo se appartiene all'utente)
     """
-    require_arnia_access(
-        current_user,
-        id_arnia,
-        "attivita.write",
-        "Non hai permessi di scrittura su questa arnia",
-    )
+    require_arnia_access(current_user, id_arnia, "attivita.write")
 
     with db_operation("aggiornamento attività") as session:
         return attivita_service.update_attivita(
@@ -620,12 +613,7 @@ def delete_user_attivita(
     """
     Elimina un'attività di un'arnia (solo se appartiene all'utente)
     """
-    require_arnia_access(
-        current_user,
-        id_arnia,
-        "attivita.write",
-        "Non hai permessi di scrittura su questa arnia",
-    )
+    require_arnia_access(current_user, id_arnia, "attivita.write")
 
     with db_operation("eliminazione attività") as session:
         attivita_service.delete_attivita(
@@ -641,20 +629,16 @@ def delete_user_attivita(
 )
 def get_serie_temperatura(
     id_arnia: int,
-    data_inizio: datetime | None = Query(
-        None, description="Data inizio (default: 1 anno fa)"
-    ),
-    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
-    limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
+    data_inizio: datetime | None = DATA_INIZIO_FILTER,
+    data_fine: datetime | None = DATA_FINE_FILTER,
+    limit: int = LETTURE_LIMIT,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
     Serie storica temperatura per un'arnia.
     Restituisce solo timestamp e temperatura, ottimizzato per grafici.
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("serie temperatura") as session:
         return letture_service.get_series(
@@ -669,20 +653,16 @@ def get_serie_temperatura(
 )
 def get_serie_umidita(
     id_arnia: int,
-    data_inizio: datetime | None = Query(
-        None, description="Data inizio (default: 1 anno fa)"
-    ),
-    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
-    limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
+    data_inizio: datetime | None = DATA_INIZIO_FILTER,
+    data_fine: datetime | None = DATA_FINE_FILTER,
+    limit: int = LETTURE_LIMIT,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
     Serie storica umidità per un'arnia.
     Restituisce solo timestamp e umidita, ottimizzato per grafici.
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("serie umidita") as session:
         return letture_service.get_series(
@@ -697,20 +677,16 @@ def get_serie_umidita(
 )
 def get_serie_peso(
     id_arnia: int,
-    data_inizio: datetime | None = Query(
-        None, description="Data inizio (default: 1 anno fa)"
-    ),
-    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
-    limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
+    data_inizio: datetime | None = DATA_INIZIO_FILTER,
+    data_fine: datetime | None = DATA_FINE_FILTER,
+    limit: int = LETTURE_LIMIT,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
     Serie storica peso per un'arnia.
     Restituisce solo timestamp e peso, ottimizzato per grafici.
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("serie peso") as session:
         return letture_service.get_series(
@@ -725,20 +701,16 @@ def get_serie_peso(
 )
 def get_serie_batteria(
     id_arnia: int,
-    data_inizio: datetime | None = Query(
-        None, description="Data inizio (default: 1 anno fa)"
-    ),
-    data_fine: datetime | None = Query(None, description="Data fine (default: ora)"),
-    limit: int = Query(1000, ge=1, le=10000, description="Numero massimo di letture"),
+    data_inizio: datetime | None = DATA_INIZIO_FILTER,
+    data_fine: datetime | None = DATA_FINE_FILTER,
+    limit: int = LETTURE_LIMIT,
     current_user: dict = Depends(get_current_active_user),
 ):
     """
     Battery voltage time series for one hive's node.
     Returns only timestamp and batteria, shaped for charts.
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("serie batteria") as session:
         return letture_service.get_series(
@@ -1165,9 +1137,7 @@ def get_arnia_user(
     """
     Dettagli di una singola arnia con ultimo stato.
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.read", "Non hai accesso a questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.read")
 
     with db_operation("recupero arnia") as session:
         return arnie_service.get_arnia(session, id_arnia, current_user["id_utente"])
@@ -1184,9 +1154,7 @@ def update_arnia_user(
     Campi modificabili: nome, descrizione, posizione, coordinate, metadati.
     Non è possibile modificare attiva (usa admin per quello).
     """
-    require_arnia_access(
-        current_user, id_arnia, "arnia.update", "Permessi insufficienti su questa arnia"
-    )
+    require_arnia_access(current_user, id_arnia, "arnia.update")
     # Retiring or reviving a hive is the owner's call; for anyone else
     # `attiva` is ignored, as it always was on this route.
     allow_attiva = check_user_arnia_access(

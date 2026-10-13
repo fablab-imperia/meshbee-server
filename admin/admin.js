@@ -118,7 +118,7 @@ function adminCore() {
     // One request; returns the parsed body, or null after showing the error.
     async api(method, path, body, onError = (m) => (this.error = m)) {
       const answer = await this.request(method, path, body, onError);
-      return answer && answer.data;
+      return answer?.data;
     },
 
     // One page of a list route: its rows, and X-Total-Count (sent because the
@@ -406,7 +406,7 @@ function adminCore() {
           return l.apiari.map((a) => ({ value: String(a.id_apiario), label: `${a.nome_apiario} — ${this.userName(a.id_utente_proprietario)}` }));
         // The apiaries of the dialog row's owner: where a hive can move.
         case "apiariProprietario": {
-          const row = this.dialog && this.dialog.row;
+          const row = this.dialog?.row;
           const current = row && l.apiari.find((a) => a.id_apiario === row.id_apiario);
           if (!current) return [];
           return l.apiari
@@ -424,7 +424,8 @@ function adminCore() {
 
     userName(idUtente) {
       const u = this.lookups.utenti.find((x) => x.id_utente === idUtente);
-      return u ? u.email : idUtente == null ? "—" : `#${idUtente}`;
+      if (u) return u.email;
+      return idUtente == null ? "—" : `#${idUtente}`;
     },
 
     rowLabel(row) {
@@ -445,11 +446,12 @@ function adminCore() {
           return this.userName(v);
         case "apiario": {
           const a = this.lookups.apiari.find((x) => x.id_apiario === v);
-          return a ? a.nome_apiario : v == null ? "non assegnata" : `#${v}`;
+          if (a) return a.nome_apiario;
+          return v == null ? "non assegnata" : `#${v}`;
         }
         case "arnia": {
           const a = this.lookups.arnie.find((x) => x.id_arnia === v);
-          return a && a.nome_arnia ? `${v} · ${a.nome_arnia}` : v;
+          return a?.nome_arnia ? `${v} · ${a.nome_arnia}` : v;
         }
         default:
           return v == null ? "—" : v;
@@ -463,7 +465,7 @@ const UNREACHABLE = "Server non raggiungibile";
 
 // FastAPI answers `detail` as a string, or as a list of field errors (422).
 function describeError(status, data) {
-  const detail = data && data.detail;
+  const detail = data?.detail;
   if (Array.isArray(detail)) {
     return detail.map((e) => `${e.loc.slice(1).join(".")}: ${e.msg}`).join("; ");
   }

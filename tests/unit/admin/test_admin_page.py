@@ -43,7 +43,8 @@ def test_the_page_never_inserts_markup():
     hive called `<img onerror=...>` run script with the admin's token."""
     # Every page file, not vendor/: the scripts are split by feature.
     pages = ["index.html", *sorted(p.name for p in ADMIN_DIR.glob("*.js"))]
-    assert "admin.js" in pages and len(pages) > 2, pages
+    assert "admin.js" in pages, pages
+    assert len(pages) > 2, pages
     for name in pages:
         source = (ADMIN_DIR / name).read_text(encoding="utf-8")
         assert "x-html" not in source, name

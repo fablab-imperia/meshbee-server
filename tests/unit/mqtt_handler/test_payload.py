@@ -39,8 +39,10 @@ def test_the_body_wins_over_the_topic():
 
 def test_a_message_with_no_identifiable_node_is_refused():
     """Without a node there is nothing to attribute the reading to."""
+    message = encode({"temperatura": 20})
+
     with pytest.raises(ValueError, match="id_nodo"):
-        parse_message("beehive", encode({"temperatura": 20}))
+        parse_message("beehive", message)
 
 
 # ============================================
@@ -165,4 +167,5 @@ def test_the_esp32_payload_parses_as_sent():
 
     assert parsed["bat"] == "4.01"
     assert parsed["temperatura"] == "28.69"
-    assert "receiver" not in parsed and "alarm" not in parsed
+    assert "receiver" not in parsed
+    assert "alarm" not in parsed

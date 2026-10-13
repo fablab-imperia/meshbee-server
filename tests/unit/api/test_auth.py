@@ -131,34 +131,32 @@ def test_decode_token_rejects_a_token_signed_with_another_key():
 # ============================================
 
 
-@pytest.mark.anyio
-async def test_get_current_active_user_passes_an_active_user_through(active_user):
+def test_get_current_active_user_passes_an_active_user_through(active_user):
     """An active user is returned unchanged."""
-    assert await get_current_active_user(active_user) is active_user
+    assert get_current_active_user(active_user) is active_user
 
 
-@pytest.mark.anyio
-async def test_get_current_active_user_rejects_an_inactive_user(active_user):
+def test_get_current_active_user_rejects_an_inactive_user(active_user):
     """An inactive user is refused with 400, distinct from an auth failure."""
+    inactive = {**active_user, "attivo": False}
+
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_active_user({**active_user, "attivo": False})
+        get_current_active_user(inactive)
 
     assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
 
 
-@pytest.mark.anyio
-async def test_get_current_admin_user_passes_an_admin_through(active_user):
+def test_get_current_admin_user_passes_an_admin_through(active_user):
     """A user with ruolo=admin clears the admin gate."""
     admin = {**active_user, "ruolo": "admin"}
 
-    assert await get_current_admin_user(admin) is admin
+    assert get_current_admin_user(admin) is admin
 
 
-@pytest.mark.anyio
-async def test_get_current_admin_user_rejects_a_regular_user(active_user):
+def test_get_current_admin_user_rejects_a_regular_user(active_user):
     """A non-admin hitting an admin endpoint gets 403, not 401."""
     with pytest.raises(HTTPException) as exc_info:
-        await get_current_admin_user(active_user)
+        get_current_admin_user(active_user)
 
     assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
 
@@ -192,9 +190,10 @@ def test_authenticate_user_reports_a_database_outage_as_unavailable(fake_db):
 def test_get_current_user_reports_a_database_outage_as_unavailable(fake_db):
     """A valid token during an outage is 503, not an invalid-credentials 401."""
     fake_db(auth, error=OUTAGE)
+    credentials = bearer(create_access_token({"sub": "a@b.org"}))
 
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(bearer(create_access_token({"sub": "a@b.org"})))
+        get_current_user(credentials)
 
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
@@ -203,8 +202,10 @@ def test_get_current_user_rejects_a_malformed_token(fake_db):
     """Garbage in the Authorization header is a 401, not a 500 — no DB needed."""
     fake_db(auth, rows=[])
 
+    credentials = bearer("not.a.jwt")
+
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(bearer("not.a.jwt"))
+        get_current_user(credentials)
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -213,8 +214,10 @@ def test_get_current_user_rejects_a_token_without_a_subject(fake_db):
     """A token carrying no `sub` claim identifies nobody, before any query runs."""
     fake_db(auth, rows=[])
 
+    credentials = bearer(create_access_token({"role": "admin"}))
+
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(bearer(create_access_token({"role": "admin"})))
+        get_current_user(credentials)
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 

@@ -115,7 +115,7 @@ def decode_token(token: str) -> dict:
         )
         return payload
     except JWTError as e:
-        logger.error(f"Errore decodifica token: {e}")
+        logger.warning(f"Errore decodifica token: {e}")
         raise
 
 
@@ -194,7 +194,7 @@ def get_current_user(
         raise database_unavailable_error(e) from e
 
 
-async def get_current_active_user(
+def get_current_active_user(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
@@ -216,7 +216,7 @@ async def get_current_active_user(
     return current_user
 
 
-async def get_current_admin_user(
+def get_current_admin_user(
     current_user: dict = Depends(get_current_active_user),
 ) -> dict:
     """
