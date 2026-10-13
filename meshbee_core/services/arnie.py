@@ -8,6 +8,8 @@ from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import arnie, nodi
 from meshbee_core.services import apiari
 
+NOT_FOUND = "Arnia non trovata"
+
 
 def list_for_utente(
     session, current_user, id_apiario: int | None = None, paging: Paging = EVERYTHING
@@ -52,7 +54,7 @@ def get_arnia(session, id_arnia: int, id_utente: int | None = None) -> dict[str,
     """
     row = arnie.get_stato(session, id_arnia, id_utente)
     if not row:
-        raise NotFound("Arnia non trovata")
+        raise NotFound(NOT_FOUND)
     return dict(row)
 
 
@@ -120,7 +122,7 @@ def update_arnia(
         **optional,
     )
     if not row:
-        raise NotFound("Arnia non trovata")
+        raise NotFound(NOT_FOUND)
     return dict(row)
 
 
@@ -132,7 +134,7 @@ def deactivate_arnia(session, id_arnia: int) -> None:
         NotFound: se l'arnia non esiste.
     """
     if not arnie.deactivate(session, id_arnia):
-        raise NotFound("Arnia non trovata")
+        raise NotFound(NOT_FOUND)
 
 
 def move_arnia(session, id_arnia: int, id_apiario: int) -> dict[str, Any]:
@@ -145,7 +147,7 @@ def move_arnia(session, id_arnia: int, id_apiario: int) -> dict[str, Any]:
     """
     found = arnie.get_proprietario(session, id_arnia)
     if not found:
-        raise NotFound("Arnia non trovata")
+        raise NotFound(NOT_FOUND)
     if found["id_utente_proprietario"] is None:
         raise InvalidData("L'arnia non è assegnata: assegna prima il suo nodo")
     apiari.owned_by(session, id_apiario, found["id_utente_proprietario"])

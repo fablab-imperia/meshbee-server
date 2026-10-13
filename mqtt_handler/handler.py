@@ -82,7 +82,7 @@ class BeehiveMQTTHandler:
         try:
             payload = parse_message(msg.topic, msg.payload)
         except ValueError as exc:
-            logger.error(str(exc))
+            logger.warning(str(exc))
             return
 
         try:
@@ -91,10 +91,10 @@ class BeehiveMQTTHandler:
         except CoreError as exc:
             # An unresolvable arnia or an out-of-range measurement. Expected
             # enough to report without a traceback; the session has rolled back.
-            logger.error(f"Lettura scartata: {exc}")
+            logger.warning(f"Lettura scartata: {exc}")
             return
         except Exception as exc:
-            logger.error(f"Errore salvataggio dati: {exc}", exc_info=True)
+            logger.exception(f"Errore salvataggio dati: {exc}")
             return
 
         logger.info(
@@ -130,7 +130,7 @@ class BeehiveMQTTHandler:
         except KeyboardInterrupt:
             logger.info("Interruzione da tastiera ricevuta")
         except Exception as e:
-            logger.error(f"Errore durante esecuzione: {e}", exc_info=True)
+            logger.exception(f"Errore durante esecuzione: {e}")
         finally:
             self.stop()
 

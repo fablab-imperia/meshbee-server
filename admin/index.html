@@ -39,7 +39,7 @@
     <template x-if="me">
       <div>
         <header class="container-fluid">
-          <nav>
+          <nav aria-label="Sezioni">
             <ul>
               <li><strong>Meshbee Admin</strong></li>
             </ul>
@@ -208,7 +208,7 @@
                 <template x-for="f in dialog.fields" :key="f.name">
                   <div>
                     <template x-if="f.type === 'checkbox'">
-                      <label><input type="checkbox" role="switch" x-model="dialog.values[f.name]" /> <span x-text="f.label"></span></label>
+                      <label><input type="checkbox" role="switch" x-model="dialog.values[f.name]" :aria-checked="String(!!dialog.values[f.name])" /> <span x-text="f.label"></span></label>
                     </template>
                     <template x-if="f.type !== 'checkbox'">
                       <label>

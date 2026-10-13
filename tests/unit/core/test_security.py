@@ -29,7 +29,8 @@ def test_password_hash_is_salted():
     second = get_password_hash(PASSWORD)
 
     assert first != second
-    assert verify_password(PASSWORD, first) and verify_password(PASSWORD, second)
+    assert verify_password(PASSWORD, first)
+    assert verify_password(PASSWORD, second)
 
 
 def test_verify_password_returns_false_on_a_corrupt_hash():

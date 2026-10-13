@@ -30,7 +30,7 @@ function urlMixin() {
       if (!this.resource.view && main.size !== this.pageSizes[0]) query.set("size", main.size);
       if (this.chartShown) query.set("grafico", "1"); // charts.js
       const search = query.toString();
-      return `#/${this.tab}${search ? `?${search}` : ""}`;
+      return search ? `#/${this.tab}?${search}` : `#/${this.tab}`;
     },
 
     // A new history entry for each step, so Back undoes it. `replace` corrects

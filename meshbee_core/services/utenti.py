@@ -9,6 +9,8 @@ from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
 from meshbee_core.services import apiari
 
+NOT_FOUND = "Utente non trovato"
+
 
 def list_utenti(session, paging: Paging = EVERYTHING) -> Page:
     return utenti.list_all(session, paging)
@@ -81,7 +83,7 @@ def update_utente(session, id_utente: int, user_update) -> dict[str, Any]:
         updated = utenti.update(session, id_utente, updates, stamp_disattivazione=stamp)
 
     if not updated:
-        raise NotFound("Utente non trovato")
+        raise NotFound(NOT_FOUND)
 
     return dict(updated)
 
@@ -99,7 +101,7 @@ def deactivate_utente(session, id_utente: int, *, acting_user_id: int) -> None:
         raise InvalidData("Non puoi disattivare te stesso")
 
     if not utenti.deactivate(session, id_utente):
-        raise NotFound("Utente non trovato")
+        raise NotFound(NOT_FOUND)
 
 
 def reset_password(session, id_utente: int, new_password: str) -> None:
@@ -112,7 +114,7 @@ def reset_password(session, id_utente: int, new_password: str) -> None:
     if not utenti.set_password_hash(
         session, id_utente, get_password_hash(new_password)
     ):
-        raise NotFound("Utente non trovato")
+        raise NotFound(NOT_FOUND)
 
 
 def change_own_password(

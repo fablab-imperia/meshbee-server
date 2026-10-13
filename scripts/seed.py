@@ -128,7 +128,7 @@ def create_users(users) -> dict:
             with get_session() as session:
                 row, created = utenti_service.ensure_utente(session, user)
         except Exception as e:
-            logger.error(f"  ✗ Errore per {user.email}: {e}")
+            logger.exception(f"  ✗ Errore per {user.email}: {e}")
             sys.exit(1)
 
         user_ids[user.email] = row["id_utente"]
@@ -231,7 +231,7 @@ def seed() -> None:
             if arnie:
                 add_sample_activity(user_ids[TEST_EMAIL], arnie[0])
         except Exception as e:
-            logger.error(f"  ✗ Errore dati di esempio: {e}")
+            logger.exception(f"  ✗ Errore dati di esempio: {e}")
 
         logger.info("\n=== Seed completato ===")
         logger.info("Utenti creati: " + ", ".join(user.email for user in users))

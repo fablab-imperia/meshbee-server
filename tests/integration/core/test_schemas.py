@@ -100,9 +100,10 @@ def insert_value(db, arnia_row, table, column, value):
 def test_model_and_schema_reject_the_same_value(db, arnia_row, model, field, value):
     """A value the model refuses is also refused by the CHECK constraint."""
     table, column = COLUMN[(model, field)]
+    fields = {field: value, **required_fields(model)}
 
     with pytest.raises(ValidationError):
-        model(**{field: value, **required_fields(model)})
+        model(**fields)
 
     with pytest.raises(psycopg.errors.CheckViolation):
         insert_value(db, arnia_row, table, column, value)

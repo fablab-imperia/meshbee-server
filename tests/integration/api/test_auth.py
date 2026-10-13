@@ -118,8 +118,10 @@ def test_get_current_user_resolves_a_valid_access_token(db, utente):
 
 def test_get_current_user_rejects_a_refresh_token(db, utente):
     """A refresh token must not be usable as an access token."""
+    credentials = bearer(create_refresh_token({"sub": utente["email"]}))
+
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(bearer(create_refresh_token({"sub": utente["email"]})))
+        get_current_user(credentials)
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -131,19 +133,21 @@ def test_get_current_user_rejects_a_user_deactivated_since_issuing(
     use_db(auth)
     inactive = make_utente(password_hash=password_hash, attivo=False)
 
+    credentials = bearer(create_access_token({"sub": inactive["email"]}))
+
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(bearer(create_access_token({"sub": inactive["email"]})))
+        get_current_user(credentials)
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 def test_get_current_user_rejects_a_deleted_user(db, utente):
     """A token for an account that no longer exists is refused."""
-    token = create_access_token({"sub": utente["email"]})
+    credentials = bearer(create_access_token({"sub": utente["email"]}))
     db.execute("DELETE FROM utenti WHERE id_utente = %s", (utente["id_utente"],))
 
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(bearer(token))
+        get_current_user(credentials)
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
