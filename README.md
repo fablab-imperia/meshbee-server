@@ -1,6 +1,8 @@
 # 🐝 Meshbee Backend
 
 [![Latest release](https://img.shields.io/github/v/release/fablab-imperia/meshbee-server?sort=semver)](https://github.com/fablab-imperia/meshbee-server/releases/latest)
+[![Code quality](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fablab-imperia_meshbee-server)
+[![Test coverage](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=coverage)](https://sonarcloud.io/component_measures?id=fablab-imperia_meshbee-server&metric=coverage)
 
 *[Versione italiana](README.it.md)*
 

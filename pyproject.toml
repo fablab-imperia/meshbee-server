@@ -37,3 +37,9 @@ packages = [
 
 [tool.setuptools.package-data]
 "meshbee_core.migrations" = ["script.py.mako"]
+
+# Read by pytest-cov. Measures the deployed code only: the suite itself and the
+# Alembic revisions (declarative, exercised by test_migrations.py) are left out.
+[tool.coverage.run]
+source = ["api", "mqtt_handler", "meshbee_core", "scripts"]
+omit = ["meshbee_core/migrations/*"]
