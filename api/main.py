@@ -1328,9 +1328,3 @@ def health_check():
 ADMIN_DIR = Path(__file__).resolve().parent.parent / "admin"
 
 app.mount("/admin", StaticFiles(directory=ADMIN_DIR, html=True), name="admin")
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

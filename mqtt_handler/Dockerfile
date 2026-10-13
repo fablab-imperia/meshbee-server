@@ -20,5 +20,9 @@ RUN pip install --no-cache-dir -e .
 # Copia il codice dell'applicazione
 COPY mqtt_handler ./mqtt_handler
 
+# Run unprivileged; the code stays root-owned and read-only to it.
+RUN useradd --create-home --uid 1000 meshbee
+USER meshbee
+
 # Comando di avvio
 CMD ["python", "-m", "mqtt_handler"]
