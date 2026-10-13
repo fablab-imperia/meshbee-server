@@ -3,6 +3,9 @@
 [![Latest release](https://img.shields.io/github/v/release/fablab-imperia/meshbee-server?sort=semver)](https://github.com/fablab-imperia/meshbee-server/releases/latest)
 [![Code quality](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fablab-imperia_meshbee-server)
 [![Test coverage](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=coverage)](https://sonarcloud.io/component_measures?id=fablab-imperia_meshbee-server&metric=coverage)
+[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=sqale_rating)](https://sonarcloud.io/component_measures?id=fablab-imperia_meshbee-server&metric=sqale_rating)
+[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=reliability_rating)](https://sonarcloud.io/component_measures?id=fablab-imperia_meshbee-server&metric=reliability_rating)
+[![Security](https://sonarcloud.io/api/project_badges/measure?project=fablab-imperia_meshbee-server&metric=security_rating)](https://sonarcloud.io/component_measures?id=fablab-imperia_meshbee-server&metric=security_rating)
 
 *[Versione italiana](README.it.md)*
 

@@ -31,6 +31,13 @@ COPY pytest.ini ./
 # The `migrate` service shares this image; the ini is for the alembic CLI.
 COPY alembic.ini ./
 
+# Run unprivileged. uid 1000 matches the usual Linux host user, so files the
+# container writes into bind mounts (openapi.json, new revisions) stay editable.
+# The code stays root-owned; only /app itself is writable, for the caches that
+# pytest and ruff create in the working directory.
+RUN useradd --create-home --uid 1000 meshbee && chown meshbee /app
+USER meshbee
+
 # Espone la porta 8000
 EXPOSE 8000
 
