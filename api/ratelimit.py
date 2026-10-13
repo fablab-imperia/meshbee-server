@@ -1,8 +1,10 @@
-"""A per-client request limit for anonymous routes that cost something.
+"""Request limits for routes that cost something or could be used to probe.
 
 The forgot-password route can send an email on every call, and a provider's
-daily cap (100 a day on Resend's free tier) is easy to exhaust. This counts the
-requests each client address made over a sliding window, in memory.
+daily cap (100 a day on Resend's free tier) is easy to exhaust; it is limited
+per client address. Sharing an apiary by email is limited per user, so it
+cannot be used to try addresses in bulk (#40). Each limiter counts requests per
+key over a sliding window, in memory.
 
 In memory means per API process: the count starts over on a restart, and
 several uvicorn workers would each keep their own. That is enough for one
@@ -62,10 +64,13 @@ class SlidingWindowLimiter:
             del self._hits[key]
 
 
-def enforce(limiter: SlidingWindowLimiter, request: Request) -> None:
-    """Raise 429 with Retry-After when the client has used up its requests."""
-    # The address uvicorn resolved from Caddy's X-Forwarded-For (see README.md).
-    key = request.client.host if request.client else "unknown"
+def client_address(request: Request) -> str:
+    """The address uvicorn resolved from Caddy's X-Forwarded-For (see README.md)."""
+    return request.client.host if request.client else "unknown"
+
+
+def enforce(limiter: SlidingWindowLimiter, key: str) -> None:
+    """Raise 429 with Retry-After when `key` has used up its requests."""
     wait = limiter.hit(key)
     if wait is not None:
         raise HTTPException(

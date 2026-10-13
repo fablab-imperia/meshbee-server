@@ -41,7 +41,7 @@ from api.auth import (
 from api.config import Settings, get_settings, settings
 from api.mail import get_mailer, send_later
 from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
-from api.ratelimit import SlidingWindowLimiter, enforce
+from api.ratelimit import SlidingWindowLimiter, client_address, enforce
 from meshbee_core import emails
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound, Unavailable
@@ -61,8 +61,11 @@ from meshbee_core.models import (
     AttivitaResponse,
     AttivitaUpdate,
     CondivisioneCreate,
+    CondivisioneRegistrata,
     CondivisioneResponse,
+    CondivisioneStato,
     CondivisioneUpdate,
+    InvitoResponse,
     LetturaCreate,
     LetturaResponse,
     LetturaUpdate,
@@ -354,7 +357,7 @@ def forgot_password(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Il recupero della password via email non è attivo: chiedi a un amministratore",
         )
-    enforce(forgot_limiter, request)
+    enforce(forgot_limiter, client_address(request))
 
     minutes = config.PASSWORD_RESET_EXPIRE_MINUTES
     with db_operation("richiesta reset password") as session:
@@ -530,9 +533,13 @@ def delete_apiario_user(
         return message_for_deleted_apiario(id_apiario)
 
 
+# Share requests one user may make per hour (#40).
+share_limiter = SlidingWindowLimiter(limit=settings.SHARE_MAX_PER_HOUR, window=3600)
+
+
 @app.get(
     "/api/user/apiari/{id_apiario}/condivisioni",
-    response_model=list[CondivisioneResponse],
+    response_model=list[CondivisioneStato],
     tags=["Utente"],
     responses=PAGED_RESPONSES,
 )
@@ -543,7 +550,8 @@ def get_condivisioni(
     current_user: dict = Depends(get_current_active_user),
 ):
     """
-    Who the apiary is shared with, and as what (owner only).
+    Who the apiary is shared with, and as what (owner only): active shares and
+    pending invitations to emails with no account yet, told apart by `stato`.
     """
     require_apiario_access(current_user, id_apiario, "apiario.share")
 
@@ -555,8 +563,9 @@ def get_condivisioni(
 
 @app.post(
     "/api/user/apiari/{id_apiario}/condivisioni",
-    response_model=CondivisioneResponse,
+    response_model=CondivisioneRegistrata,
     tags=["Utente"],
+    responses={429: {"description": "Troppe condivisioni in un'ora"}},
 )
 def share_apiario(
     id_apiario: int,
@@ -564,10 +573,15 @@ def share_apiario(
     current_user: dict = Depends(get_current_active_user),
 ):
     """
-    Share the apiary with a user, by email, as viewer, collaborator or manager
-    (owner only). Sharing again with the same user changes their role.
+    Share the apiary with an email, as viewer, collaborator or manager (owner
+    only). Sharing again with the same email changes the role.
+
+    An email with no account gets a pending invitation, which becomes a share
+    when the account is created. The answer is the same either way, so it does
+    not reveal which addresses are registered (#40); the share list shows which.
     """
     require_apiario_access(current_user, id_apiario, "apiario.share")
+    enforce(share_limiter, str(current_user["id_utente"]))
 
     with db_operation("condivisione apiario") as session:
         return accessi_service.share(session, id_apiario, condivisione)
@@ -611,6 +625,48 @@ def revoke_condivisione(
     with db_operation("revoca condivisione") as session:
         accessi_service.revoke(session, id_apiario, id_utente)
         return {"message": "Condivisione rimossa"}
+
+
+@app.put(
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}",
+    response_model=InvitoResponse,
+    tags=["Utente"],
+)
+def update_invito(
+    id_apiario: int,
+    id_invito: int,
+    body: CondivisioneUpdate,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Change the role of a pending invitation (owner only).
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+
+    with db_operation("aggiornamento invito") as session:
+        return accessi_service.change_invito_ruolo(
+            session, id_apiario, id_invito, body.ruolo
+        )
+
+
+@app.delete(
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}",
+    response_model=MessageResponse,
+    tags=["Utente"],
+)
+def revoke_invito(
+    id_apiario: int,
+    id_invito: int,
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Withdraw a pending invitation (owner only).
+    """
+    require_apiario_access(current_user, id_apiario, "apiario.share")
+
+    with db_operation("revoca invito") as session:
+        accessi_service.revoke_invito(session, id_apiario, id_invito)
+        return {"message": "Invito ritirato"}
 
 
 @app.put(

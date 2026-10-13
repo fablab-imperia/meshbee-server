@@ -1252,6 +1252,35 @@
         "title": "CondivisioneCreate",
         "type": "object"
       },
+      "CondivisioneRegistrata": {
+        "description": "The answer to a share request: the same whether or not the email has an account.\n\nA share needs an account, an invitation does not (#40); saying which one was\nmade would tell any user which addresses are registered.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "ruolo": {
+            "enum": [
+              "viewer",
+              "collaborator",
+              "manager"
+            ],
+            "title": "Ruolo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_apiario",
+          "email",
+          "ruolo"
+        ],
+        "title": "CondivisioneRegistrata",
+        "type": "object"
+      },
       "CondivisioneResponse": {
         "description": "A share, with who it is for — identified only by the email the owner typed.\n\nNo name or other profile field: any user can share their own apiary with\nany email, so this response must not tell them more about the account\nbehind it than they already knew.",
         "properties": {
@@ -1287,6 +1316,72 @@
         "title": "CondivisioneResponse",
         "type": "object"
       },
+      "CondivisioneStato": {
+        "description": "One entry of an apiary's share list: an active share or a pending invitation.\n\n`stato` says which. An active share carries `id_utente` (its routes are\n`…/condivisioni/{id_utente}`), a pending invitation `id_invito`\n(`…/inviti/{id_invito}`). `data_condivisione` is when it was shared or invited.",
+        "properties": {
+          "data_condivisione": {
+            "format": "date-time",
+            "title": "Data Condivisione",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "id_invito": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Invito"
+          },
+          "id_utente": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente"
+          },
+          "ruolo": {
+            "enum": [
+              "viewer",
+              "collaborator",
+              "manager"
+            ],
+            "title": "Ruolo",
+            "type": "string"
+          },
+          "stato": {
+            "enum": [
+              "attiva",
+              "in_attesa"
+            ],
+            "title": "Stato",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_apiario",
+          "email",
+          "ruolo",
+          "data_condivisione",
+          "stato"
+        ],
+        "title": "CondivisioneStato",
+        "type": "object"
+      },
       "CondivisioneUpdate": {
         "description": "Change the role of an existing share.",
         "properties": {
@@ -1317,6 +1412,40 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InvitoResponse": {
+        "properties": {
+          "data_invito": {
+            "format": "date-time",
+            "title": "Data Invito",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "id_invito": {
+            "title": "Id Invito",
+            "type": "integer"
+          },
+          "ruolo": {
+            "title": "Ruolo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_apiario",
+          "email",
+          "ruolo",
+          "data_invito",
+          "id_invito"
+        ],
+        "title": "InvitoResponse",
         "type": "object"
       },
       "LetturaCreate": {
@@ -4392,7 +4521,7 @@
     },
     "/api/user/apiari/{id_apiario}/condivisioni": {
       "get": {
-        "description": "Who the apiary is shared with, and as what (owner only).",
+        "description": "Who the apiary is shared with, and as what (owner only): active shares and\npending invitations to emails with no account yet, told apart by `stato`.",
         "operationId": "get_condivisioni_api_user_apiari__id_apiario__condivisioni_get",
         "parameters": [
           {
@@ -4444,7 +4573,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/CondivisioneResponse"
+                    "$ref": "#/components/schemas/CondivisioneStato"
                   },
                   "title": "Response Get Condivisioni Api User Apiari  Id Apiario  Condivisioni Get",
                   "type": "array"
@@ -4484,7 +4613,7 @@
         ]
       },
       "post": {
-        "description": "Share the apiary with a user, by email, as viewer, collaborator or manager\n(owner only). Sharing again with the same user changes their role.",
+        "description": "Share the apiary with an email, as viewer, collaborator or manager (owner\nonly). Sharing again with the same email changes the role.\n\nAn email with no account gets a pending invitation, which becomes a share\nwhen the account is created. The answer is the same either way, so it does\nnot reveal which addresses are registered (#40); the share list shows which.",
         "operationId": "share_apiario_api_user_apiari__id_apiario__condivisioni_post",
         "parameters": [
           {
@@ -4512,7 +4641,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CondivisioneResponse"
+                  "$ref": "#/components/schemas/CondivisioneRegistrata"
                 }
               }
             },
@@ -4527,6 +4656,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Troppe condivisioni in un'ora"
           }
         },
         "security": [
@@ -4657,6 +4789,128 @@
           }
         ],
         "summary": "Update Condivisione",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}": {
+      "delete": {
+        "description": "Withdraw a pending invitation (owner only).",
+        "operationId": "revoke_invito_api_user_apiari__id_apiario__inviti__id_invito__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_invito",
+            "required": true,
+            "schema": {
+              "title": "Id Invito",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revoke Invito",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "put": {
+        "description": "Change the role of a pending invitation (owner only).",
+        "operationId": "update_invito_api_user_apiari__id_apiario__inviti__id_invito__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_invito",
+            "required": true,
+            "schema": {
+              "title": "Id Invito",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CondivisioneUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Invito",
         "tags": [
           "Utente"
         ]

@@ -7,7 +7,7 @@ from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
-from meshbee_core.services import apiari, auth
+from meshbee_core.services import accessi, apiari, auth
 
 NOT_FOUND = "Utente non trovato"
 
@@ -34,6 +34,8 @@ def create_utente(session, user) -> dict[str, Any]:
     )
     # Every account starts with the apiary its hives will land in.
     apiari.ensure_predefinito(session, created["id_utente"])
+    # And with every apiary that was shared with its email before it existed (#40).
+    accessi.accept_invitations(session, created["id_utente"], created["email"])
     return dict(created)
 
 
@@ -88,6 +90,13 @@ def update_utente(session, id_utente: int, user_update) -> dict[str, Any]:
     # A disabled account must not mint new access tokens with an old refresh token.
     if stamp:
         auth.revoke_sessions(session, id_utente)
+
+    # No account will ever be created with this email now: its invitations are this one's.
+    # Safe only because an email is set by an admin (or the seed), never by its user: a
+    # self-service email change must first prove the mailbox, or anyone could claim the
+    # invitations sent to an address they do not own.
+    if "email" in updates:
+        accessi.accept_invitations(session, id_utente, updated["email"])
 
     return dict(updated)
 

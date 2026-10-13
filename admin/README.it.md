@@ -11,7 +11,7 @@ Una piccola **pagina statica per gli amministratori**, servita dall'API su `/adm
   proprietario;
 - reimpostare una password;
 - letture, come tabella o come grafici, e attività;
-- con chi è condiviso un apiario;
+- con chi è condiviso un apiario, e gli inviti in attesa verso email ancora senza account;
 - letture a mano: inserirne una, correggerne una, eliminarle una alla volta o come
   selezione
   ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),

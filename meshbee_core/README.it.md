@@ -47,6 +47,7 @@ scripts/ ───────┘
 | `letture.py` | `letture`. `insert` è l'unica INSERT a cui arrivano entrambi gli entry point; `series` mette in whitelist il nome della colonna. |
 | `attivita.py` | `log_attivita`, con update e delete limitati al proprietario. |
 | `accessi.py` | `utenti_apiari` — le condivisioni — e l'accesso di un utente (`owner`, un ruolo, o nessuno) a un apiario o a un'arnia. |
+| `inviti.py` | `inviti_apiari`: condivisioni in attesa verso email senza account (#40). `take_for_email` le cancella e le restituisce in un'unica istruzione. |
 | `sessioni.py` | `token_sessione`: i refresh token, cercati per il loro SHA-256. |
 | `token_monouso.py` | `token_monouso`: i token monouso inviati per email. `spend` è un unico UPDATE condizionale, così un token non si usa due volte nemmeno in concorrenza. |
 
@@ -61,7 +62,7 @@ scripts/ ───────┘
 | `apiari.py` | Gli apiari: il `Default` di ogni utente, e le regole per eliminarne uno. |
 | `letture.py` | Le letture, la finestra di default di un anno, la validazione dei limiti. |
 | `attivita.py` | Il log attività. |
-| `accessi.py` | La condivisione di un apiario: concedere, cambiare e revocare i ruoli. |
+| `accessi.py` | La condivisione di un apiario: concedere, cambiare e revocare i ruoli; gli inviti in attesa per email senza account, e la loro trasformazione in condivisioni quando l'account compare (#40). |
 | `ingest.py` | Il percorso MQTT: registra il nodo, risolve o crea l'arnia, archivia la lettura. |
 | `password_reset.py` | Reimpostare la password via email: chi riceve un token, il limite per account, il suo consumo. Restituisce il token; l'email la invia il chiamante. |
 

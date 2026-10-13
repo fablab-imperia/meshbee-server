@@ -10,7 +10,7 @@ A small **static page for administrators**, served by the API at `/admin/`
 - assigning a node's owner and moving a hive to another apiary of its owner;
 - resetting a password;
 - readings, as a table or as charts, and activities;
-- who an apiary is shared with;
+- who an apiary is shared with, and pending invitations to emails with no account yet;
 - readings by hand: insert one, correct one, delete one at a time or a selection
   ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
   [#21](https://github.com/fablab-imperia/meshbee-server/issues/21)).

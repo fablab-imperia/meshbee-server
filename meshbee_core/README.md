@@ -47,6 +47,7 @@ scripts/ ───────┘
 | `letture.py` | `letture`. `insert` is the single INSERT both entry points reach; `series` whitelists the column name. |
 | `attivita.py` | `log_attivita`, with ownership-scoped update and delete. |
 | `accessi.py` | `utenti_apiari` — the shares — and a user's access (`owner`, a role, or none) to an apiary or a hive. |
+| `inviti.py` | `inviti_apiari`: pending shares to emails with no account (#40). `take_for_email` deletes and returns them in one statement. |
 | `sessioni.py` | `token_sessione`: refresh tokens, found by their SHA-256. |
 | `token_monouso.py` | `token_monouso`: single-use emailed tokens. `spend` is one conditional UPDATE, so a token cannot be used twice even concurrently. |
 
@@ -61,7 +62,7 @@ scripts/ ───────┘
 | `apiari.py` | Apiaries: every user's `Default`, and the rules for deleting one. |
 | `letture.py` | Readings, the default one-year window, range validation. |
 | `attivita.py` | The activity log. |
-| `accessi.py` | Sharing an apiary: granting, changing and revoking roles. |
+| `accessi.py` | Sharing an apiary: granting, changing and revoking roles; pending invitations for emails with no account, and turning them into shares when the account appears (#40). |
 | `ingest.py` | The MQTT path: register the node, resolve or create the hive, store the reading. |
 | `password_reset.py` | Password reset by email: who gets a token, the per-account cap, spending it. Hands the token back; the caller sends the email. |
 

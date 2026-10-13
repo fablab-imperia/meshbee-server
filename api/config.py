@@ -67,6 +67,10 @@ class Settings(CoreSettings):
     # asked for. Counted in memory, per API process.
     PASSWORD_RESET_MAX_PER_IP: int = Field(default=10, gt=0)
 
+    # Share requests (POST …/condivisioni) one user may make per hour, so sharing
+    # cannot be used to try addresses in bulk (#40). In memory, per API process.
+    SHARE_MAX_PER_HOUR: int = Field(default=30, gt=0)
+
     @field_validator(*EMPTY_MEANS_UNSET, mode="before")
     @classmethod
     def _empty_means_unset(cls, value):

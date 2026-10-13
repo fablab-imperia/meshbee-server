@@ -2,10 +2,11 @@
 
 from typing import Any
 
+from sqlalchemy import Integer, cast, literal, null, union_all
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, delete, select
 
-from meshbee_core.models import Apiario, Arnia, Utente, UtenteApiario
+from meshbee_core.models import Apiario, Arnia, InvitoApiario, Utente, UtenteApiario
 from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import fetch_page
 
@@ -64,11 +65,40 @@ _CONDIVISIONE = select(
 def list_for_apiario(
     session: Session, id_apiario: int, paging: Paging = EVERYTHING
 ) -> Page:
+    """
+    The apiary's active shares and pending invitations (#40), as one list by email.
+
+    Each row says which it is in `stato`, and carries `id_utente` or `id_invito`.
+    """
+    no_id = cast(null(), Integer)
+    shares = (
+        select(
+            UtenteApiario.id_utente,
+            no_id.label("id_invito"),
+            UtenteApiario.id_apiario,
+            UtenteApiario.ruolo,
+            UtenteApiario.data_condivisione,
+            Utente.email,
+            literal("attiva").label("stato"),
+        )
+        .join(Utente, Utente.id_utente == UtenteApiario.id_utente)
+        .where(UtenteApiario.id_apiario == id_apiario)
+    )
+    invites = select(
+        no_id.label("id_utente"),
+        InvitoApiario.id_invito,
+        InvitoApiario.id_apiario,
+        InvitoApiario.ruolo,
+        InvitoApiario.data_invito.label("data_condivisione"),
+        InvitoApiario.email,
+        literal("in_attesa").label("stato"),
+    ).where(InvitoApiario.id_apiario == id_apiario)
+    both = union_all(shares, invites).subquery()
+    # An email is either shared or invited on one apiary, never both; `stato`
+    # still breaks a tie, so paging stays stable.
     return fetch_page(
         session,
-        _CONDIVISIONE.where(UtenteApiario.id_apiario == id_apiario).order_by(
-            Utente.email
-        ),
+        select(*both.c).order_by(both.c.email, both.c.stato),
         paging,
         lambda rows: [dict(row._mapping) for row in rows],
     )

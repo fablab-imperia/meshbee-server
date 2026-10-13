@@ -102,6 +102,8 @@ APIARIO_SCOPED = [
     ("post", "/api/user/apiari/{}/condivisioni", {"email": "x@y.org"}, "owner"),
     ("put", "/api/user/apiari/{}/condivisioni/1", {"ruolo": "viewer"}, "owner"),
     ("delete", "/api/user/apiari/{}/condivisioni/1", None, "owner"),
+    ("put", "/api/user/apiari/{}/inviti/1", {"ruolo": "viewer"}, "owner"),
+    ("delete", "/api/user/apiari/{}/inviti/1", None, "owner"),
 ]
 
 # From no access at all to owning: each level allows everything the one

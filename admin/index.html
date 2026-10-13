@@ -265,9 +265,12 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="s in paged('shares', shares.rows)" :key="s.id_utente">
+                  <template x-for="s in paged('shares', shares.rows)" :key="shareKey(s)">
                     <tr>
-                      <td x-text="s.email"></td>
+                      <td>
+                        <span x-text="s.email"></span>
+                        <small x-show="s.stato === 'in_attesa'" title="Nessun account con questa email: diventa una condivisione quando viene creato"> (in attesa)</small>
+                      </td>
                       <td>
                         <select aria-label="Ruolo" @change="changeShare(s, $event.target.value)">
                           <template x-for="o in options('ruoliApiario')" :key="o.value">
@@ -296,7 +299,7 @@
                   <button type="submit">Condividi</button>
                 </fieldset>
               </form>
-              <p><small>Condividere di nuovo con lo stesso utente ne cambia il ruolo.</small></p>
+              <p><small>Condividere di nuovo con la stessa email ne cambia il ruolo. Un'email senza account resta in attesa finché l'account non viene creato.</small></p>
               <p class="error" x-show="dialogError" x-text="dialogError"></p>
             </article>
           </template>

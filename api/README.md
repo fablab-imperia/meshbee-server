@@ -15,10 +15,10 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 58 routes, and the `/reset-password` page. |
+| `main.py` | The application: lifespan, CORS, error translation and all 60 routes, and the `/reset-password` page. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `mail.py` | `get_mailer` and `send_later`: email off the request path — see [Configuration](#configuration). |
-| `ratelimit.py` | An in-memory per-client limit for anonymous routes that send email — see [Password reset](#password-reset). |
+| `ratelimit.py` | In-memory request limits: per client address on the forgot-password route ([Password reset](#password-reset)), per user on sharing. |
 | `paging.py` | The optional `limit`/`offset` parameters of the list routes, and their `X-Total-Count` header — see [Paging](#paging). |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -28,7 +28,7 @@ here.
 
 ## Endpoints
 
-58 operations. `Auth` says what a request must carry:
+60 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -77,10 +77,12 @@ the caller's access to that hive's apiary, or that apiary.
 | GET | `/api/user/apiari/{id_apiario}` | user + viewer | One apiary. |
 | PUT | `/api/user/apiari/{id_apiario}` | user + manager | Edit it — the default one included. |
 | DELETE | `/api/user/apiari/{id_apiario}` | user + owner | Delete it, with its shares. **409** for the default one, and while active hives are still in it. |
-| GET | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Who it is shared with, and as what. **Paged**. |
-| POST | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Share it with a user, by `email`, as `viewer` (default), `collaborator` or `manager`. Sharing again changes the role. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Who it is shared with, and as what: active shares (`stato: attiva`, with `id_utente`) and pending invitations (`stato: in_attesa`, with `id_invito`), by email. **Paged**. |
+| POST | `/api/user/apiari/{id_apiario}/condivisioni` | user + owner | Share it with an `email`, as `viewer` (default), `collaborator` or `manager`. An email with no account gets a pending invitation. The answer (`id_apiario`, `email`, `ruolo`) is the same either way. Sharing again changes the role. **429** past `SHARE_MAX_PER_HOUR`. |
 | PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Change that user's role. |
 | DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | user + owner | Stop sharing it with that user. |
+| PUT | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | user + owner | Change the role of a pending invitation. |
+| DELETE | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | user + owner | Withdraw a pending invitation. |
 
 The four series endpoints exist because a chart needs two columns out of a row of
 nine; they drop rows where the field is NULL. The list of fields they accept is a
@@ -216,9 +218,14 @@ check. An unknown action raises rather than returning False, so a typo fails clo
 an apiary that is not its owner's gets the same **400** whether it exists or not, so
 the answer reveals nothing.
 
-A share response identifies the user only by the email the owner typed — no name.
-Known gap: sharing with an unregistered email answers **404**, so any user can still
-test which emails have an account ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
+Sharing answers the same whether or not the email has an account
+([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)): an unknown email
+gets a **pending invitation** (`inviti_apiari`), which becomes a share as soon as an
+account with that email is created, or an existing account takes that email on. The
+share list does show which entries are pending, so the owner can catch a mistyped
+address. What keeps this from being a way to test addresses in bulk is the per-user
+limit, `SHARE_MAX_PER_HOUR` (30 by default, in memory like the reset limit). Entries
+identify people only by the email the owner typed: no name.
 
 Three things to know about tokens:
 
@@ -332,6 +339,7 @@ README.
 | `PASSWORD_RESET_EXPIRE_MINUTES` | int | `30` (at most 1440) |
 | `PASSWORD_RESET_MAX_PER_ACCOUNT` | int | `3` an hour |
 | `PASSWORD_RESET_MAX_PER_IP` | int | `10` an hour |
+| `SHARE_MAX_PER_HOUR` | int | `30` share requests per user |
 
 `CORS_ORIGINS` is a list, so from the environment it must be **JSON**, not a
 comma-separated string:

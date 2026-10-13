@@ -112,6 +112,22 @@ ruolo è `ROLE_ACTIONS` in `meshbee_core/services/auth.py`; un account con
 `ruolo = 'admin'` scavalca tutto. Questa tabella ha sostituito `utenti_arnie` (livelli
 `read`/`write`/`admin` per arnia) nella revisione `0005`.
 
+### `inviti_apiari` — condivisioni in attesa verso email senza account
+
+| Colonna | Tipo | Note |
+|---|---|---|
+| `id_invito` | SERIAL | PK |
+| `id_apiario` | INTEGER | FK, CASCADE. |
+| `email` | VARCHAR(255) | **UNIQUE insieme a `id_apiario`.** Normalizzata come `utenti.email`. |
+| `ruolo` | VARCHAR(20) | CHECK `('viewer','collaborator','manager')`, default `viewer`. |
+| `data_invito` | TIMESTAMP | |
+
+Condividere con un'email che non ha un account salva una riga qui invece di rispondere
+404 ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)). Quando viene
+creato un account con quell'email, o uno esistente la prende, ogni riga diventa una
+condivisione in `utenti_apiari` e viene cancellata
+(`services/accessi.py::accept_invitations`).
+
 ### `letture` — la telemetria
 
 | Colonna | Tipo | Note |
@@ -266,6 +282,8 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
 | `0004` | Eliminata l'estensione `uuid-ossp`, installata da `init.sql` e mai usata. Senza CASCADE: se qualcosa ne dipende, la migrazione si ferma invece di eliminarlo. |
 | `0005` | Proprietà e apiari (#2, #36): `apiari` con un `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, e `utenti_apiari` al posto di `utenti_arnie`. Il proprietario di un'arnia diventa la sua associazione attiva meglio piazzata (`admin` > `write` > `read`, la più vecchia prima); un nodo va al proprietario della maggior parte delle sue arnie, e tutte le sue arnie nel Default di quel proprietario; ogni altra associazione attiva diventa un ruolo su quel Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), che può allargare l'accesso ma non toglierlo mai. Le arnie che nessuno poteva vedere restano non assegnate. Il downgrade ricostruisce l'accesso per arnia. |
+| `0006` | `token_monouso`, token monouso inviati per email (#54): oggi il reset della password, poi gli inviti (#55). |
+| `0007` | `inviti_apiari`, condivisioni in attesa verso email ancora senza account (#40). |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:

@@ -79,6 +79,7 @@ from meshbee_core.limits import (
     # Re-exported: the value sets are part of this module's public surface.
     RuoloApiario,
     ScopoToken,
+    StatoCondivisione,
     TipoAttivita,
 )
 
@@ -851,6 +852,68 @@ class UtenteApiario(CondivisioneBase, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+
+
+class CondivisioneRegistrata(BaseModel):
+    """
+    The answer to a share request: the same whether or not the email has an account.
+
+    A share needs an account, an invitation does not (#40); saying which one was
+    made would tell any user which addresses are registered.
+    """
+
+    id_apiario: int
+    email: str
+    ruolo: RuoloApiario
+
+
+class CondivisioneStato(BaseModel):
+    """
+    One entry of an apiary's share list: an active share or a pending invitation.
+
+    `stato` says which. An active share carries `id_utente` (its routes are
+    `…/condivisioni/{id_utente}`), a pending invitation `id_invito`
+    (`…/inviti/{id_invito}`). `data_condivisione` is when it was shared or invited.
+    """
+
+    id_utente: int | None = None
+    id_invito: int | None = None
+    id_apiario: int
+    email: str
+    ruolo: RuoloApiario
+    data_condivisione: datetime
+    stato: StatoCondivisione
+
+
+class InvitoBase(SQLModel):
+    """An apiary shared with an email that has no account yet (#40)."""
+
+    id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
+    email: str = Field(sa_type=String(255))
+    ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
+    data_invito: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+
+
+class InvitoResponse(InvitoBase):
+    id_invito: int = Field(primary_key=True)
+
+
+class InvitoApiario(InvitoResponse, table=True):
+    """
+    A pending share. When an account is created with this email, every
+    invitation for it becomes a share in `utenti_apiari`, and the row goes.
+    """
+
+    __tablename__ = "inviti_apiari"
+    __table_args__ = (
+        UniqueConstraint(
+            "email", "id_apiario", name="inviti_apiari_email_id_apiario_key"
+        ),
+        CheckConstraint(
+            one_of("ruolo", RUOLI_APIARIO), name="inviti_apiari_ruolo_check"
+        ),
+        {"comment": "Apiari condivisi con email che non hanno ancora un account"},
+    )
 
 
 # ============================================

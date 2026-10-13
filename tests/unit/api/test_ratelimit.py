@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from api.ratelimit import SlidingWindowLimiter, enforce
+from api.ratelimit import SlidingWindowLimiter, client_address, enforce
 
 
 class Clock:
@@ -89,10 +89,10 @@ def request_from(host):
 
 def test_enforce_raises_429_with_retry_after(limiter):
     for _ in range(3):
-        enforce(limiter, request_from("10.0.0.1"))
+        enforce(limiter, client_address(request_from("10.0.0.1")))
 
     with pytest.raises(HTTPException) as exc_info:
-        enforce(limiter, request_from("10.0.0.1"))
+        enforce(limiter, client_address(request_from("10.0.0.1")))
 
     assert exc_info.value.status_code == 429
     assert exc_info.value.headers["Retry-After"] == "60"
@@ -100,14 +100,14 @@ def test_enforce_raises_429_with_retry_after(limiter):
 
 def test_enforce_keys_on_the_client_address(limiter):
     for _ in range(3):
-        enforce(limiter, request_from("10.0.0.1"))
+        enforce(limiter, client_address(request_from("10.0.0.1")))
 
-    enforce(limiter, request_from("10.0.0.2"))
+    enforce(limiter, client_address(request_from("10.0.0.2")))
 
 
 def test_a_request_without_a_client_address_is_still_counted(limiter):
     for _ in range(3):
-        enforce(limiter, request_from(None))
+        enforce(limiter, client_address(request_from(None)))
 
     with pytest.raises(HTTPException):
-        enforce(limiter, request_from(None))
+        enforce(limiter, client_address(request_from(None)))

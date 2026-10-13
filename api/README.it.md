@@ -14,10 +14,10 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 58 rotte, e la pagina `/reset-password`. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 60 rotte, e la pagina `/reset-password`. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `mail.py` | `get_mailer` e `send_later`: le email fuori dal percorso della richiesta — vedi [Configurazione](#configurazione). |
-| `ratelimit.py` | Un limite per client, in memoria, per le rotte anonime che inviano email — vedi [Reimpostare la password](#reimpostare-la-password). |
+| `ratelimit.py` | Limiti alle richieste, in memoria: per indirizzo client sulla rotta di password dimenticata ([Reimpostare la password](#reimpostare-la-password)), per utente sulla condivisione. |
 | `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -27,7 +27,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-58 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+60 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -77,10 +77,12 @@ sull'accesso del chiamante all'apiario di quell'arnia, o a quell'apiario.
 | GET | `/api/user/apiari/{id_apiario}` | utente + viewer | Un singolo apiario. |
 | PUT | `/api/user/apiari/{id_apiario}` | utente + manager | Lo modifica — anche quello predefinito. |
 | DELETE | `/api/user/apiari/{id_apiario}` | utente + owner | Lo elimina, con le sue condivisioni. **409** per quello predefinito, e finché contiene arnie attive. |
-| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo. **Paginata**. |
-| POST | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Lo condivide con un utente, tramite `email`, come `viewer` (default), `collaborator` o `manager`. Condividerlo di nuovo cambia il ruolo. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo: condivisioni attive (`stato: attiva`, con `id_utente`) e inviti in attesa (`stato: in_attesa`, con `id_invito`), per email. **Paginata**. |
+| POST | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Lo condivide con un'`email`, come `viewer` (default), `collaborator` o `manager`. Un'email senza account riceve un invito in attesa. La risposta (`id_apiario`, `email`, `ruolo`) è la stessa in entrambi i casi. Condividerlo di nuovo cambia il ruolo. **429** oltre `SHARE_MAX_PER_HOUR`. |
 | PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Cambia il ruolo di quell'utente. |
 | DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Smette di condividerlo con quell'utente. |
+| PUT | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | utente + owner | Cambia il ruolo di un invito in attesa. |
+| DELETE | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | utente + owner | Ritira un invito in attesa. |
 
 I quattro endpoint di serie esistono perché a un grafico servono due colonne su una riga di
 nove; scartano le righe in cui il campo è NULL. L'elenco dei campi accettati è una
@@ -219,10 +221,15 @@ delle arnie del chiamante, non lo allarga mai. Spostare un'arnia in un apiario c
 è del suo proprietario riceve lo stesso **400** che esista o no, così la risposta non
 rivela nulla.
 
-Una condivisione identifica l'utente solo con l'email scritta dal proprietario — nessun
-nome. Limite noto: condividere con un'email non registrata risponde **404**, quindi
-qualsiasi utente può ancora verificare quali email hanno un account
-([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
+La condivisione risponde allo stesso modo che l'email abbia un account o no
+([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)): un'email
+sconosciuta riceve un **invito in attesa** (`inviti_apiari`), che diventa una
+condivisione appena viene creato un account con quell'email, o un account esistente la
+prende. L'elenco delle condivisioni mostra quali voci sono in attesa, così il
+proprietario si accorge di un indirizzo sbagliato. Quello che impedisce di usarlo per
+provare indirizzi in massa è il limite per utente, `SHARE_MAX_PER_HOUR` (30 di default,
+in memoria come quello del reset). Le voci identificano le persone solo con l'email
+scritta dal proprietario: nessun nome.
 
 Tre cose da sapere sui token:
 
@@ -338,6 +345,7 @@ README.
 | `PASSWORD_RESET_EXPIRE_MINUTES` | int | `30` (al massimo 1440) |
 | `PASSWORD_RESET_MAX_PER_ACCOUNT` | int | `3` all'ora |
 | `PASSWORD_RESET_MAX_PER_IP` | int | `10` all'ora |
+| `SHARE_MAX_PER_HOUR` | int | `30` richieste di condivisione per utente |
 
 `CORS_ORIGINS` è una lista, quindi dall'ambiente va passata in **JSON**, non come
 stringa separata da virgole:

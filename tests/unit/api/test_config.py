@@ -218,3 +218,12 @@ def test_password_reset_limits_are_bounded(build_settings, field, value):
     """A reset link lives at most a day, and a cap of zero would silently disable it."""
     with pytest.raises(ValidationError):
         build_settings(**{field: value})
+
+
+def test_the_share_limit_defaults_to_thirty_an_hour(build_settings):
+    assert build_settings().SHARE_MAX_PER_HOUR == 30
+
+
+def test_the_share_limit_must_be_positive(build_settings):
+    with pytest.raises(ValidationError):
+        build_settings(SHARE_MAX_PER_HOUR=0)

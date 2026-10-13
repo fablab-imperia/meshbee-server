@@ -99,7 +99,7 @@ committate e le cancella alla fine. Copialo per ogni altro controlla-poi-scrivi 
 richieste possono colpire insieme.
 
 **`integration/api/test_main_authz.py` — il cancello.** Le sue tabelle elencano
-**tutti i 58 endpoint**: ogni endpoint protetto viene provato con accesso anonimo e
+**tutti i 60 endpoint**: ogni endpoint protetto viene provato con accesso anonimo e
 autenticato-ma-non-admin, e ognuno legato a un'arnia o a un apiario porta il **minimo
 accesso** che può chiamarlo (`viewer` … `owner`) e viene chiamato a ogni livello,
 dall'assenza di accesso fino al proprietario. **Aggiungi ogni endpoint nuovo a quelle

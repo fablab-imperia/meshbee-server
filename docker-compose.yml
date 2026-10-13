@@ -185,6 +185,8 @@ services:
       PASSWORD_RESET_EXPIRE_MINUTES: ${PASSWORD_RESET_EXPIRE_MINUTES:-30}
       PASSWORD_RESET_MAX_PER_ACCOUNT: ${PASSWORD_RESET_MAX_PER_ACCOUNT:-3}
       PASSWORD_RESET_MAX_PER_IP: ${PASSWORD_RESET_MAX_PER_IP:-10}
+      # Share requests one user may make per hour (#40).
+      SHARE_MAX_PER_HOUR: ${SHARE_MAX_PER_HOUR:-30}
     ports:
       - "8000:8000"
     networks:
