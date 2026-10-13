@@ -28,6 +28,7 @@ Le altre parti del progetto Meshbee:
 - [Installazione](#installazione)
 - [Configurazione](#configurazione)
 - [Sviluppo](#sviluppo)
+- [Produzione](#produzione)
 - [Troubleshooting](#troubleshooting)
 - [Licenza](#licenza)
 - [Versioning e contributi](#versioning-e-contributi)
@@ -71,7 +72,7 @@ browser ──▶ admin/ (servita da api/) ┘
 | nodi ESP32 | Nodi sensore e gateway. Pubblicano le letture su `beehive/<id_nodo>/data`. | [meshbee-firmware](https://github.com/fablab-imperia/meshbee-firmware) |
 | `mosquitto/` | Configurazione e stato del broker MQTT. Immagine standard, nessun codice nostro. | [mosquitto/](mosquitto/README.it.md) |
 | `mqtt_handler/` | Si sottoscrive al broker, decodifica il payload, archivia la lettura. | [mqtt_handler/](mqtt_handler/README.it.md) |
-| `caddy/` | Reverse proxy che termina l'HTTPS su `:8443` davanti all'API. Opzionale. | [HTTPS locale](#https-locale) |
+| `caddy/` | Reverse proxy che termina l'HTTPS davanti all'API: su `:8443` con un certificato locale in sviluppo (opzionale), con Let's Encrypt in produzione. | [HTTPS locale](#https-locale), [Produzione](#produzione) |
 | `api/` | L'API REST FastAPI. L'unico pezzo con cui parla l'app. | [api/](api/README.it.md) |
 | `admin/` | La pagina admin statica che l'API serve su `/admin/`, un client delle sue rotte. | [admin/](admin/README.it.md) |
 | `meshbee_core/` | La libreria condivisa che entrambi gli entry point importano: schemi, service e tutto l'SQL. | [meshbee_core/](meshbee_core/README.it.md) |
@@ -112,6 +113,9 @@ Porte:
 | 1883 | `mosquitto` | MQTT. Autenticazione obbligatoria. |
 | 9001 | `mosquitto` | MQTT su WebSocket. Configurata ma non usata. |
 | 5432 | `postgres` | Esposta per `psql` e i client grafici. |
+
+Sono le porte di sviluppo. Un'installazione di produzione ne pubblica meno; vedi
+[Produzione](#produzione).
 
 ## Requisiti
 
@@ -202,7 +206,10 @@ processo fuori da Docker.
 | `MQTT_PASSWORD` | mosquitto, mqtt-handler | Deve corrispondere a `mosquitto/config/passwd`. |
 | `ADMIN_PASSWORD` | seed | ≥ 8 caratteri. |
 | `USER_PASSWORD` | seed | ≥ 8 caratteri. |
-| `HTTPS_PORT` | caddy | Porta host per l'HTTPS. Default `8443`. |
+| `HTTPS_PORT` | caddy | Porta host per l'HTTPS. Default `8443`. Solo in sviluppo. |
+| `COMPOSE_FILE` | compose | Solo in produzione: `docker-compose.yml:docker-compose.prod.yml`. |
+| `MESHBEE_DOMAIN` | caddy, api | Solo in produzione: il nome host pubblico. |
+| `ACME_EMAIL` | caddy | Solo in produzione: indirizzo di contatto per Let's Encrypt. |
 
 Le impostazioni sono **divise per servizio**: `CoreSettings` in
 `meshbee_core/config.py` tiene i campi del database, e ogni entry point la estende con i
@@ -299,6 +306,41 @@ certificato.
 `make certs` gira sull'**host** (mkcert installa una CA locale nel trust store) e scrive
 in `caddy/certs/`, che è gitignorato. Senza quei file Caddy stampa come crearli ed esce
 con 0, così lo stack parte lo stesso.
+
+## Produzione
+
+`docker-compose.yml` è la configurazione di sviluppo. `docker-compose.prod.yml` è lo
+strato che un server aggiunge sopra. Selezionali entrambi una volta nel `.env` del
+server, insieme al nome host pubblico, e i normali comandi `docker compose` li usano:
+
+```bash
+COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+MESHBEE_DOMAIN=meshbee.example.org     # deve già puntare al server
+ACME_EMAIL=admin@example.org           # contatto per Let's Encrypt
+```
+
+Cosa cambia lo strato:
+
+- **HTTPS con un certificato vero.** Caddy (`caddy/Caddyfile.prod`) ottiene e rinnova
+  un certificato Let's Encrypt per `MESHBEE_DOMAIN`. `http://` su quel nome viene
+  rediretto a `https://`. I certificati stanno nel volume `caddy_data`.
+- **Sono pubblicati solo Caddy e MQTT:** 80, 443, 8000 e 1883. Postgres, il listener
+  WebSocket e l'API stessa sono raggiungibili solo dentro la rete di compose. Le porte
+  80 e 443 devono essere aperte nel firewall del server; la 80 serve per la verifica
+  del certificato.
+- **L'HTTP in chiaro resta disponibile, per IP sulla :80 e sulla :8000.** I client
+  configurati prima che esistesse il dominio continuano a funzionare mentre passano a
+  `https://`. Chiudile quando nessuno le usa più.
+- **Gira il codice delle immagini.** Niente `--reload` e niente bind mount: una modifica
+  arriva sul server solo con una ricompilazione (`docker compose build`).
+- **Il CORS è limitato a `https://MESHBEE_DOMAIN`,** e i log dei container ruotano
+  (3 × 10 MB per servizio).
+
+Controlla la configurazione risultante prima di avviarla:
+
+```bash
+docker compose config --format json | python3 -c "import json,sys; c=json.load(sys.stdin)['services']; [print(s, [p.get('published') for p in c[s].get('ports', [])]) for s in c]"
+```
 
 ## Troubleshooting
 

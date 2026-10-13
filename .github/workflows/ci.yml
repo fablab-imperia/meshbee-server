@@ -84,3 +84,15 @@ jobs:
       # Built from the repo root, as docker-compose.yml does: both need meshbee_core.
       - name: Build ${{ matrix.service }} image
         run: docker build -f ${{ matrix.service }}/Dockerfile .
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The production layer only merges if every !reset/!override still matches
+      # the base file. Dummy values: config interpolates, it never connects.
+      - name: Check the production compose layer
+        env:
+          MESHBEE_DOMAIN: ci.example.org
+          ACME_EMAIL: ci@example.org
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
