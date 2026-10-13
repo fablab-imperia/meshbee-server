@@ -155,7 +155,8 @@ One row per refresh token issued by `/api/auth/login` or `/api/auth/refresh`
   revoked token that comes back is how a stolen copy is detected.
 - `data_scadenza` is set from the database clock. A user's expired rows are deleted at
   their next login.
-- `ip_address` and `user_agent` record who asked for the token.
+- `ip_address` and `user_agent` record who asked for the token. Behind Caddy the
+  address is the user's, from `X-Forwarded-For` (see the root README, *Production*).
 
 ## No views, no triggers
 

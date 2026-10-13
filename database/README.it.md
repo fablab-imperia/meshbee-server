@@ -156,7 +156,9 @@ Una riga per ogni refresh token emesso da `/api/auth/login` o `/api/auth/refresh
   rubata.
 - `data_scadenza` è calcolata con l'orologio del database. Le righe scadute di un utente
   vengono cancellate al suo login successivo.
-- `ip_address` e `user_agent` registrano chi ha chiesto il token.
+- `ip_address` e `user_agent` registrano chi ha chiesto il token. Dietro Caddy
+  l'indirizzo è quello dell'utente, da `X-Forwarded-For` (vedi il README principale,
+  *Produzione*).
 
 ## Niente viste, niente trigger
 

@@ -44,8 +44,9 @@ services:
     volumes: !reset []
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
-      # Trust X-Forwarded-* from any peer: only Caddy can reach the API, and it keeps
-      # redirects (e.g. /admin → /admin/) on https.
+      # Trust X-Forwarded-* from any peer: only Caddy can reach the API. It keeps
+      # redirects (e.g. /admin → /admin/) on https, and makes request.client (stored
+      # in token_sessione.ip_address) the user's address rather than Caddy's.
       FORWARDED_ALLOW_IPS: "*"
       # The app is native and /admin is same-origin; no other site may call the API.
       CORS_ORIGINS: '["https://${MESHBEE_DOMAIN:?set MESHBEE_DOMAIN in .env}"]'

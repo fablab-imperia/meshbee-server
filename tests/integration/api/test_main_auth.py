@@ -166,6 +166,32 @@ def test_login_records_a_session(client, db, utente, login):
     assert row["user_agent"] == "testclient"
 
 
+def test_behind_caddy_a_session_records_the_users_address(
+    client, db, utente, known_password
+):
+    """
+    With FORWARDED_ALLOW_IPS="*" (both compose files), uvicorn takes the client
+    from Caddy's X-Forwarded-For, and the session must record that, not Caddy.
+    """
+    from fastapi.testclient import TestClient
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    from api import main
+
+    behind_caddy = TestClient(ProxyHeadersMiddleware(main.app, trusted_hosts="*"))
+    behind_caddy.post(
+        "/api/auth/login",
+        json={"email": utente["email"], "password": known_password},
+        headers={"X-Forwarded-For": "203.0.113.7"},
+    )
+
+    db.execute(
+        "SELECT ip_address FROM token_sessione WHERE id_utente = %s",
+        (utente["id_utente"],),
+    )
+    assert db.fetchone()["ip_address"] == "203.0.113.7"
+
+
 def test_refresh_returns_a_new_working_pair(client, utente, login):
     tokens = login()
 
