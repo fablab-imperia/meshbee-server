@@ -29,8 +29,10 @@ scripts/ ───────┘
 | `paging.py` | `Paging` (quale finestra di un elenco, e se contarlo) e `Page` (le sue righe, e il totale). |
 | `models.py` | Il modello dei dati, dichiarato una volta sola: ogni tabella e le sue forme API (`XBase`, `XCreate`, `XUpdate`, `XResponse`) come un'unica famiglia SQLModel, più i modelli solo-API (login, token, serie, messaggi). La fonte da cui migra Alembic. |
 | `migrations/` | Alembic: `env.py`, `upgrade()` e le revisioni. Vedi [`database/`](../database/README.it.md#cambiare-lo-schema). |
-| `security.py` | Hashing e verifica delle password. Senza framework. |
-| `errors.py` | `NotFound`, `Conflict`, `InvalidData` — il vocabolario che sollevano i service. |
+| `security.py` | Hashing e verifica delle password, hashing dei token e `new_token()` per i link inviati per email. Senza framework. |
+| `errors.py` | `NotFound`, `Conflict`, `InvalidData`, `Unavailable` — il vocabolario che sollevano i service. |
+| `mail.py` | Email in uscita tramite qualsiasi server SMTP (`SmtpConfig`, `Mailer`). Solo libreria standard; ogni errore diventa `Unavailable`. L'API costruisce la configurazione dalle proprie impostazioni. |
+| `emails.py` | Il testo di ogni email che il server invia, come oggetto e corpo. Semplici stringhe in italiano. |
 | `repository/` | SQL. Un modulo per tabella. |
 | `services/` | Decisioni di dominio. Un modulo per area. |
 
@@ -45,6 +47,9 @@ scripts/ ───────┘
 | `letture.py` | `letture`. `insert` è l'unica INSERT a cui arrivano entrambi gli entry point; `series` mette in whitelist il nome della colonna. |
 | `attivita.py` | `log_attivita`, con update e delete limitati al proprietario. |
 | `accessi.py` | `utenti_apiari` — le condivisioni — e l'accesso di un utente (`owner`, un ruolo, o nessuno) a un apiario o a un'arnia. |
+| `inviti.py` | `inviti_apiari`: condivisioni in attesa verso email senza account (#40). `take_for_email` le cancella e le restituisce in un'unica istruzione. |
+| `sessioni.py` | `token_sessione`: i refresh token, cercati per il loro SHA-256. |
+| `token_monouso.py` | `token_monouso`: i token monouso inviati per email. `spend` è un unico UPDATE condizionale, così un token non si usa due volte nemmeno in concorrenza. |
 
 ### `services/` — decisioni
 
@@ -57,8 +62,10 @@ scripts/ ───────┘
 | `apiari.py` | Gli apiari: il `Default` di ogni utente, e le regole per eliminarne uno. |
 | `letture.py` | Le letture, la finestra di default di un anno, la validazione dei limiti. |
 | `attivita.py` | Il log attività. |
-| `accessi.py` | La condivisione di un apiario: concedere, cambiare e revocare i ruoli. |
+| `accessi.py` | La condivisione di un apiario: concedere, cambiare e revocare i ruoli; gli inviti in attesa per email senza account, e la loro trasformazione in condivisioni quando l'account compare (#40). |
 | `ingest.py` | Il percorso MQTT: registra il nodo, risolve o crea l'arnia, archivia la lettura. |
+| `invitations.py` | Inviti agli apiari via email (#55): il token di invito alla condivisione, il reinvio, il limite per mittente e l'accettazione (che crea l'account). |
+| `password_reset.py` | Reimpostare la password via email: chi riceve un token, il limite per account, il suo consumo. Restituisce il token; l'email la invia il chiamante. |
 
 ## Regole dei livelli
 

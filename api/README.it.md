@@ -14,8 +14,10 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 56 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 62 rotte, e le pagine `/reset-password` e `/invite`. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
+| `mail.py` | `get_mailer` e `send_later`: le email fuori dal percorso della richiesta — vedi [Configurazione](#configurazione). |
+| `ratelimit.py` | Limiti alle richieste, in memoria: per indirizzo client sulla rotta di password dimenticata ([Reimpostare la password](#reimpostare-la-password)), per utente sulla condivisione. |
 | `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -25,7 +27,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-56 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+62 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -45,6 +47,9 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 | POST | `/api/auth/login` | nessuna | Scambia email + password per un access e un refresh token. |
 | POST | `/api/auth/refresh` | nessuna | Scambia un refresh token per un nuovo access e refresh token; il vecchio è consumato. |
 | POST | `/api/auth/logout` | nessuna | Revoca un refresh token. Risponde sempre 200. |
+| POST | `/api/auth/password/forgot` | nessuna | Invia per email un link monouso per reimpostare la password. Sempre 202 con lo stesso corpo; 429 oltre il limite per IP; 503 senza email. Vedi [Reimpostare la password](#reimpostare-la-password). |
+| POST | `/api/auth/invite/accept` | nessuna | Crea un account da un invito a un apiario (`token`, `nome`, `cognome`, `password`) e lo collega: restituisce i token del login. Un solo 400 per link sconosciuto, scaduto, usato o ritirato. Vedi [Inviti](#inviti). |
+| POST | `/api/auth/password/reset` | nessuna | Imposta una nuova password con il token ricevuto per email. Un solo 400 per token sconosciuto, scaduto o già usato. |
 | GET | `/api/auth/me` | utente | L'account autenticato. |
 
 ### Utente
@@ -73,10 +78,13 @@ sull'accesso del chiamante all'apiario di quell'arnia, o a quell'apiario.
 | GET | `/api/user/apiari/{id_apiario}` | utente + viewer | Un singolo apiario. |
 | PUT | `/api/user/apiari/{id_apiario}` | utente + manager | Lo modifica — anche quello predefinito. |
 | DELETE | `/api/user/apiari/{id_apiario}` | utente + owner | Lo elimina, con le sue condivisioni. **409** per quello predefinito, e finché contiene arnie attive. |
-| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo. **Paginata**. |
-| POST | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Lo condivide con un utente, tramite `email`, come `viewer` (default), `collaborator` o `manager`. Condividerlo di nuovo cambia il ruolo. |
+| GET | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Con chi è condiviso, e con quale ruolo: condivisioni attive (`stato: attiva`, con `id_utente`) e inviti in attesa (`stato: in_attesa`, con `id_invito`), per email. **Paginata**. |
+| POST | `/api/user/apiari/{id_apiario}/condivisioni` | utente + owner | Lo condivide con un'`email`, come `viewer` (default), `collaborator` o `manager`. Un'email senza account riceve un invito in attesa. La risposta (`id_apiario`, `email`, `ruolo`) è la stessa in entrambi i casi. Con l'email attiva, un account riceve un avviso e un invito un link per registrarsi. Condividerlo di nuovo cambia il ruolo. **429** oltre `SHARE_MAX_PER_HOUR`. |
 | PUT | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Cambia il ruolo di quell'utente. |
 | DELETE | `/api/user/apiari/{id_apiario}/condivisioni/{id_utente}` | utente + owner | Smette di condividerlo con quell'utente. |
+| PUT | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | utente + owner | Cambia il ruolo di un invito in attesa. |
+| POST | `/api/user/apiari/{id_apiario}/inviti/{id_invito}/reinvia` | utente + owner | Invia di nuovo l'invito con un link nuovo; il vecchio smette di funzionare. 202; **429** oltre `INVITE_MAX_PER_DAY`; **503** senza email. |
+| DELETE | `/api/user/apiari/{id_apiario}/inviti/{id_invito}` | utente + owner | Ritira un invito in attesa. Se nessun altro apiario aspetta quell'email, il suo link smette di funzionare. |
 
 I quattro endpoint di serie esistono perché a un grafico servono due colonne su una riga di
 nove; scartano le righe in cui il campo è NULL. L'elenco dei campi accettati è una
@@ -215,10 +223,15 @@ delle arnie del chiamante, non lo allarga mai. Spostare un'arnia in un apiario c
 è del suo proprietario riceve lo stesso **400** che esista o no, così la risposta non
 rivela nulla.
 
-Una condivisione identifica l'utente solo con l'email scritta dal proprietario — nessun
-nome. Limite noto: condividere con un'email non registrata risponde **404**, quindi
-qualsiasi utente può ancora verificare quali email hanno un account
-([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
+La condivisione risponde allo stesso modo che l'email abbia un account o no
+([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)): un'email
+sconosciuta riceve un **invito in attesa** (`inviti_apiari`), che diventa una
+condivisione appena viene creato un account con quell'email, o un account esistente la
+prende. L'elenco delle condivisioni mostra quali voci sono in attesa, così il
+proprietario si accorge di un indirizzo sbagliato. Quello che impedisce di usarlo per
+provare indirizzi in massa è il limite per utente, `SHARE_MAX_PER_HOUR` (30 di default,
+in memoria come quello del reset). Le voci identificano le persone solo con l'email
+scritta dal proprietario: nessun nome.
 
 Tre cose da sapere sui token:
 
@@ -251,6 +264,75 @@ Il login risponde con lo stesso 401 per email sconosciuta, password sbagliata e 
 disattivato — una sola risposta per ogni modo di fallire, così l'endpoint non può essere
 usato per enumerare le email registrate.
 
+## Reimpostare la password
+
+Chi ha dimenticato la password chiede un link su `/reset-password` (collegata dal login
+admin), o dall'app tramite `POST /api/auth/password/forgot`
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)). La logica è in
+`meshbee_core/services/password_reset.py`, sopra la tabella `token_monouso`.
+
+- **Stessa risposta per ogni indirizzo.** `forgot` risponde 202 con lo stesso corpo sia
+  che l'account esista, sia disattivato o abbia raggiunto il suo limite. Solo un account
+  attivo riceve qualcosa, dopo la risposta.
+- **Il token** è di 256 bit casuali (non un JWT), monouso, e vale
+  `PASSWORD_RESET_EXPIRE_MINUTES`. Se ne salva solo lo SHA-256. Una nuova richiesta
+  consuma il link precedente dell'account, e un reset li consuma tutti.
+- **Il link** è `{PUBLIC_BASE_URL}/reset-password#token=…`. Il token sta nel frammento,
+  quindi non arriva mai nei log dell'API o di Caddy e non viene mai inviato come Referer.
+  La pagina lo toglie dalla barra degli indirizzi appena letto. Il link non viene mai
+  costruito dall'`Host` della richiesta, che il chiamante controlla.
+- **Un reset disconnette ogni dispositivo**: revoca tutti i refresh token dell'account,
+  come ogni nuova password. Gli access token già emessi restano validi finché non
+  scadono (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+- **Avvisi**: un reset riuscito, e un cambio tramite `PUT /api/user/password`, mandano
+  all'account un breve avviso "la tua password è stata cambiata" quando l'email è attiva.
+- **Limiti**: al massimo `PASSWORD_RESET_MAX_PER_ACCOUNT` email per account all'ora,
+  contate nel database. Al massimo `PASSWORD_RESET_MAX_PER_IP` richieste per indirizzo
+  client all'ora, contate in memoria (`ratelimit.py`), quindi per processo dell'API e
+  azzerate da un riavvio.
+- **Senza email** (`SMTP_HOST` o `PUBLIC_BASE_URL` non impostate), `forgot` risponde 503
+  e dice di rivolgersi a un amministratore; `PUT /api/admin/utenti/{id}/password`
+  funziona come prima. Un link inviato prima di spegnere l'email funziona ancora.
+
+Né il token né il link finiscono mai nei log.
+
+## Inviti
+
+Condividere un apiario con un'email senza account salva un invito in attesa (#40). Con
+l'email attiva, la persona invitata riceve anche un link per creare il suo account
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)). La logica è in
+`meshbee_core/services/invitations.py`, sopra `inviti_apiari` e `token_monouso`.
+
+- **Ci si registra solo su invito.** `POST /api/auth/invite/accept` crea un account con
+  ruolo `user` per l'indirizzo a cui è arrivato l'invito; la persona non può sceglierne un
+  altro. Ogni apiario condiviso con quell'indirizzo diventa suo subito, e viene collegata.
+  Non c'è registrazione aperta
+  ([#62](https://github.com/fablab-imperia/meshbee-server/issues/62)).
+- **Il link** è `{PUBLIC_BASE_URL}/invite#token=…`, vale `INVITE_EXPIRE_DAYS` e si usa
+  una volta. Funziona come quello del reset: 256 bit casuali, se ne salva solo lo
+  SHA-256, e il token resta nel frammento. Non compare mai nella risposta della
+  condivisione, quindi lo ha solo la casella invitata. Un link per indirizzo: invitare di
+  nuovo, a qualsiasi apiario, o reinviare, lo sostituisce. Ritirare l'ultimo invito a un
+  indirizzo lo annulla.
+- **Un account esistente** riceve invece un avviso: "*mittente* ha condiviso con te
+  l'apiario *nome* come *ruolo*", con un link a `PUBLIC_BASE_URL` quando è impostato.
+  Solo una condivisione nuova lo invia: condividere di nuovo per cambiare il ruolo no.
+- **Limiti**, così un utente non può consumare la quota giornaliera del provider e con
+  essa i reset della password di tutti: al massimo `INVITE_MAX_PER_DAY` email di invito
+  per utente, contate nel database, e `NOTICE_MAX_PER_DAY` avvisi, contati in memoria
+  (gli avvisi non vengono salvati). Oltre l'uno o l'altro, la condivisione funziona e
+  risponde come sempre (#40) ma non invia nulla, e il reinvio risponde 429.
+  `SHARE_MAX_PER_HOUR` limita ogni richiesta di condivisione.
+- **Senza email**, o senza `PUBLIC_BASE_URL` per i link degli inviti, la condivisione
+  funziona come descritto in #40 e non invia nulla. Il reinvio risponde 503. Un invito
+  diventa comunque una condivisione quando un admin crea l'account.
+
+Le email non contengono dati del mittente oltre al suo nome e al nome dell'apiario,
+ciascuno ridotto a una riga di al massimo 60 caratteri, così un nome scelto da un utente
+non può portare un messaggio suo. Una condivisione è verso **un solo** indirizzo: una
+lista come `a@x.org, b@y.org` è un 422, perché sarebbe un invito che raggiunge molte
+persone oltre i limiti. Anche il mailer rifiuta tutto il resto.
+
 ## Traduzione degli errori
 
 I service sollevano il vocabolario di `meshbee_core.errors` e non sanno nulla di HTTP.
@@ -262,6 +344,7 @@ si incontrano:
 | `NotFound` | 404 |
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
+| `Unavailable` (il server di posta ha fallito) | 503 |
 | `SQLAlchemyError` durante il login | 503 |
 | qualsiasi altra cosa | 500 `Errore interno del server`, con l'errore vero nel log |
 
@@ -290,6 +373,21 @@ README.
 | `API_VERSION` | str | `1.0.0` |
 | `API_DESCRIPTION` | str | `API per gestione sistema IoT arnie` |
 | `CORS_ORIGINS` | list | `["*"]` |
+| `SMTP_HOST` | str | non impostata = email disattivata |
+| `SMTP_PORT` | int | non impostata = 465 / 587 / 25 secondo `SMTP_SECURITY` |
+| `SMTP_SECURITY` | `ssl` \| `starttls` \| `none` | `starttls` |
+| `SMTP_USER` | str | non impostata = nessun login |
+| `SMTP_PASSWORD` | secret | non impostata; obbligatoria con `SMTP_USER` |
+| `SMTP_TIMEOUT` | float | `10` |
+| `MAIL_FROM` | str | non impostata; obbligatoria con `SMTP_HOST` |
+| `PUBLIC_BASE_URL` | str | non impostata; lo `/` finale viene tolto |
+| `PASSWORD_RESET_EXPIRE_MINUTES` | int | `30` (al massimo 1440) |
+| `PASSWORD_RESET_MAX_PER_ACCOUNT` | int | `3` all'ora |
+| `PASSWORD_RESET_MAX_PER_IP` | int | `10` all'ora |
+| `SHARE_MAX_PER_HOUR` | int | `30` richieste di condivisione per utente |
+| `INVITE_EXPIRE_DAYS` | int | `7` (al massimo 30) |
+| `INVITE_MAX_PER_DAY` | int | `20` email di invito per utente |
+| `NOTICE_MAX_PER_DAY` | int | `20` avvisi di condivisione per utente |
 
 `CORS_ORIGINS` è una lista, quindi dall'ambiente va passata in **JSON**, non come
 stringa separata da virgole:
@@ -300,6 +398,14 @@ CORS_ORIGINS=["https://app.example.org","https://admin.example.org"]
 
 `["*"]` con `allow_credentials=True` va bene in sviluppo ed è sbagliato in un
 deployment pubblico — lì va ristretta.
+
+Le impostazioni email sono spiegate nel
+[README](../README.it.md#email-in-uscita) principale. Nel codice, `mail.py` fornisce
+`get_mailer`, una dependency che vale `None` finché l'email è spenta (i test la
+sostituiscono con un fake), e `send_later`, che mette in coda un messaggio sui
+`BackgroundTasks`. Il messaggio parte dopo la risposta e, se l'invio fallisce, l'errore
+finisce nel log e il client non lo vede mai.
+`python -m scripts.send_test_mail <destinatario>` verifica una configurazione da capo a fondo.
 
 ## Contratto OpenAPI
 

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Meshbee: accetta l'invito</title>
+    <!-- Served at /invite, so every path is absolute. -->
+    <link rel="stylesheet" href="/admin/vendor/pico-2.0.6.min.css" />
+    <link rel="stylesheet" href="/admin/admin.css" />
+    <script defer src="/admin/invite.js"></script>
+  </head>
+  <body>
+    <main class="container login">
+      <article>
+        <header><strong>Meshbee: accetta l'invito</strong></header>
+
+        <form id="accept" hidden>
+          <p>Crea il tuo account: userà l'indirizzo email a cui è arrivato l'invito.</p>
+          <label>
+            Nome
+            <input type="text" name="nome" autocomplete="given-name" maxlength="100" required />
+          </label>
+          <label>
+            Cognome
+            <input type="text" name="cognome" autocomplete="family-name" maxlength="100" required />
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <label>
+            Ripeti la password
+            <input type="password" name="confirm" autocomplete="new-password" minlength="8" required />
+          </label>
+          <button type="submit">Crea l'account</button>
+        </form>
+
+        <p id="error" class="error" role="alert"></p>
+        <p><output id="notice" class="notice"></output></p>
+      </article>
+    </main>
+  </body>
+</html>

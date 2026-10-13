@@ -190,14 +190,11 @@ def test_sharing_by_email_opens_the_apiario_and_its_hives(
     response = share_by_api(as_user(owner), apiario, guest["email"].upper(), "viewer")
 
     assert response.status_code == 200
-    assert response.json()["id_utente"] == guest["id_utente"]
-    # Nothing about the account beyond the email the owner already typed.
-    assert response.json().keys() == {
-        "id_utente",
-        "id_apiario",
-        "ruolo",
-        "data_condivisione",
-        "email",
+    # Nothing about the account, not even that there is one (#40).
+    assert response.json() == {
+        "id_apiario": apiario["id_apiario"],
+        "email": guest["email"],
+        "ruolo": "viewer",
     }
     hives = as_user(guest).get("/api/user/arnie").json()
     assert [(a["id_arnia"], a["accesso"]) for a in hives] == [
@@ -218,9 +215,11 @@ def test_the_owner_lists_who_the_apiario_is_shared_with(
         .json()
     )
 
-    assert [(s["email"], s["ruolo"]) for s in body] == [
-        (guest["email"], "collaborator")
+    assert [(s["email"], s["ruolo"], s["stato"]) for s in body] == [
+        (guest["email"], "collaborator", "attiva")
     ]
+    assert body[0]["id_utente"] == guest["id_utente"]
+    assert body[0]["id_invito"] is None
 
 
 def test_sharing_again_changes_the_role(as_user, make_utente, make_apiario):
@@ -236,12 +235,164 @@ def test_sharing_again_changes_the_role(as_user, make_utente, make_apiario):
     assert len(body) == 1
 
 
-def test_sharing_with_an_unknown_email_is_not_found(as_user, make_utente, make_apiario):
-    owner = make_utente()
+# ============================================
+# Pending invitations (#40)
+# ============================================
 
-    response = share_by_api(as_user(owner), make_apiario(owner), "nobody@example.org")
+
+def shares_of(client, apiario):
+    return client.get(f"/api/user/apiari/{apiario['id_apiario']}/condivisioni").json()
+
+
+def inviti_path(apiario, invito):
+    return f"/api/user/apiari/{apiario['id_apiario']}/inviti/{invito['id_invito']}"
+
+
+def test_sharing_with_an_unknown_email_stores_an_invitation(
+    as_user, make_utente, make_apiario
+):
+    owner = make_utente()
+    apiario = make_apiario(owner)
+    client = as_user(owner)
+
+    response = share_by_api(client, apiario, "New@Example.org", "collaborator")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id_apiario": apiario["id_apiario"],
+        "email": "new@example.org",
+        "ruolo": "collaborator",
+    }
+    (entry,) = shares_of(client, apiario)
+    assert entry["stato"] == "in_attesa"
+    assert entry["id_utente"] is None
+    assert isinstance(entry["id_invito"], int)
+    assert (entry["email"], entry["ruolo"]) == ("new@example.org", "collaborator")
+
+
+def test_known_and_unknown_emails_get_the_same_answer(
+    as_user, make_utente, make_apiario
+):
+    """Status, fields and values other than the typed email are identical (#40)."""
+    owner, guest = make_utente(), make_utente()
+    apiario = make_apiario(owner)
+    client = as_user(owner)
+
+    known = share_by_api(client, apiario, guest["email"])
+    unknown = share_by_api(client, apiario, "nobody@example.org")
+
+    assert known.status_code == unknown.status_code == 200
+    assert {**known.json(), "email": None} == {**unknown.json(), "email": None}
+
+
+def test_the_list_holds_shares_and_invitations_by_email(
+    as_user, make_utente, make_apiario, share
+):
+    owner = make_utente()
+    guest = make_utente(email="m@example.org")
+    apiario = make_apiario(owner)
+    share(guest["id_utente"], apiario["id_apiario"], "viewer")
+    client = as_user(owner)
+    share_by_api(client, apiario, "z@example.org")
+    share_by_api(client, apiario, "a@example.org")
+
+    body = shares_of(client, apiario)
+
+    assert [(s["email"], s["stato"]) for s in body] == [
+        ("a@example.org", "in_attesa"),
+        ("m@example.org", "attiva"),
+        ("z@example.org", "in_attesa"),
+    ]
+
+
+def test_inviting_again_changes_the_role(as_user, make_utente, make_apiario):
+    owner = make_utente()
+    apiario = make_apiario(owner)
+    client = as_user(owner)
+    share_by_api(client, apiario, "new@example.org", "viewer")
+
+    share_by_api(client, apiario, "new@example.org", "manager")
+
+    (entry,) = shares_of(client, apiario)
+    assert entry["ruolo"] == "manager"
+
+
+def test_an_invitation_is_changed_and_withdrawn(as_user, make_utente, make_apiario):
+    owner = make_utente()
+    apiario = make_apiario(owner)
+    client = as_user(owner)
+    share_by_api(client, apiario, "new@example.org")
+    (invito,) = shares_of(client, apiario)
+    path = inviti_path(apiario, invito)
+
+    changed = client.put(path, json={"ruolo": "manager"})
+    withdrawn = client.delete(path)
+
+    assert changed.status_code == 200
+    assert changed.json()["ruolo"] == "manager"
+    assert withdrawn.status_code == 200
+    assert shares_of(client, apiario) == []
+    assert client.delete(path).status_code == 404
+    assert client.put(path, json={"ruolo": "viewer"}).status_code == 404
+
+
+def test_an_invitation_is_reached_only_through_its_own_apiary(
+    as_user, make_utente, make_apiario
+):
+    """The owner of another apiary cannot touch it by guessing its id."""
+    owner = make_utente()
+    apiario, other = make_apiario(owner), make_apiario(owner)
+    client = as_user(owner)
+    share_by_api(client, apiario, "new@example.org")
+    (invito,) = shares_of(client, apiario)
+
+    response = client.delete(inviti_path(other, invito))
 
     assert response.status_code == 404
+    assert len(shares_of(client, apiario)) == 1
+
+
+def test_a_new_account_receives_its_invitations(
+    as_user, make_utente, make_apiario, make_arnia
+):
+    """Created by an admin, the account opens with every apiary shared with its email."""
+    owner, admin = make_utente(), make_utente(ruolo="admin")
+    apiario = make_apiario(owner)
+    arnia = make_arnia(apiario=apiario)
+    share_by_api(as_user(owner), apiario, "new@example.org", "collaborator")
+
+    created = as_user(admin).post(
+        "/api/admin/utenti",
+        json={
+            "email": "New@Example.org",
+            "nome": "N",
+            "cognome": "C",
+            "password": "secret123",
+        },
+    )
+
+    assert created.status_code == 200
+    (entry,) = shares_of(as_user(owner), apiario)
+    assert (entry["stato"], entry["ruolo"]) == ("attiva", "collaborator")
+    assert entry["id_utente"] == created.json()["id_utente"]
+    hives = as_user(created.json()).get("/api/user/arnie").json()
+    assert [(a["id_arnia"], a["accesso"]) for a in hives] == [
+        (arnia["id_arnia"], "collaborator")
+    ]
+
+
+def test_sharing_is_limited_per_user(as_user, make_utente, make_apiario):
+    """So nobody can try addresses in bulk through it (#40)."""
+    owner = make_utente()
+    apiario = make_apiario(owner)
+    client = as_user(owner)
+    for i in range(30):
+        assert share_by_api(client, apiario, f"n{i}@example.org").status_code == 200
+
+    response = share_by_api(client, apiario, "one-more@example.org")
+
+    assert response.status_code == 429
+    assert "Retry-After" in response.headers
 
 
 def test_the_owner_cannot_share_with_themselves(as_user, make_utente, make_apiario):

@@ -209,9 +209,20 @@ def client(use_db):
     (`check_user_arnia_access`, `authenticate_user`) it calls.
     """
     from api import auth, main
+    from api.config import Settings, get_settings
+    from tests.conftest import REQUIRED_ENV
 
     use_db(main)
     use_db(auth)
+    # Routes that read settings through the dependency (email, password reset)
+    # get the declared defaults: the test environment has been stripped of them.
+    main.app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None, **REQUIRED_ENV
+    )
+    # In memory, so it would carry one test's requests into the next.
+    main.forgot_limiter.clear()
+    main.share_limiter.clear()
+    main.notice_limiter.clear()
     yield TestClient(main.app)
     main.app.dependency_overrides.clear()
 

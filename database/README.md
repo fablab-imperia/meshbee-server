@@ -112,6 +112,21 @@ the apiary allows everything. Revoking deletes the row. What each role allows is
 bypasses all of it. This table replaced `utenti_arnie` (per-hive `read`/`write`/`admin`
 levels) in revision `0005`.
 
+### `inviti_apiari` — pending shares to emails with no account
+
+| Column | Type | Notes |
+|---|---|---|
+| `id_invito` | SERIAL | PK |
+| `id_apiario` | INTEGER | FK, CASCADE. |
+| `email` | VARCHAR(255) | **UNIQUE together with `id_apiario`.** Normalized like `utenti.email`. |
+| `ruolo` | VARCHAR(20) | CHECK `('viewer','collaborator','manager')`, default `viewer`. |
+| `data_invito` | TIMESTAMP | |
+
+Sharing with an email that has no account stores a row here instead of answering 404
+([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)). When an account is
+created with that email, or an existing one takes it on, each row becomes a
+`utenti_apiari` share and is deleted (`services/accessi.py::accept_invitations`).
+
 ### `letture` — the telemetry
 
 | Column | Type | Notes |
@@ -157,6 +172,25 @@ One row per refresh token issued by `/api/auth/login` or `/api/auth/refresh`
   their next login.
 - `ip_address` and `user_agent` record who asked for the token. Behind Caddy the
   address is the user's, from `X-Forwarded-For` (see the root README, *Production*).
+
+### `token_monouso` — single-use tokens sent by email
+
+One row per link emailed by the server, written and read by
+`repository/token_monouso.py`: a password reset
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)) or an apiary invitation
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)).
+
+- `token_hash` holds the token's **SHA-256**, never the token.
+- `scopo` is what the token is for: CHECK over `password_reset`, `invite`
+  (`limits.py::ScopoToken`).
+- `email` is where the link went, always. `id_utente` is the account the token acts on,
+  and may be empty only for an invitation, sent to someone who has no account yet
+  (CHECK `token_monouso_utente_check`). `id_mittente` is who caused the email, such as
+  the sharer of an invitation, so caps can count per sender. It is empty for a reset,
+  which is anonymous.
+- `data_utilizzo` is set when the token is spent: used, or replaced by a newer one.
+- Rows are deleted a day after `data_scadenza`. Until then they count towards the caps
+  on requests.
 
 ## No views, no triggers
 
@@ -243,6 +277,8 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0003` | Dropped `trigger_aggiorna_nodo`, its function and `v_arnie_stato`: their logic moved to `services/ingest.py` and `repository/arnie.py` (#17). |
 | `0004` | Dropped the `uuid-ossp` extension, which `init.sql` installed and nothing ever used. Without CASCADE: anything depending on it makes the migration stop instead. |
 | `0005` | Ownership and apiaries (#2, #36): `apiari` with a `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, and `utenti_apiari` replacing `utenti_arnie`. A hive's owner becomes its best-placed active association (`admin` > `write` > `read`, earliest first); a node goes to the owner of most of its hives, and all its hives to that owner's Default; every other active association becomes a role on that Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), which can widen access but never removes it. Hives nobody could access stay unassigned. Downgrade rebuilds per-hive access. |
+| `0006` | `token_monouso`, single-use tokens sent by email: password reset (#54) and apiary invitations (#55). |
+| `0007` | `inviti_apiari`, pending shares to emails with no account yet (#40). |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:

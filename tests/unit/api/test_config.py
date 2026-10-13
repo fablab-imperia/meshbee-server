@@ -94,3 +94,158 @@ def test_get_settings_returns_a_cached_singleton(required_env):
 
     get_settings.cache_clear()
     assert get_settings() is not first
+
+
+# ============================================
+# Outgoing email (SMTP)
+# ============================================
+
+SMTP_ENV = {
+    "SMTP_HOST": "smtp.example.org",
+    "MAIL_FROM": "Meshbee <noreply@example.org>",
+}
+
+
+def test_email_is_disabled_by_default(build_settings):
+    """An install that sets nothing keeps running exactly as before."""
+    assert build_settings().smtp_config is None
+
+
+def test_empty_values_count_as_unset(build_settings):
+    """Compose passes an unset `${SMTP_HOST:-}` through as "", which must not enable email."""
+    settings = build_settings(
+        SMTP_HOST="",
+        SMTP_PORT="",
+        SMTP_USER="",
+        SMTP_PASSWORD="",
+        MAIL_FROM="",
+        PUBLIC_BASE_URL="",
+    )
+
+    assert settings.smtp_config is None
+    assert settings.SMTP_PORT is None
+    assert settings.SMTP_PASSWORD is None
+    assert settings.PUBLIC_BASE_URL is None
+
+
+def test_the_smtp_config_carries_every_setting(build_settings):
+    settings = build_settings(
+        **SMTP_ENV,
+        SMTP_PORT="2465",
+        SMTP_SECURITY="ssl",
+        SMTP_USER="resend",
+        SMTP_PASSWORD="re_secret",
+        SMTP_TIMEOUT="3.5",
+    )
+
+    smtp = settings.smtp_config
+    assert (smtp.host, smtp.port, smtp.security) == ("smtp.example.org", 2465, "ssl")
+    assert (smtp.username, smtp.password) == ("resend", "re_secret")
+    assert smtp.sender == "Meshbee <noreply@example.org>"
+    assert smtp.timeout == 3.5
+
+
+@pytest.mark.parametrize(
+    ("security", "port"), [("ssl", 465), ("starttls", 587), ("none", 25)]
+)
+def test_without_a_port_the_usual_one_for_the_security_mode_is_used(
+    build_settings, security, port
+):
+    settings = build_settings(**SMTP_ENV, SMTP_SECURITY=security)
+
+    assert settings.smtp_config.port == port
+
+
+def test_starttls_is_the_default_security(build_settings):
+    assert build_settings(**SMTP_ENV).smtp_config.security == "starttls"
+
+
+def test_without_a_user_there_are_no_credentials(build_settings):
+    """A relay that needs no login: the mailer is told not to log in."""
+    smtp = build_settings(**SMTP_ENV).smtp_config
+
+    assert (smtp.username, smtp.password) == (None, None)
+
+
+def test_an_unknown_security_mode_fails_loudly(build_settings):
+    with pytest.raises(ValidationError):
+        build_settings(**SMTP_ENV, SMTP_SECURITY="tls")
+
+
+def test_a_host_without_a_sender_fails_loudly(build_settings):
+    """Half-configured email must stop startup, not fail on the first reset request."""
+    with pytest.raises(ValidationError, match="MAIL_FROM"):
+        build_settings(SMTP_HOST="smtp.example.org")
+
+
+def test_a_user_without_a_password_fails_loudly(build_settings):
+    with pytest.raises(ValidationError, match="SMTP_PASSWORD"):
+        build_settings(**SMTP_ENV, SMTP_USER="resend")
+
+
+def test_the_public_base_url_loses_its_trailing_slash(build_settings):
+    """Links are built as f"{PUBLIC_BASE_URL}/path", which must not give "//path"."""
+    settings = build_settings(PUBLIC_BASE_URL="https://meshbee.example.org/")
+
+    assert settings.PUBLIC_BASE_URL == "https://meshbee.example.org"
+
+
+def test_the_smtp_password_is_not_exposed_by_repr(build_settings):
+    settings = build_settings(**SMTP_ENV, SMTP_USER="u", SMTP_PASSWORD="s3cr3t-smtp")
+
+    assert "s3cr3t-smtp" not in repr(settings)
+    assert "s3cr3t-smtp" not in repr(settings.smtp_config)
+
+
+def test_password_reset_defaults(build_settings):
+    settings = build_settings()
+
+    assert settings.PASSWORD_RESET_EXPIRE_MINUTES == 30
+    assert settings.PASSWORD_RESET_MAX_PER_ACCOUNT == 3
+    assert settings.PASSWORD_RESET_MAX_PER_IP == 10
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("PASSWORD_RESET_EXPIRE_MINUTES", 0),
+        ("PASSWORD_RESET_EXPIRE_MINUTES", 1441),
+        ("PASSWORD_RESET_MAX_PER_ACCOUNT", 0),
+        ("PASSWORD_RESET_MAX_PER_IP", 0),
+    ],
+)
+def test_password_reset_limits_are_bounded(build_settings, field, value):
+    """A reset link lives at most a day, and a cap of zero would silently disable it."""
+    with pytest.raises(ValidationError):
+        build_settings(**{field: value})
+
+
+def test_the_share_limit_defaults_to_thirty_an_hour(build_settings):
+    assert build_settings().SHARE_MAX_PER_HOUR == 30
+
+
+def test_the_share_limit_must_be_positive(build_settings):
+    with pytest.raises(ValidationError):
+        build_settings(SHARE_MAX_PER_HOUR=0)
+
+
+def test_invitation_defaults(build_settings):
+    settings = build_settings()
+
+    assert settings.INVITE_EXPIRE_DAYS == 7
+    assert settings.INVITE_MAX_PER_DAY == 20
+    assert settings.NOTICE_MAX_PER_DAY == 20
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("INVITE_EXPIRE_DAYS", 0),
+        ("INVITE_EXPIRE_DAYS", 31),
+        ("INVITE_MAX_PER_DAY", 0),
+        ("NOTICE_MAX_PER_DAY", 0),
+    ],
+)
+def test_invitation_limits_are_bounded(build_settings, field, value):
+    with pytest.raises(ValidationError):
+        build_settings(**{field: value})

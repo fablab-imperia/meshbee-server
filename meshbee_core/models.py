@@ -69,6 +69,7 @@ from meshbee_core.limits import (
     PESO_MIN,
     RUOLI,
     RUOLI_APIARIO,
+    SCOPI_TOKEN,
     TEMPERATURA_MAX,
     TEMPERATURA_MIN,
     TIPI_ATTIVITA,
@@ -77,14 +78,19 @@ from meshbee_core.limits import (
     Ruolo,
     # Re-exported: the value sets are part of this module's public surface.
     RuoloApiario,
+    ScopoToken,
+    StatoCondivisione,
     TipoAttivita,
 )
+from meshbee_core.mail import is_single_address
 
 NOW = {"server_default": text("CURRENT_TIMESTAMP")}
 TRUE = {"server_default": text("true")}
 FALSE = {"server_default": text("false")}
 
 ID = String(ID_MAX_LENGTH)
+
+APIARIO_FK = "apiari.id_apiario"
 
 
 def in_range(column: str, low=None, high=None) -> str:
@@ -310,6 +316,57 @@ class PasswordChange(BaseModel):
         return validate_password_length(v)
 
 
+class PasswordForgot(BaseModel):
+    """Body of /api/auth/password/forgot: where to send the reset link."""
+
+    email: str = Field(max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email_case(cls, v):
+        """
+        Normalize like UserLogin, without rejecting a bad format: a malformed
+        address gets the same 202 as an unknown one, not a 422 that singles it out.
+        """
+        return normalize_email(v)
+
+
+class InvitoAccettazione(BaseModel):
+    """
+    Body of /api/auth/invite/accept: the emailed token and the new account's details.
+
+    No email: the account takes the address the invitation was sent to (#55).
+    """
+
+    token: str = Field(max_length=200)
+    nome: str = Field(min_length=1, max_length=100)
+    cognome: str = Field(min_length=1, max_length=100)
+    password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
+    )
+
+    @field_validator("password")
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
+
+
+class PasswordReset(BaseModel):
+    """Body of /api/auth/password/reset: the emailed token and the new password."""
+
+    token: str = Field(max_length=200)
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH,
+        description=f"Nuova password (minimo {PASSWORD_MIN_LENGTH} caratteri, massimo {BCRYPT_MAX_BYTES} byte)",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def check_password_length(cls, v):
+        return validate_password_length(v)
+
+
 # ============================================
 # Nodi
 # ============================================
@@ -463,7 +520,7 @@ class ArniaBase(SQLModel):
     longitudine: Decimal | None = longitudine_column()
     # The hive's owner is this apiary's owner. Null while its node is
     # unassigned; on creation, the node owner's default apiary.
-    id_apiario: int | None = Field(None, foreign_key="apiari.id_apiario")
+    id_apiario: int | None = Field(None, foreign_key=APIARIO_FK)
 
 
 class ArniaCreate(ArniaBase):
@@ -767,13 +824,24 @@ class AttivitaQueryParams(BaseModel):
 class CondivisioneCreate(BaseModel):
     """Share an apiary with a user, found by email."""
 
-    email: str
+    email: str = Field(max_length=255)
     ruolo: RuoloApiario = "viewer"
 
     @field_validator("email")
     @classmethod
-    def normalize_email_case(cls, v):
-        return normalize_email(v)
+    def single_address(cls, v):
+        """
+        One plain address, as a 422 otherwise.
+
+        It may be emailed an invitation (#55): a list such as "a@x.org, b@y.org"
+        would reach every address on it as one invitation, past the daily caps.
+        Refusing a malformed address reveals nothing about which ones are
+        registered (#40): no account could have it.
+        """
+        v = normalize_email(v)
+        if not is_single_address(v):
+            raise ValueError("Email non valida: indica un solo indirizzo")
+        return v
 
 
 class CondivisioneUpdate(BaseModel):
@@ -784,7 +852,7 @@ class CondivisioneUpdate(BaseModel):
 
 class CondivisioneBase(SQLModel):
     id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
-    id_apiario: int = Field(foreign_key="apiari.id_apiario", ondelete="CASCADE")
+    id_apiario: int = Field(foreign_key=APIARIO_FK, ondelete="CASCADE")
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
     data_condivisione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
 
@@ -821,6 +889,68 @@ class UtenteApiario(CondivisioneBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
+class CondivisioneRegistrata(BaseModel):
+    """
+    The answer to a share request: the same whether or not the email has an account.
+
+    A share needs an account, an invitation does not (#40); saying which one was
+    made would tell any user which addresses are registered.
+    """
+
+    id_apiario: int
+    email: str
+    ruolo: RuoloApiario
+
+
+class CondivisioneStato(BaseModel):
+    """
+    One entry of an apiary's share list: an active share or a pending invitation.
+
+    `stato` says which. An active share carries `id_utente` (its routes are
+    `…/condivisioni/{id_utente}`), a pending invitation `id_invito`
+    (`…/inviti/{id_invito}`). `data_condivisione` is when it was shared or invited.
+    """
+
+    id_utente: int | None = None
+    id_invito: int | None = None
+    id_apiario: int
+    email: str
+    ruolo: RuoloApiario
+    data_condivisione: datetime
+    stato: StatoCondivisione
+
+
+class InvitoBase(SQLModel):
+    """An apiary shared with an email that has no account yet (#40)."""
+
+    id_apiario: int = Field(foreign_key=APIARIO_FK, ondelete="CASCADE")
+    email: str = Field(sa_type=String(255))
+    ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
+    data_invito: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+
+
+class InvitoResponse(InvitoBase):
+    id_invito: int = Field(primary_key=True)
+
+
+class InvitoApiario(InvitoResponse, table=True):
+    """
+    A pending share. When an account is created with this email, every
+    invitation for it becomes a share in `utenti_apiari`, and the row goes.
+    """
+
+    __tablename__ = "inviti_apiari"
+    __table_args__ = (
+        UniqueConstraint(
+            "email", "id_apiario", name="inviti_apiari_email_id_apiario_key"
+        ),
+        CheckConstraint(
+            one_of("ruolo", RUOLI_APIARIO), name="inviti_apiari_ruolo_check"
+        ),
+        {"comment": "Apiari condivisi con email che non hanno ancora un account"},
+    )
+
+
 # ============================================
 # Token di sessione (no API shape)
 # ============================================
@@ -847,6 +977,49 @@ class TokenSessione(SQLModel, table=True):
     revocato: bool | None = Field(default=None, sa_column_kwargs=FALSE)
     ip_address: str | None = Field(default=None, sa_type=String(45))
     user_agent: str | None = Field(default=None, sa_type=Text)
+
+
+class TokenMonouso(SQLModel, table=True):
+    """
+    A single-use token sent by email: a password-reset link (#54), an invitation (#55).
+
+    `email` is where the link went, always. `id_utente` is the account the token
+    acts on, which an invitation does not have yet: the invited person signs up
+    with that `email`. `id_mittente` is whoever caused the email (the sharer of
+    an invitation), for caps per sender; nobody, for an anonymous reset request.
+
+    `token_hash` holds the token's SHA-256 (`security.hash_token`), never the
+    token. `data_utilizzo` is set once the token is spent, whether it was used
+    or replaced by a newer one; rows stay a while after they expire, since the
+    caps on requests count them.
+    """
+
+    __tablename__ = "token_monouso"
+    __table_args__ = (
+        CheckConstraint(one_of("scopo", SCOPI_TOKEN), name="token_monouso_scopo_check"),
+        # A reset acts on an account; only an invitation may be sent to an address alone.
+        CheckConstraint(
+            "id_utente IS NOT NULL OR scopo = 'invite'",
+            name="token_monouso_utente_check",
+        ),
+        Index("idx_token_monouso_utente_scopo", "id_utente", "scopo"),
+        Index("idx_token_monouso_email_scopo", "email", "scopo"),
+        Index("idx_token_monouso_mittente", "id_mittente"),
+    )
+
+    id_token: int | None = Field(default=None, primary_key=True)
+    id_utente: int | None = Field(
+        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+    )
+    email: str = Field(sa_type=String(255))
+    id_mittente: int | None = Field(
+        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+    )
+    token_hash: str = Field(sa_type=String(64), unique=True)
+    scopo: ScopoToken = Field(sa_type=String(20))
+    data_creazione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+    data_scadenza: datetime = Field(sa_type=DateTime)
+    data_utilizzo: datetime | None = Field(default=None, sa_type=DateTime)
 
 
 # ============================================

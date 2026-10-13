@@ -112,6 +112,22 @@ ruolo è `ROLE_ACTIONS` in `meshbee_core/services/auth.py`; un account con
 `ruolo = 'admin'` scavalca tutto. Questa tabella ha sostituito `utenti_arnie` (livelli
 `read`/`write`/`admin` per arnia) nella revisione `0005`.
 
+### `inviti_apiari` — condivisioni in attesa verso email senza account
+
+| Colonna | Tipo | Note |
+|---|---|---|
+| `id_invito` | SERIAL | PK |
+| `id_apiario` | INTEGER | FK, CASCADE. |
+| `email` | VARCHAR(255) | **UNIQUE insieme a `id_apiario`.** Normalizzata come `utenti.email`. |
+| `ruolo` | VARCHAR(20) | CHECK `('viewer','collaborator','manager')`, default `viewer`. |
+| `data_invito` | TIMESTAMP | |
+
+Condividere con un'email che non ha un account salva una riga qui invece di rispondere
+404 ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)). Quando viene
+creato un account con quell'email, o uno esistente la prende, ogni riga diventa una
+condivisione in `utenti_apiari` e viene cancellata
+(`services/accessi.py::accept_invitations`).
+
 ### `letture` — la telemetria
 
 | Colonna | Tipo | Note |
@@ -159,6 +175,26 @@ Una riga per ogni refresh token emesso da `/api/auth/login` o `/api/auth/refresh
 - `ip_address` e `user_agent` registrano chi ha chiesto il token. Dietro Caddy
   l'indirizzo è quello dell'utente, da `X-Forwarded-For` (vedi il README principale,
   *Produzione*).
+
+### `token_monouso` — token monouso inviati per email
+
+Una riga per ogni link inviato per email dal server, scritta e letta da
+`repository/token_monouso.py`: il reset della password
+([#54](https://github.com/fablab-imperia/meshbee-server/issues/54)) o un invito a un apiario
+([#55](https://github.com/fablab-imperia/meshbee-server/issues/55)).
+
+- `token_hash` contiene lo **SHA-256** del token, mai il token.
+- `scopo` è a cosa serve il token: CHECK su `password_reset`, `invite`
+  (`limits.py::ScopoToken`).
+- `email` è dove è andato il link, sempre. `id_utente` è l'account su cui agisce il
+  token, e può essere vuoto solo per un invito, mandato a chi non ha ancora un account
+  (CHECK `token_monouso_utente_check`). `id_mittente` è chi ha causato l'email, per
+  esempio chi condivide in un invito, così i limiti possono contare per mittente. È
+  vuoto per un reset, che è anonimo.
+- `data_utilizzo` viene impostata quando il token è consumato: usato, o sostituito da
+  uno più nuovo.
+- Le righe vengono cancellate un giorno dopo `data_scadenza`. Fino ad allora contano per
+  i limiti sulle richieste.
 
 ## Niente viste, niente trigger
 
@@ -246,6 +282,8 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0003` | Eliminati `trigger_aggiorna_nodo`, la sua funzione e `v_arnie_stato`: la loro logica è passata a `services/ingest.py` e `repository/arnie.py` (#17). |
 | `0004` | Eliminata l'estensione `uuid-ossp`, installata da `init.sql` e mai usata. Senza CASCADE: se qualcosa ne dipende, la migrazione si ferma invece di eliminarlo. |
 | `0005` | Proprietà e apiari (#2, #36): `apiari` con un `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, e `utenti_apiari` al posto di `utenti_arnie`. Il proprietario di un'arnia diventa la sua associazione attiva meglio piazzata (`admin` > `write` > `read`, la più vecchia prima); un nodo va al proprietario della maggior parte delle sue arnie, e tutte le sue arnie nel Default di quel proprietario; ogni altra associazione attiva diventa un ruolo su quel Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), che può allargare l'accesso ma non toglierlo mai. Le arnie che nessuno poteva vedere restano non assegnate. Il downgrade ricostruisce l'accesso per arnia. |
+| `0006` | `token_monouso`, token monouso inviati per email: reset della password (#54) e inviti agli apiari (#55). |
+| `0007` | `inviti_apiari`, condivisioni in attesa verso email ancora senza account (#40). |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:

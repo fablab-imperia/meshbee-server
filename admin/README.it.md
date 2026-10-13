@@ -11,7 +11,7 @@ Una piccola **pagina statica per gli amministratori**, servita dall'API su `/adm
   proprietario;
 - reimpostare una password;
 - letture, come tabella o come grafici, e attività;
-- con chi è condiviso un apiario;
+- con chi è condiviso un apiario, e gli inviti in attesa verso email ancora senza account;
 - letture a mano: inserirne una, correggerne una, eliminarle una alla volta o come
   selezione
   ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
@@ -52,6 +52,18 @@ un URL dell'API.
 - `api/Dockerfile` copia `admin/` nell'immagine, accanto ad `api/`.
 - Senza il proxy Caddy la pagina è su <http://localhost:8000/admin/>. Con
   [`make certs`](../README.it.md#https-locale) è anche su <https://localhost:8443/admin/>.
+
+Questa directory contiene anche **`reset-password.html`** e **`reset-password.js`**, la
+pagina pubblica a cui porta l'email di reset della password (#54). L'API la serve su
+`/reset-password` (`no-store`, `no-referrer`), e usa il foglio di stile di questa
+pagina. È semplice script, senza Alpine. Con un frammento `#token=…` chiede due volte
+la nuova password; senza, chiede un'email e richiede un link. Il login admin la
+collega. Vedi [`api/`](../api/README.it.md#reimpostare-la-password).
+
+**`invite.html`** e **`invite.js`** sono lo stesso tipo di pagina per un'email di invito
+(#55), servita su `/invite`: nome, cognome e una password, e l'account esiste. Il
+pannello di condivisione segna gli inviti in attesa e può inviarne uno di nuovo
+("Reinvia"). Vedi [`api/`](../api/README.it.md#inviti).
 
 ## Funzionalità
 

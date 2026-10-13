@@ -32,6 +32,7 @@
           <p class="error" x-show="error" x-text="error"></p>
           <button type="submit">Accedi</button>
         </form>
+        <small><a href="/reset-password">Password dimenticata?</a></small>
       </article>
     </main>
 
@@ -264,9 +265,12 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="s in paged('shares', shares.rows)" :key="s.id_utente">
+                  <template x-for="s in paged('shares', shares.rows)" :key="shareKey(s)">
                     <tr>
-                      <td x-text="s.email"></td>
+                      <td>
+                        <span x-text="s.email"></span>
+                        <small x-show="s.stato === 'in_attesa'" title="Nessun account con questa email: diventa una condivisione quando viene creato"> (in attesa)</small>
+                      </td>
                       <td>
                         <select aria-label="Ruolo" @change="changeShare(s, $event.target.value)">
                           <template x-for="o in options('ruoliApiario')" :key="o.value">
@@ -276,6 +280,7 @@
                       </td>
                       <td x-text="new Date(s.data_condivisione).toLocaleString('it-IT')"></td>
                       <td class="actions">
+                        <button class="outline" x-show="s.stato === 'in_attesa'" @click="resendInvite(s)">Reinvia</button>
                         <button class="outline contrast" @click="revokeShare(s)">Rimuovi</button>
                       </td>
                     </tr>
@@ -295,7 +300,8 @@
                   <button type="submit">Condividi</button>
                 </fieldset>
               </form>
-              <p><small>Condividere di nuovo con lo stesso utente ne cambia il ruolo.</small></p>
+              <p><small>Condividere di nuovo con la stessa email ne cambia il ruolo. Un'email senza account resta in attesa finché l'account non viene creato.</small></p>
+              <p class="notice" x-show="shares.notice" x-text="shares.notice"></p>
               <p class="error" x-show="dialogError" x-text="dialogError"></p>
             </article>
           </template>

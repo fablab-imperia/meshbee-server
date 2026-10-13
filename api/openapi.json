@@ -1232,6 +1232,7 @@
         "description": "Share an apiary with a user, found by email.",
         "properties": {
           "email": {
+            "maxLength": 255,
             "title": "Email",
             "type": "string"
           },
@@ -1250,6 +1251,35 @@
           "email"
         ],
         "title": "CondivisioneCreate",
+        "type": "object"
+      },
+      "CondivisioneRegistrata": {
+        "description": "The answer to a share request: the same whether or not the email has an account.\n\nA share needs an account, an invitation does not (#40); saying which one was\nmade would tell any user which addresses are registered.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "ruolo": {
+            "enum": [
+              "viewer",
+              "collaborator",
+              "manager"
+            ],
+            "title": "Ruolo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_apiario",
+          "email",
+          "ruolo"
+        ],
+        "title": "CondivisioneRegistrata",
         "type": "object"
       },
       "CondivisioneResponse": {
@@ -1287,6 +1317,72 @@
         "title": "CondivisioneResponse",
         "type": "object"
       },
+      "CondivisioneStato": {
+        "description": "One entry of an apiary's share list: an active share or a pending invitation.\n\n`stato` says which. An active share carries `id_utente` (its routes are\n`…/condivisioni/{id_utente}`), a pending invitation `id_invito`\n(`…/inviti/{id_invito}`). `data_condivisione` is when it was shared or invited.",
+        "properties": {
+          "data_condivisione": {
+            "format": "date-time",
+            "title": "Data Condivisione",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "id_invito": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Invito"
+          },
+          "id_utente": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente"
+          },
+          "ruolo": {
+            "enum": [
+              "viewer",
+              "collaborator",
+              "manager"
+            ],
+            "title": "Ruolo",
+            "type": "string"
+          },
+          "stato": {
+            "enum": [
+              "attiva",
+              "in_attesa"
+            ],
+            "title": "Stato",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_apiario",
+          "email",
+          "ruolo",
+          "data_condivisione",
+          "stato"
+        ],
+        "title": "CondivisioneStato",
+        "type": "object"
+      },
       "CondivisioneUpdate": {
         "description": "Change the role of an existing share.",
         "properties": {
@@ -1317,6 +1413,76 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InvitoAccettazione": {
+        "description": "Body of /api/auth/invite/accept: the emailed token and the new account's details.\n\nNo email: the account takes the address the invitation was sent to (#55).",
+        "properties": {
+          "cognome": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Cognome",
+            "type": "string"
+          },
+          "nome": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          },
+          "password": {
+            "description": "Password (minimo 8 caratteri, massimo 72 byte)",
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "nome",
+          "cognome",
+          "password"
+        ],
+        "title": "InvitoAccettazione",
+        "type": "object"
+      },
+      "InvitoResponse": {
+        "properties": {
+          "data_invito": {
+            "format": "date-time",
+            "title": "Data Invito",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id_apiario": {
+            "title": "Id Apiario",
+            "type": "integer"
+          },
+          "id_invito": {
+            "title": "Id Invito",
+            "type": "integer"
+          },
+          "ruolo": {
+            "title": "Ruolo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_apiario",
+          "email",
+          "ruolo",
+          "data_invito",
+          "id_invito"
+        ],
+        "title": "InvitoResponse",
         "type": "object"
       },
       "LetturaCreate": {
@@ -1845,6 +2011,43 @@
           "new_password"
         ],
         "title": "PasswordChange",
+        "type": "object"
+      },
+      "PasswordForgot": {
+        "description": "Body of /api/auth/password/forgot: where to send the reset link.",
+        "properties": {
+          "email": {
+            "maxLength": 255,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "PasswordForgot",
+        "type": "object"
+      },
+      "PasswordReset": {
+        "description": "Body of /api/auth/password/reset: the emailed token and the new password.",
+        "properties": {
+          "new_password": {
+            "description": "Nuova password (minimo 8 caratteri, massimo 72 byte)",
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "PasswordReset",
         "type": "object"
       },
       "RefreshRequest": {
@@ -3830,6 +4033,48 @@
         ]
       }
     },
+    "/api/auth/invite/accept": {
+      "post": {
+        "description": "Create an account from an apiary invitation, and log it in.\n\nThe account takes the email the invitation was sent to, with role `user`, and\nevery apiary shared with that email becomes its own. Returns the same tokens\nas login. 400, with one message, for a token that is unknown, expired, used\nor withdrawn. This is the only way to sign up: there is no open registration.",
+        "operationId": "accept_invitation_api_auth_invite_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitoAccettazione"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Invitation",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
     "/api/auth/login": {
       "post": {
         "description": "Login utente e generazione token JWT\n\nReturns:\n    Access token e refresh token",
@@ -3936,6 +4181,96 @@
           }
         ],
         "summary": "Get Me",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
+    "/api/auth/password/forgot": {
+      "post": {
+        "description": "Email a single-use link to reset the password.\n\nAnswers 202 with the same body whether or not the address belongs to an\nactive account, so it reveals nothing about which ones exist. The email goes\nout after the response. 503 when the server has no email configured.",
+        "operationId": "forgot_password_api_auth_password_forgot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordForgot"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Troppe richieste da questo indirizzo"
+          },
+          "503": {
+            "description": "Recupero password via email non attivo"
+          }
+        },
+        "summary": "Forgot Password",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "description": "Set a new password with the token from a reset email.\n\nThe token is spent, and every session of the account is logged out. 400,\nwith one message, for a token that is unknown, expired or already used.",
+        "operationId": "reset_password_with_token_api_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password With Token",
         "tags": [
           "Autenticazione"
         ]
@@ -4265,7 +4600,7 @@
     },
     "/api/user/apiari/{id_apiario}/condivisioni": {
       "get": {
-        "description": "Who the apiary is shared with, and as what (owner only).",
+        "description": "Who the apiary is shared with, and as what (owner only): active shares and\npending invitations to emails with no account yet, told apart by `stato`.",
         "operationId": "get_condivisioni_api_user_apiari__id_apiario__condivisioni_get",
         "parameters": [
           {
@@ -4317,7 +4652,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/CondivisioneResponse"
+                    "$ref": "#/components/schemas/CondivisioneStato"
                   },
                   "title": "Response Get Condivisioni Api User Apiari  Id Apiario  Condivisioni Get",
                   "type": "array"
@@ -4357,7 +4692,7 @@
         ]
       },
       "post": {
-        "description": "Share the apiary with a user, by email, as viewer, collaborator or manager\n(owner only). Sharing again with the same user changes their role.",
+        "description": "Share the apiary with an email, as viewer, collaborator or manager (owner\nonly). Sharing again with the same email changes the role.\n\nAn email with no account gets a pending invitation, which becomes a share\nwhen the account is created. The answer is the same either way, so it does\nnot reveal which addresses are registered (#40); the share list shows which.\n\nWith email on, an account is sent a notice and an invitation an email with a\nlink to create the account (#55), after the response.",
         "operationId": "share_apiario_api_user_apiari__id_apiario__condivisioni_post",
         "parameters": [
           {
@@ -4385,7 +4720,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CondivisioneResponse"
+                  "$ref": "#/components/schemas/CondivisioneRegistrata"
                 }
               }
             },
@@ -4400,6 +4735,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Troppe condivisioni in un'ora"
           }
         },
         "security": [
@@ -4530,6 +4868,191 @@
           }
         ],
         "summary": "Update Condivisione",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}": {
+      "delete": {
+        "description": "Withdraw a pending invitation (owner only).",
+        "operationId": "revoke_invito_api_user_apiari__id_apiario__inviti__id_invito__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_invito",
+            "required": true,
+            "schema": {
+              "title": "Id Invito",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revoke Invito",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "put": {
+        "description": "Change the role of a pending invitation (owner only).",
+        "operationId": "update_invito_api_user_apiari__id_apiario__inviti__id_invito__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_invito",
+            "required": true,
+            "schema": {
+              "title": "Id Invito",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CondivisioneUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Invito",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/apiari/{id_apiario}/inviti/{id_invito}/reinvia": {
+      "post": {
+        "description": "Send a pending invitation again, with a new link; the old one stops working\n(owner only). 429 past `INVITE_MAX_PER_DAY`, 503 without email.",
+        "operationId": "resend_invito_api_user_apiari__id_apiario__inviti__id_invito__reinvia_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_apiario",
+            "required": true,
+            "schema": {
+              "title": "Id Apiario",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id_invito",
+            "required": true,
+            "schema": {
+              "title": "Id Invito",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Limite giornaliero di inviti raggiunto"
+          },
+          "503": {
+            "description": "Invio di email non attivo"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resend Invito",
         "tags": [
           "Utente"
         ]
@@ -5666,7 +6189,7 @@
     },
     "/api/user/password": {
       "put": {
-        "description": "Cambia la propria password.",
+        "description": "Cambia la propria password. With email on, the account is sent a notice.",
         "operationId": "change_own_password_api_user_password_put",
         "requestBody": {
           "content": {

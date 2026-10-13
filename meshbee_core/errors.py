@@ -1,6 +1,6 @@
 """The outcomes a service reports to whoever called it.
 
-Three classes, deliberately. They exist so services can say what went wrong
+Four classes, deliberately. They exist so services can say what went wrong
 without importing a web framework: the API maps them to status codes, the MQTT
 handler logs them. Anything finer-grained belongs in the message.
 """
@@ -20,3 +20,7 @@ class Conflict(CoreError):
 
 class InvalidData(CoreError):
     """The request is well-formed but asks for something that is not allowed."""
+
+
+class Unavailable(CoreError):
+    """An outside service the request depends on (the mail server) could not do its part."""

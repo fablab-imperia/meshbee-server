@@ -6,6 +6,7 @@ passwords, and neither concern is HTTP. No database access, no framework.
 
 import hashlib
 import logging
+import secrets
 
 import bcrypt
 
@@ -35,9 +36,15 @@ def get_password_hash(password: str) -> str:
 
 def hash_token(token: str) -> str:
     """
-    The SHA-256 of a refresh token, as stored in `token_sessione`.
+    The SHA-256 of a token, as stored in `token_sessione` and `token_monouso`.
 
-    A plain digest, not bcrypt: the token is a long random JWT, not a guessable
-    password, and the hash must be deterministic so a session can be looked up by it.
+    A plain digest, not bcrypt: the token is a long random string (a JWT, or
+    `new_token()`), not a guessable password, and the hash must be deterministic
+    so a row can be looked up by it.
     """
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def new_token() -> str:
+    """A random single-use token for a link sent by email: 256 bits, URL-safe."""
+    return secrets.token_urlsafe(32)

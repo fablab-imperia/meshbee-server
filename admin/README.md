@@ -10,7 +10,7 @@ A small **static page for administrators**, served by the API at `/admin/`
 - assigning a node's owner and moving a hive to another apiary of its owner;
 - resetting a password;
 - readings, as a table or as charts, and activities;
-- who an apiary is shared with;
+- who an apiary is shared with, and pending invitations to emails with no account yet;
 - readings by hand: insert one, correct one, delete one at a time or a selection
   ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
   [#21](https://github.com/fablab-imperia/meshbee-server/issues/21)).
@@ -50,6 +50,18 @@ The page has no server of its own. `api/main.py` mounts this directory at `/admi
 - `api/Dockerfile` copies `admin/` into the image, next to `api/`.
 - Without a Caddy proxy, the page is at <http://localhost:8000/admin/>. With
   [`make certs`](../README.md#local-https), it is also at <https://localhost:8443/admin/>.
+
+This directory also holds **`reset-password.html`** and **`reset-password.js`**, the
+public page a password-reset email links to (#54). The API serves it at
+`/reset-password` (`no-store`, `no-referrer`), and it borrows this page's stylesheet.
+It is plain script without Alpine. With a `#token=…` fragment it asks for the new
+password twice; without one it asks for an email and requests a link. The admin login
+links to it. See [`api/`](../api/README.md#password-reset).
+
+**`invite.html`** and **`invite.js`** are the same kind of page for an invitation email
+(#55), served at `/invite`: name, surname and a password, then the account exists. The
+sharing panel marks pending invitations and can send one again ("Reinvia"). See
+[`api/`](../api/README.md#invitations).
 
 ## Features
 

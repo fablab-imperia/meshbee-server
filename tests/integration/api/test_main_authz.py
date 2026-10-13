@@ -11,7 +11,8 @@ try again", **403** means "you are authenticated but not allowed".
 import pytest
 
 # Reachable without a token and always 200. Login and refresh are public too, but
-# answer 401 on bad credentials, so they get their own tests below.
+# answer 401 on bad credentials, and the password-reset pair is public on purpose
+# (#54), so those get their own tests below.
 PUBLIC_OPEN = [
     ("get", "/", None),
     ("get", "/health", None),
@@ -101,6 +102,9 @@ APIARIO_SCOPED = [
     ("post", "/api/user/apiari/{}/condivisioni", {"email": "x@y.org"}, "owner"),
     ("put", "/api/user/apiari/{}/condivisioni/1", {"ruolo": "viewer"}, "owner"),
     ("delete", "/api/user/apiari/{}/condivisioni/1", None, "owner"),
+    ("put", "/api/user/apiari/{}/inviti/1", {"ruolo": "viewer"}, "owner"),
+    ("delete", "/api/user/apiari/{}/inviti/1", None, "owner"),
+    ("post", "/api/user/apiari/{}/inviti/1/reinvia", None, "owner"),
 ]
 
 # From no access at all to owning: each level allows everything the one
@@ -172,6 +176,35 @@ def test_login_is_reachable_without_a_token(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Email o password non corretti"
+
+
+# Anonymous on purpose: whoever forgot their password (#54), or was invited and
+# has no account yet (#55), has no token to send.
+BY_EMAILED_TOKEN = [
+    ("post", "/api/auth/password/forgot", {"email": "nobody@example.org"}),
+    ("post", "/api/auth/password/reset", {"token": "x", "new_password": "secret123"}),
+    (
+        "post",
+        "/api/auth/invite/accept",
+        {"token": "x", "nome": "N", "cognome": "C", "password": "secret123"},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "method, path, body", BY_EMAILED_TOKEN, ids=ids(BY_EMAILED_TOKEN)
+)
+def test_emailed_token_routes_are_reachable_without_a_token(client, method, path, body):
+    """
+    The handler runs rather than turning the request away for lack of a token.
+
+    Without email configured, forgot answers 503; reset and accept reject the
+    token with 400. None is the 401 of an unauthenticated request.
+    """
+    response = call(client, method, path, body)
+
+    assert response.status_code in (400, 503)
+    assert "WWW-Authenticate" not in response.headers
 
 
 # ============================================
