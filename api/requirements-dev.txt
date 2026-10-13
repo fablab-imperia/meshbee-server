@@ -2,6 +2,8 @@
 # Installed into the same image as the runtime deps (see Dockerfile): this is a
 # single-host hobby deployment, there is no separate production image to keep lean.
 pytest==9.1.1
+# Coverage for CI (coverage.xml feeds SonarQube Cloud); locally: pytest --cov.
+pytest-cov==7.1.0
 # Required by fastapi.testclient: starlette 1.x prefers httpx2 and deprecates httpx.
 httpx2==2.13.1
 # The suite runs in this one container and covers *both* entry points, so it

@@ -26,6 +26,7 @@ docker-compose exec api pytest tests/unit/core/test_config.py
 docker-compose exec api pytest tests/unit/core/test_config.py::test_database_url_escapes_special_characters
 docker-compose exec api pytest -k "password or token" -v
 docker-compose exec api pytest -x --lf                       # stop at the first failure, then rerun just it
+docker-compose exec api pytest --cov                         # with a coverage summary (CI sends it to SonarQube Cloud)
 ```
 
 `postgres-test` is behind the `test` profile, so a plain `docker-compose up` does not
