@@ -179,3 +179,27 @@ def test_changing_your_own_password_revokes_your_sessions(
     )
 
     assert sessioni.get_by_hash(session, hash_token(token))["revocato"] is True
+
+
+def test_revoking_reports_whether_this_call_spent_the_token(session, utente):
+    row = sessioni.insert(session, utente["id_utente"], hash_token("tok-1"), 7)
+
+    assert sessioni.revoke(session, row["id_token"]) is True
+    assert sessioni.revoke(session, row["id_token"]) is False
+
+
+def test_a_redeem_that_loses_the_race_counts_as_reuse(session, db, utente, monkeypatch):
+    """
+    Two concurrent refreshes with one token both read it as live. Only the
+    conditional revoke can tell them apart: the loser must get nothing, and
+    every session of the account ends, as for any other reuse.
+    """
+    auth.open_session(session, utente["id_utente"], "tok-1", 7)
+    auth.open_session(session, utente["id_utente"], "tok-other", 7)
+    stale = sessioni.get_by_hash(session, hash_token("tok-1"))
+    auth.redeem_refresh_token(session, "tok-1")  # the winner
+    monkeypatch.setattr(sessioni, "get_by_hash", lambda *_: stale)
+
+    assert auth.redeem_refresh_token(session, "tok-1") is None
+
+    assert all(row["revocato"] for row in rows(db, utente["id_utente"]))

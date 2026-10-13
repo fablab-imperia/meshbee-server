@@ -97,11 +97,11 @@ def redeem_refresh_token(session, refresh_token: str) -> dict[str, Any] | None:
     if row is None or row["scaduto"] or row["id_utente"] is None:
         return None
 
-    if row["revocato"]:
+    # The revoke itself decides, not the `revocato` just read: a concurrent
+    # redeem of the same token may have spent it since.
+    if row["revocato"] or not sessioni.revoke(session, row["id_token"]):
         sessioni.revoke_all(session, row["id_utente"])
         return None
-
-    sessioni.revoke(session, row["id_token"])
 
     user = utenti.get_by_id(session, row["id_utente"])
     if user is None or not user["attivo"]:

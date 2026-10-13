@@ -50,12 +50,23 @@ def get_by_hash(session: Session, token_hash: str) -> dict[str, Any] | None:
     return {**as_dict(row), "scaduto": scaduto}
 
 
-def revoke(session: Session, id_token: int) -> None:
-    session.exec(
+def revoke(session: Session, id_token: int) -> bool:
+    """
+    Revoke one session; True only if this call is the one that revoked it.
+
+    A single conditional UPDATE, so two concurrent redeems of the same token
+    cannot both win: the second waits on the row lock, re-checks `revocato`
+    and updates nothing.
+    """
+    result = session.exec(
         sql_update(TokenSessione)
-        .where(TokenSessione.id_token == id_token)
+        .where(
+            TokenSessione.id_token == id_token,
+            TokenSessione.revocato.is_not(True),
+        )
         .values(revocato=True)
     )
+    return result.rowcount == 1
 
 
 def revoke_all(session: Session, id_utente: int) -> int:
