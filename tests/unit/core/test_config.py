@@ -140,3 +140,30 @@ def test_get_core_settings_returns_a_cached_singleton(required_env):
 
     get_core_settings.cache_clear()
     assert get_core_settings() is not first
+
+
+def test_a_dotenv_file_is_read_outside_docker(tmp_path):
+    """Running a script on the host picks the settings up from `.env`."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("DB_PASSWORD=from-dotenv\nDB_HOST=db.from-dotenv\n")
+
+    settings = CoreSettings(_env_file=env_file)
+
+    assert settings.DB_PASSWORD.get_secret_value() == "from-dotenv"
+    assert settings.DB_HOST == "db.from-dotenv"
+
+
+def test_the_environment_wins_over_the_dotenv_file(tmp_path, monkeypatch):
+    """
+    Compose injects variables; a stray `.env` in the image must not override them.
+
+    Otherwise a developer's local file could point a container at the wrong
+    database.
+    """
+    env_file = tmp_path / ".env"
+    env_file.write_text("DB_PASSWORD=from-dotenv\nDB_HOST=db.from-dotenv\n")
+    monkeypatch.setenv("DB_HOST", "postgres")
+
+    settings = CoreSettings(_env_file=env_file)
+
+    assert settings.DB_HOST == "postgres"

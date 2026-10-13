@@ -1,8 +1,9 @@
 """Tests for the engine meshbee_core.db builds (meshbee_core/db.py)."""
 
 import pytest
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from meshbee_core import db as core_db
 from meshbee_core.models import Utente
@@ -54,3 +55,24 @@ def test_a_database_error_does_not_carry_the_values_it_was_given(engine):
         transaction.rollback()
 
     assert HASH not in str(exc_info.value)
+
+
+def test_ping_round_trips_on_the_real_engine(engine):
+    """The health check's probe must succeed against a live server."""
+    with Session(engine) as session:
+        core_db.ping(session)
+
+
+def test_get_session_runs_on_the_real_engine(engine):
+    """
+    The production session helper runs on the pool init_db_pool built.
+
+    Every other integration test uses a fixture session bound to a rolled-back
+    transaction, so this is the one place the real `get_session` opens and
+    commits. It only reads, so the commit leaves nothing behind.
+    """
+    with core_db.get_session() as session:
+        assert (
+            session.exec(select(func.current_database())).one()
+            == (TEST_DB_PARAMS["dbname"])
+        )
