@@ -262,6 +262,7 @@ si incontrano:
 | `NotFound` | 404 |
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
+| `Unavailable` (il server di posta ha fallito) | 503 |
 | `SQLAlchemyError` durante il login | 503 |
 | qualsiasi altra cosa | 500 `Errore interno del server`, con l'errore vero nel log |
 
@@ -290,6 +291,14 @@ README.
 | `API_VERSION` | str | `1.0.0` |
 | `API_DESCRIPTION` | str | `API per gestione sistema IoT arnie` |
 | `CORS_ORIGINS` | list | `["*"]` |
+| `SMTP_HOST` | str | non impostata = email disattivata |
+| `SMTP_PORT` | int | non impostata = 465 / 587 / 25 secondo `SMTP_SECURITY` |
+| `SMTP_SECURITY` | `ssl` \| `starttls` \| `none` | `starttls` |
+| `SMTP_USER` | str | non impostata = nessun login |
+| `SMTP_PASSWORD` | secret | non impostata; obbligatoria con `SMTP_USER` |
+| `SMTP_TIMEOUT` | float | `10` |
+| `MAIL_FROM` | str | non impostata; obbligatoria con `SMTP_HOST` |
+| `PUBLIC_BASE_URL` | str | non impostata; lo `/` finale viene tolto |
 
 `CORS_ORIGINS` è una lista, quindi dall'ambiente va passata in **JSON**, non come
 stringa separata da virgole:
@@ -300,6 +309,14 @@ CORS_ORIGINS=["https://app.example.org","https://admin.example.org"]
 
 `["*"]` con `allow_credentials=True` va bene in sviluppo ed è sbagliato in un
 deployment pubblico — lì va ristretta.
+
+Le impostazioni email sono spiegate nel
+[README](../README.it.md#email-in-uscita) principale. Nel codice, `mail.py` fornisce
+`get_mailer`, una dependency che vale `None` finché l'email è spenta (i test la
+sostituiscono con un fake), e `send_later`, che mette in coda un messaggio sui
+`BackgroundTasks`. Il messaggio parte dopo la risposta e, se l'invio fallisce, l'errore
+finisce nel log e il client non lo vede mai.
+`python -m scripts.send_test_mail <destinatario>` verifica una configurazione da capo a fondo.
 
 ## Contratto OpenAPI
 

@@ -30,7 +30,8 @@ scripts/ ───────┘
 | `models.py` | The data model, declared once: each table and its API shapes (`XBase`, `XCreate`, `XUpdate`, `XResponse`) as one SQLModel family, plus the API-only models (login, tokens, series, messages). The source Alembic migrates from. |
 | `migrations/` | Alembic: `env.py`, `upgrade()`, and the revisions. See [`database/`](../database/README.md#changing-the-schema). |
 | `security.py` | Password hashing and verification. Framework-free. |
-| `errors.py` | `NotFound`, `Conflict`, `InvalidData` — the vocabulary services raise. |
+| `errors.py` | `NotFound`, `Conflict`, `InvalidData`, `Unavailable` — the vocabulary services raise. |
+| `mail.py` | Outgoing email over any SMTP server (`SmtpConfig`, `Mailer`). Standard library only; every failure becomes `Unavailable`. The API builds the config from its own settings. |
 | `repository/` | SQL. One module per table. |
 | `services/` | Business decisions. One module per domain area. |
 

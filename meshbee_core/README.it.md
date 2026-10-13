@@ -30,7 +30,8 @@ scripts/ ───────┘
 | `models.py` | Il modello dei dati, dichiarato una volta sola: ogni tabella e le sue forme API (`XBase`, `XCreate`, `XUpdate`, `XResponse`) come un'unica famiglia SQLModel, più i modelli solo-API (login, token, serie, messaggi). La fonte da cui migra Alembic. |
 | `migrations/` | Alembic: `env.py`, `upgrade()` e le revisioni. Vedi [`database/`](../database/README.it.md#cambiare-lo-schema). |
 | `security.py` | Hashing e verifica delle password. Senza framework. |
-| `errors.py` | `NotFound`, `Conflict`, `InvalidData` — il vocabolario che sollevano i service. |
+| `errors.py` | `NotFound`, `Conflict`, `InvalidData`, `Unavailable` — il vocabolario che sollevano i service. |
+| `mail.py` | Email in uscita tramite qualsiasi server SMTP (`SmtpConfig`, `Mailer`). Solo libreria standard; ogni errore diventa `Unavailable`. L'API costruisce la configurazione dalle proprie impostazioni. |
 | `repository/` | SQL. Un modulo per tabella. |
 | `services/` | Decisioni di dominio. Un modulo per area. |
 

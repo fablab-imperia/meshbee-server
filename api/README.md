@@ -257,6 +257,7 @@ meet:
 | `NotFound` | 404 |
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
+| `Unavailable` (the mail server failed) | 503 |
 | `SQLAlchemyError` during login | 503 |
 | anything else | 500 `Errore interno del server`, with the real error logged |
 
@@ -284,6 +285,14 @@ README.
 | `API_VERSION` | str | `1.0.0` |
 | `API_DESCRIPTION` | str | `API per gestione sistema IoT arnie` |
 | `CORS_ORIGINS` | list | `["*"]` |
+| `SMTP_HOST` | str | unset = email disabled |
+| `SMTP_PORT` | int | unset = 465 / 587 / 25 by `SMTP_SECURITY` |
+| `SMTP_SECURITY` | `ssl` \| `starttls` \| `none` | `starttls` |
+| `SMTP_USER` | str | unset = no login |
+| `SMTP_PASSWORD` | secret | unset; required with `SMTP_USER` |
+| `SMTP_TIMEOUT` | float | `10` |
+| `MAIL_FROM` | str | unset; required with `SMTP_HOST` |
+| `PUBLIC_BASE_URL` | str | unset; trailing `/` dropped |
 
 `CORS_ORIGINS` is a list, so from the environment it must be **JSON**, not a
 comma-separated string:
@@ -294,6 +303,13 @@ CORS_ORIGINS=["https://app.example.org","https://admin.example.org"]
 
 `["*"]` with `allow_credentials=True` is fine for development and wrong for a public
 deployment — narrow it there.
+
+The email settings are explained in the root
+[README](../README.md#outgoing-email). In code, `mail.py` provides `get_mailer`, a
+dependency that is `None` while email is off (tests override it with a fake), and
+`send_later`, which queues a message on `BackgroundTasks`. The message goes out after
+the response, and if sending fails the failure is logged and the client never sees it.
+`python -m scripts.send_test_mail <to>` checks a configuration end to end.
 
 ## OpenAPI contract
 

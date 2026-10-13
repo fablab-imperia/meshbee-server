@@ -30,7 +30,7 @@ from api.auth import (
 from api.config import settings
 from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
-from meshbee_core.errors import Conflict, InvalidData, NotFound
+from meshbee_core.errors import Conflict, InvalidData, NotFound, Unavailable
 from meshbee_core.models import (
     ApiarioAdminCreate,
     ApiarioConAccesso,
@@ -144,6 +144,7 @@ ERROR_STATUS = {
     NotFound: status.HTTP_404_NOT_FOUND,
     Conflict: status.HTTP_409_CONFLICT,
     InvalidData: status.HTTP_400_BAD_REQUEST,
+    Unavailable: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 

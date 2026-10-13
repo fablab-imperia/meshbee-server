@@ -215,6 +215,7 @@ processo fuori da Docker.
 | `COMPOSE_FILE` | compose | Solo in produzione: `docker-compose.yml:docker-compose.prod.yml`. |
 | `MESHBEE_DOMAIN` | caddy, api | Solo in produzione: il nome host pubblico. |
 | `ACME_EMAIL` | caddy | Solo in produzione: indirizzo di contatto per Let's Encrypt. |
+| `SMTP_*`, `MAIL_FROM`, `PUBLIC_BASE_URL` | api | Email in uscita, opzionale; vedi [sotto](#email-in-uscita). |
 
 Le impostazioni sono **divise per servizio**: `CoreSettings` in
 `meshbee_core/config.py` tiene i campi del database, e ogni entry point la estende con i
@@ -224,6 +225,63 @@ seed. Il README di ogni componente elenca i suoi campi.
 **Metti un campo nuovo nella classe più stretta che ne ha bisogno.** Un campo
 obbligatorio su `CoreSettings` deve esistere nell'ambiente di *ogni* servizio in
 `docker-compose.yml`, altrimenti quel servizio va in crash all'import.
+
+### Email in uscita
+
+L'API può inviare email tramite **qualsiasi server SMTP**: un provider (Resend, Brevo,
+Mailgun, SES, …), il server di posta dell'organizzazione o un relay sullo stesso host.
+È **spenta finché `SMTP_HOST` non è impostata**, e per un'installazione che la lascia
+vuota non cambia nulla. Solo il servizio `api` legge queste variabili; l'handler MQTT
+non invia nulla.
+
+| Variabile | Default | Note |
+|---|---|---|
+| `SMTP_HOST` | non impostata | Non impostata = email disattivata. |
+| `SMTP_SECURITY` | `starttls` | `ssl` (TLS implicito, di solito 465), `starttls` (di solito 587) o `none` (solo per un relay locale o Mailpit). |
+| `SMTP_PORT` | secondo la sicurezza | Non impostata = 465 / 587 / 25 per `ssl` / `starttls` / `none`. |
+| `SMTP_USER` | non impostata | Non impostata = nessun login, per i relay che non lo chiedono. |
+| `SMTP_PASSWORD` | non impostata | Obbligatoria con `SMTP_USER`. Mai scritta nei log. |
+| `SMTP_TIMEOUT` | `10` | Secondi, per connessione. |
+| `MAIL_FROM` | non impostata | Obbligatoria con `SMTP_HOST`, es. `Meshbee <noreply@example.org>`. Usa un indirizzo su un dominio verificato dal provider. |
+| `PUBLIC_BASE_URL` | non impostata | Dove si raggiunge l'app, es. `https://meshbee.example.org`. Serve per i link nelle email. |
+
+Una configurazione a metà (un host senza `MAIL_FROM`, un utente senza password) ferma
+l'API all'avvio invece di fallire alla prima email. Le route inviano la posta dopo la
+risposta, così un server lento non blocca mai una richiesta. Un invio fallito finisce
+nel log con la risposta del server, ma mai con la password o il corpo del messaggio.
+
+**Verifica una configurazione** inviando un messaggio:
+
+```bash
+docker-compose up -d api        # rilegge le modifiche al .env
+docker-compose exec api python -m scripts.send_test_mail tu@example.org
+```
+
+**In locale, senza provider:** [Mailpit](https://mailpit.axllent.org/) intercetta
+tutto e lo mostra in una casella web su <http://localhost:8025/>.
+
+```bash
+docker-compose --profile mail up -d mailpit
+# nel .env:
+SMTP_HOST=mailpit
+SMTP_PORT=1025
+SMTP_SECURITY=none
+MAIL_FROM=Meshbee <noreply@meshbee.local>
+```
+
+**Esempio: Resend.** È una delle opzioni possibili, scelta qui perché è un inizio facile
+per un'installazione piccola. Il piano gratuito permette 3.000 email al mese (al massimo
+100 al giorno) e include l'SMTP. Crea un account, aggiungi un dominio di invio (o un
+sottodominio come `mail.example.org`) e pubblica i record SPF/DKIM che mostra, poi crea
+una API key con il solo permesso di *invio*:
+
+```bash
+SMTP_HOST=smtp.resend.com
+SMTP_SECURITY=ssl              # porta 465; oppure starttls su 587, e 2465/2587 se quelle sono bloccate
+SMTP_USER=resend
+SMTP_PASSWORD=re_...           # la API key
+MAIL_FROM=Meshbee <noreply@mail.example.org>
+```
 
 ## Sviluppo
 
