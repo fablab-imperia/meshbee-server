@@ -399,6 +399,14 @@ What the layer changes:
 - **CORS is limited to `https://MESHBEE_DOMAIN`,** and container logs rotate (3 × 10 MB
   per service).
 
+**Email is optional in production too.** The layer changes nothing about it: the
+`SMTP_*` settings reach the API from `.env` as in development (see
+[Outgoing email](#outgoing-email)). To turn it on, set them and
+`PUBLIC_BASE_URL=https://MESHBEE_DOMAIN`. Reset and invitation links point there, so it
+must be the public HTTPS name, never an IP or a plain-HTTP address. Run
+`docker compose run --rm api python -m scripts.send_test_mail you@example.org` to check
+before relying on it.
+
 In both setups the API takes the client address from Caddy's `X-Forwarded-For`
 (`FORWARDED_ALLOW_IPS: "*"`), so the IP a login records is the user's, not Caddy's.
 Caddy ignores an `X-Forwarded-For` sent by the client, so the address can't be spoofed

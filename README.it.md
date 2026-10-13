@@ -405,6 +405,14 @@ Cosa cambia lo strato:
 - **Il CORS è limitato a `https://MESHBEE_DOMAIN`,** e i log dei container ruotano
   (3 × 10 MB per servizio).
 
+**Anche in produzione l'email è opzionale.** Il livello non cambia nulla al riguardo:
+le impostazioni `SMTP_*` arrivano all'API dal `.env` come in sviluppo (vedi
+[Email in uscita](#email-in-uscita)). Per attivarla, impostale insieme a
+`PUBLIC_BASE_URL=https://MESHBEE_DOMAIN`. I link di reset e di invito puntano lì, quindi
+deve essere il nome pubblico in HTTPS, mai un IP o un indirizzo in HTTP semplice.
+Esegui `docker compose run --rm api python -m scripts.send_test_mail tu@example.org`
+per verificarla prima di farci affidamento.
+
 In entrambe le configurazioni l'API prende l'indirizzo del client dall'`X-Forwarded-For`
 di Caddy (`FORWARDED_ALLOW_IPS: "*"`), quindi l'IP registrato da un login è quello
 dell'utente, non quello di Caddy. Caddy ignora un `X-Forwarded-For` inviato dal client,
