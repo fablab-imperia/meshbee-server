@@ -167,6 +167,10 @@ services:
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
       REFRESH_TOKEN_EXPIRE_DAYS: 7
+      # Take the client address from Caddy's X-Forwarded-For, as in production, so
+      # token_sessione.ip_address is the caller's and not Caddy's. Development only
+      # trusts any peer: :8000 is published too, so a direct client could set the header.
+      FORWARDED_ALLOW_IPS: "*"
     ports:
       - "8000:8000"
     networks:

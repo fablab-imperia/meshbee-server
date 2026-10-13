@@ -337,6 +337,12 @@ What the layer changes:
 - **CORS is limited to `https://MESHBEE_DOMAIN`,** and container logs rotate (3 × 10 MB
   per service).
 
+In both setups the API takes the client address from Caddy's `X-Forwarded-For`
+(`FORWARDED_ALLOW_IPS: "*"`), so the IP a login records is the user's, not Caddy's.
+Caddy ignores an `X-Forwarded-For` sent by the client, so the address can't be spoofed
+through it. If a load balancer is ever put in front of Caddy, configure Caddy's
+`trusted_proxies`, or every user will show the balancer's address.
+
 Check the merged configuration before starting it:
 
 ```bash

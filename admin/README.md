@@ -89,9 +89,10 @@ The page has no server of its own. `api/main.py` mounts this directory at `/admi
   - A reload or a copied link opens the same view after the login.
   - This is about thirty lines in `url.js`, with no router library. The tabs share one
     table, so per-route templates would have nothing to hold.
-- **The token lives in `sessionStorage`**, so it is gone when the tab closes. There is no
-  refresh ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): when the
-  token expires, the next request gets a 401 and the page asks for the login again.
+- **The token lives in `sessionStorage`**, so it is gone when the tab closes. The page
+  keeps only the access token and does not use `/api/auth/refresh`
+  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16)): when the token
+  expires, the next request gets a 401 and the page asks for the login again.
 
 ## Development
 

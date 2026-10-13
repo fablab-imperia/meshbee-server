@@ -341,6 +341,13 @@ Cosa cambia lo strato:
 - **Il CORS è limitato a `https://MESHBEE_DOMAIN`,** e i log dei container ruotano
   (3 × 10 MB per servizio).
 
+In entrambe le configurazioni l'API prende l'indirizzo del client dall'`X-Forwarded-For`
+di Caddy (`FORWARDED_ALLOW_IPS: "*"`), quindi l'IP registrato da un login è quello
+dell'utente, non quello di Caddy. Caddy ignora un `X-Forwarded-For` inviato dal client,
+quindi l'indirizzo non si può falsificare passando da lì. Se un giorno si mette un load
+balancer davanti a Caddy, va configurato il `trusted_proxies` di Caddy, altrimenti ogni
+utente avrà l'indirizzo del balancer.
+
 Controlla la configurazione risultante prima di avviarla:
 
 ```bash

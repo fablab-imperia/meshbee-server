@@ -15,7 +15,7 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 54 routes. |
+| `main.py` | The application: lifespan, CORS, error translation and all 56 routes. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `paging.py` | The optional `limit`/`offset` parameters of the list routes, and their `X-Total-Count` header — see [Paging](#paging). |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
@@ -26,7 +26,7 @@ here.
 
 ## Endpoints
 
-54 operations. `Auth` says what a request must carry:
+56 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -43,6 +43,8 @@ here.
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | `/api/auth/login` | none | Exchange email + password for an access and a refresh token. |
+| POST | `/api/auth/refresh` | none | Exchange a refresh token for a new access and refresh token; the old one is spent. |
+| POST | `/api/auth/logout` | none | Revoke a refresh token. Always 200. |
 | GET | `/api/auth/me` | user | The authenticated account. |
 
 ### Utente
@@ -167,7 +169,9 @@ offset past the end is an empty page, still with its total. The chart series
 Login returns two JWTs signed HS256 with `JWT_SECRET_KEY`. The claim that identifies
 the caller is `sub` (the email); the user row is re-read from the database on **every**
 request, so deactivating an account takes effect immediately without waiting for the
-token to expire.
+token to expire. A refresh token also carries a unique `jti`. Refresh doesn't trust its
+`sub`: it finds the user through the token's row in `token_sessione`, so changing the
+account's email doesn't break it.
 
 The dependencies stack, each building on the previous one:
 
@@ -212,13 +216,28 @@ A share response identifies the user only by the email the owner typed — no na
 Known gap: sharing with an unregistered email answers **404**, so any user can still
 test which emails have an account ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
 
-Two things to know about tokens:
+Three things to know about tokens:
 
-- **The refresh token is minted but never redeemed.** There is no `/api/auth/refresh`
-  route, and nothing reads or writes the `token_sessione` table. When the access token
-  expires after `ACCESS_TOKEN_EXPIRE_MINUTES`, the client logs in again. The table is
-  kept because it is the right shape for the feature —
-  [issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
+- **A refresh token works once.** Each one issued by login or refresh is recorded in
+  `token_sessione` (as its SHA-256, never the token itself).
+  - `/api/auth/refresh` spends it and answers with a new pair; the client must keep the
+    new refresh token.
+  - Presenting a spent or logged-out token again means a copy is out there, so **every
+    session of that account is revoked** and the user logs in again.
+  - **A client must have only one refresh in flight.** Two refreshes with the same token
+    at once count as reuse too: one wins, the other is refused and logs the user out
+    everywhere. When several requests hit a 401 together, they should all wait on the
+    same refresh.
+  - Refresh answers the same 401 for an unknown, expired, spent or revoked token and for
+    a deactivated account.
+  - Refresh and logout take the refresh token in the body and no `Authorization` header,
+    because the access token has usually expired by then.
+- **What revokes a refresh token:** logout, deactivating the account (`PUT` with
+  `attivo: false`, or `DELETE`), and a new password (`PUT /api/user/password`, or the
+  admin reset). Access tokens stay stateless: they keep working until they expire after
+  `ACCESS_TOKEN_EXPIRE_MINUTES`. A deactivated account is the exception, since
+  `get_current_user` re-reads the user on every request.
+  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16))
 - **A database outage is not a credentials error.** `authenticate_user` turns any
   `SQLAlchemyError` into **503** rather than letting it fall through to 401, so an
   unreachable database never looks like a wrong password.

@@ -7,7 +7,7 @@ from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import utenti
 from meshbee_core.security import get_password_hash, verify_password
-from meshbee_core.services import apiari
+from meshbee_core.services import apiari, auth
 
 NOT_FOUND = "Utente non trovato"
 
@@ -85,6 +85,10 @@ def update_utente(session, id_utente: int, user_update) -> dict[str, Any]:
     if not updated:
         raise NotFound(NOT_FOUND)
 
+    # A disabled account must not mint new access tokens with an old refresh token.
+    if stamp:
+        auth.revoke_sessions(session, id_utente)
+
     return dict(updated)
 
 
@@ -103,6 +107,8 @@ def deactivate_utente(session, id_utente: int, *, acting_user_id: int) -> None:
     if not utenti.deactivate(session, id_utente):
         raise NotFound(NOT_FOUND)
 
+    auth.revoke_sessions(session, id_utente)
+
 
 def reset_password(session, id_utente: int, new_password: str) -> None:
     """
@@ -115,6 +121,9 @@ def reset_password(session, id_utente: int, new_password: str) -> None:
         session, id_utente, get_password_hash(new_password)
     ):
         raise NotFound(NOT_FOUND)
+
+    # A new password logs out every device that knew the old one.
+    auth.revoke_sessions(session, id_utente)
 
 
 def change_own_password(
@@ -134,3 +143,4 @@ def change_own_password(
         raise InvalidData("Password attuale non corretta")
 
     utenti.set_password_hash(session, id_utente, get_password_hash(new_password))
+    auth.revoke_sessions(session, id_utente)

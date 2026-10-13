@@ -90,8 +90,16 @@ colonna tranne `id_lettura`. La sua fixture `deliver` racchiude ogni messaggio i
 SAVEPOINT, perché in produzione ogni messaggio ha la sua transazione e il test non deve
 lasciare che un messaggio veda il lavoro non committato di un altro.
 
+**`integration/core/services/test_auth_sessioni_concurrency.py` — l'unico test che
+committa.** Due refresh con lo stesso token, in due thread con due connessioni; una
+barriera li ferma entrambi subito dopo la lettura della riga di sessione, così la corsa
+avviene a ogni esecuzione. Una corsa richiede due transazioni che committano davvero,
+cosa che la transazione di test annullata non può dare, quindi questo test scrive righe
+committate e le cancella alla fine. Copialo per ogni altro controlla-poi-scrivi che due
+richieste possono colpire insieme.
+
 **`integration/api/test_main_authz.py` — il cancello.** Le sue tabelle elencano
-**tutti i 54 endpoint**: ogni endpoint protetto viene provato con accesso anonimo e
+**tutti i 56 endpoint**: ogni endpoint protetto viene provato con accesso anonimo e
 autenticato-ma-non-admin, e ognuno legato a un'arnia o a un apiario porta il **minimo
 accesso** che può chiamarlo (`viewer` … `owner`) e viene chiamato a ogni livello,
 dall'assenza di accesso fino al proprietario. **Aggiungi ogni endpoint nuovo a quelle

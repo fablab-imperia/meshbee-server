@@ -2,7 +2,7 @@
 
 import pytest
 
-from meshbee_core.security import get_password_hash, verify_password
+from meshbee_core.security import get_password_hash, hash_token, verify_password
 
 PASSWORD = "correct-horse-battery-staple"
 
@@ -54,3 +54,13 @@ def test_a_password_over_72_bytes_is_refused_not_truncated():
 def test_verify_password_denies_a_password_over_72_bytes(password_hash):
     """A login with an over-long password is a 401, not a 500."""
     assert verify_password(PASSWORD + "x" * 100, password_hash) is False
+
+
+def test_hash_token_is_a_deterministic_sha256_hex_digest():
+    """Deterministic, so a session row can be looked up by the token's hash."""
+    digest = hash_token("a.jwt.token")
+
+    assert digest == hash_token("a.jwt.token")
+    assert digest != hash_token("another.jwt.token")
+    assert len(digest) == 64
+    assert int(digest, 16) >= 0

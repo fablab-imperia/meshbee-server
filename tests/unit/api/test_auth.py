@@ -69,6 +69,35 @@ def test_refresh_token_is_tagged_as_a_refresh_token():
     assert payload["type"] == "refresh"
 
 
+def test_every_refresh_token_is_unique():
+    """
+    Two tokens for the same user in the same second still differ (the jti), so
+    each one gets its own row in token_sessione.
+    """
+    first = create_refresh_token({"sub": "a@b.org"})
+    second = create_refresh_token({"sub": "a@b.org"})
+
+    assert first != second
+    assert decode_token(first)["jti"] != decode_token(second)["jti"]
+
+
+@pytest.mark.parametrize(
+    "token, expected",
+    [
+        (lambda: create_refresh_token({"sub": "a@b.org"}), True),
+        (lambda: create_access_token({"sub": "a@b.org"}), False),
+        (lambda: "not-a-jwt", False),
+        (
+            lambda: create_access_token({"sub": "a@b.org"}, timedelta(minutes=-1)),
+            False,
+        ),
+    ],
+    ids=["refresh", "access", "garbage", "expired"],
+)
+def test_is_refresh_token(token, expected):
+    assert auth.is_refresh_token(token()) is expected
+
+
 def test_access_token_honours_an_explicit_lifetime():
     """An explicit expires_delta wins over the configured default."""
     payload = decode_token(

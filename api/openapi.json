@@ -1847,6 +1847,20 @@
         "title": "PasswordChange",
         "type": "object"
       },
+      "RefreshRequest": {
+        "description": "Body of /api/auth/refresh and /api/auth/logout",
+        "properties": {
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshRequest",
+        "type": "object"
+      },
       "SerieBatteriaResponse": {
         "description": "Battery voltage time series.",
         "properties": {
@@ -3858,6 +3872,48 @@
         ]
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "description": "Revoke a refresh token. Needs no access token, which may have expired.\n\nAnswers the same for a token it does not know, so it reveals nothing.",
+        "operationId": "logout_api_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
     "/api/auth/me": {
       "get": {
         "description": "Ottieni informazioni sull'utente corrente\n\nReturns:\n    Dati dell'utente autenticato",
@@ -3880,6 +3936,48 @@
           }
         ],
         "summary": "Get Me",
+        "tags": [
+          "Autenticazione"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "description": "Exchange a refresh token for a new access and refresh token.\n\nThe presented token is spent: use the new one next time. Presenting a spent\ntoken again revokes every session of the account.",
+        "operationId": "refresh_api_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh",
         "tags": [
           "Autenticazione"
         ]

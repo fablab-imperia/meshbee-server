@@ -14,7 +14,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 54 rotte. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 56 rotte. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
@@ -25,7 +25,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-54 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+56 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -43,6 +43,8 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 | Metodo | Percorso | Auth | Scopo |
 |---|---|---|---|
 | POST | `/api/auth/login` | nessuna | Scambia email + password per un access e un refresh token. |
+| POST | `/api/auth/refresh` | nessuna | Scambia un refresh token per un nuovo access e refresh token; il vecchio è consumato. |
+| POST | `/api/auth/logout` | nessuna | Revoca un refresh token. Risponde sempre 200. |
 | GET | `/api/auth/me` | utente | L'account autenticato. |
 
 ### Utente
@@ -168,7 +170,9 @@ Le serie per i grafici (`/letture/{grandezza}`) non sono paginate: la finestra d
 Il login restituisce due JWT firmati HS256 con `JWT_SECRET_KEY`. Il claim che
 identifica il chiamante è `sub` (l'email); la riga dell'utente viene riletta dal
 database a **ogni** richiesta, quindi disattivare un account ha effetto immediato senza
-aspettare la scadenza del token.
+aspettare la scadenza del token. Un refresh token porta anche un `jti` univoco. Il refresh non si fida
+del suo `sub`: trova l'utente tramite la riga del token in `token_sessione`, quindi
+cambiare l'email dell'account non lo rompe.
 
 Le dipendenze si impilano, ciascuna sopra la precedente:
 
@@ -216,13 +220,29 @@ nome. Limite noto: condividere con un'email non registrata risponde **404**, qui
 qualsiasi utente può ancora verificare quali email hanno un account
 ([#40](https://github.com/fablab-imperia/meshbee-server/issues/40)).
 
-Due cose da sapere sui token:
+Tre cose da sapere sui token:
 
-- **Il refresh token viene emesso ma non viene mai riscattato.** Non esiste una rotta
-  `/api/auth/refresh`, e niente legge o scrive la tabella `token_sessione`. Quando
-  l'access token scade dopo `ACCESS_TOKEN_EXPIRE_MINUTES`, il client rifà il login. La
-  tabella resta perché ha la forma giusta per la funzionalità:
-  [issue #16](https://github.com/fablab-imperia/meshbee-server/issues/16).
+- **Un refresh token funziona una volta sola.** Ognuno di quelli emessi da login o
+  refresh è registrato in `token_sessione` (come SHA-256, mai il token in chiaro).
+  - `/api/auth/refresh` lo consuma e risponde con una nuova coppia; il client deve
+    conservare il nuovo refresh token.
+  - Ripresentare un token già consumato o chiuso col logout vuol dire che ne esiste una
+    copia, quindi **tutte le sessioni di quell'account vengono revocate** e l'utente
+    rifà il login.
+  - **Un client deve avere un solo refresh in corso.** Anche due refresh con lo stesso
+    token nello stesso momento contano come riuso: uno vince, l'altro viene rifiutato e
+    disconnette l'utente ovunque. Quando più richieste ricevono un 401 insieme, devono
+    aspettare tutte lo stesso refresh.
+  - Il refresh risponde con lo stesso 401 per un token sconosciuto, scaduto, consumato o
+    revocato e per un account disattivato.
+  - Refresh e logout ricevono il refresh token nel body e nessun header `Authorization`,
+    perché a quel punto l'access token di solito è scaduto.
+- **Cosa revoca un refresh token:** il logout, la disattivazione dell'account (`PUT`
+  con `attivo: false`, o `DELETE`) e una nuova password (`PUT /api/user/password`, o il
+  reset dell'admin). Gli access token restano stateless: funzionano finché non scadono
+  dopo `ACCESS_TOKEN_EXPIRE_MINUTES`. L'eccezione è un account disattivato, perché
+  `get_current_user` rilegge l'utente a ogni richiesta.
+  ([#16](https://github.com/fablab-imperia/meshbee-server/issues/16))
 - **Un database irraggiungibile non è un errore di credenziali.** `authenticate_user`
   trasforma qualsiasi `SQLAlchemyError` in **503** invece di lasciarla arrivare al 401,
   così un database giù non somiglia mai a una password sbagliata.

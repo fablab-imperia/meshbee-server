@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from api.auth import decode_token
+from api.auth import create_refresh_token, decode_token
 
 
 @pytest.fixture
@@ -128,6 +128,151 @@ def test_a_malformed_login_email_fails_authentication_not_validation(
 def test_login_requires_both_fields(client, payload):
     """A malformed body is rejected by validation before any query runs."""
     assert client.post("/api/auth/login", json=payload).status_code == 422
+
+
+# ============================================
+# POST /api/auth/refresh and /api/auth/logout
+# ============================================
+
+
+@pytest.fixture
+def login(client, utente, known_password):
+    """Log `utente` in for real and return the token pair."""
+
+    def _login():
+        response = client.post(
+            "/api/auth/login",
+            json={"email": utente["email"], "password": known_password},
+        )
+        assert response.status_code == 200
+        return response.json()
+
+    return _login
+
+
+def refresh(client, token):
+    return client.post("/api/auth/refresh", json={"refresh_token": token})
+
+
+def test_login_records_a_session(client, db, utente, login):
+    """The refresh token is stored as a hash, with who asked for it."""
+    login()
+
+    db.execute(
+        "SELECT * FROM token_sessione WHERE id_utente = %s", (utente["id_utente"],)
+    )
+    (row,) = db.fetchall()
+    assert row["revocato"] is False
+    assert row["user_agent"] == "testclient"
+
+
+def test_behind_caddy_a_session_records_the_users_address(
+    client, db, utente, known_password
+):
+    """
+    With FORWARDED_ALLOW_IPS="*" (both compose files), uvicorn takes the client
+    from Caddy's X-Forwarded-For, and the session must record that, not Caddy.
+    """
+    from fastapi.testclient import TestClient
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    from api import main
+
+    behind_caddy = TestClient(ProxyHeadersMiddleware(main.app, trusted_hosts="*"))
+    behind_caddy.post(
+        "/api/auth/login",
+        json={"email": utente["email"], "password": known_password},
+        headers={"X-Forwarded-For": "203.0.113.7"},
+    )
+
+    db.execute(
+        "SELECT ip_address FROM token_sessione WHERE id_utente = %s",
+        (utente["id_utente"],),
+    )
+    assert db.fetchone()["ip_address"] == "203.0.113.7"
+
+
+def test_refresh_returns_a_new_working_pair(client, utente, login):
+    tokens = login()
+
+    response = refresh(client, tokens["refresh_token"])
+
+    assert response.status_code == 200
+    fresh = response.json()
+    assert fresh["refresh_token"] != tokens["refresh_token"]
+    me = client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {fresh['access_token']}"}
+    )
+    assert me.status_code == 200
+    assert me.json()["id_utente"] == utente["id_utente"]
+
+
+def test_a_refresh_token_works_once(client, login):
+    tokens = login()
+    refresh(client, tokens["refresh_token"])
+
+    response = refresh(client, tokens["refresh_token"])
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_reusing_a_refresh_token_kills_the_rotated_one_too(client, login):
+    """Reuse means a copy is out there: every session of the account ends."""
+    tokens = login()
+    fresh = refresh(client, tokens["refresh_token"]).json()
+
+    refresh(client, tokens["refresh_token"])
+
+    assert refresh(client, fresh["refresh_token"]).status_code == 401
+
+
+def test_an_access_token_is_not_a_refresh_token(client, login):
+    assert refresh(client, login()["access_token"]).status_code == 401
+
+
+def test_a_garbage_refresh_token_is_unauthorized(client):
+    assert refresh(client, "not-a-jwt").status_code == 401
+
+
+def test_a_well_signed_but_unrecorded_refresh_token_is_unauthorized(client, utente):
+    """Signing alone no longer suffices: the token must have been issued and kept."""
+    token = create_refresh_token({"sub": utente["email"]})
+
+    assert refresh(client, token).status_code == 401
+
+
+def test_logout_revokes_the_refresh_token(client, login):
+    tokens = login()
+
+    response = client.post(
+        "/api/auth/logout", json={"refresh_token": tokens["refresh_token"]}
+    )
+
+    assert response.status_code == 200
+    assert refresh(client, tokens["refresh_token"]).status_code == 401
+
+
+@pytest.mark.parametrize("token", ["not-a-jwt", "access"])
+def test_logout_answers_the_same_for_any_token(client, login, token):
+    """Logout is no oracle for which tokens are live."""
+    if token == "access":
+        token = login()["access_token"]
+
+    response = client.post("/api/auth/logout", json={"refresh_token": token})
+
+    assert response.status_code == 200
+
+
+def test_deactivating_a_user_stops_their_refresh(
+    client, as_user, make_utente, utente, login
+):
+    tokens = login()
+    admin = make_utente(ruolo="admin")
+
+    as_user(admin).delete(f"/api/admin/utenti/{utente['id_utente']}")
+
+    assert refresh(client, tokens["refresh_token"]).status_code == 401
 
 
 # ============================================

@@ -9,8 +9,9 @@ opens the session and translates failures into status codes.
 
 import logging
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.exc import SQLAlchemyError
@@ -85,7 +86,9 @@ def create_refresh_token(data: dict) -> str:
     """
     to_encode = data.copy()
     expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    # The jti makes every token unique: two logins in the same second would
+    # otherwise mint the same JWT, and token_sessione stores each one once.
+    to_encode.update({"exp": expire, "type": "refresh", "jti": uuid4().hex})
     encoded_jwt = jwt.encode(
         to_encode,
         settings.JWT_SECRET_KEY.get_secret_value(),
@@ -117,6 +120,35 @@ def decode_token(token: str) -> dict:
     except JWTError as e:
         logger.warning(f"Errore decodifica token: {e}")
         raise
+
+
+def is_refresh_token(token: str) -> bool:
+    """Whether a token is a well-signed, unexpired refresh token."""
+    try:
+        return decode_token(token).get("type") == "refresh"
+    except JWTError:
+        return False
+
+
+def issue_tokens(session, user: dict, request: Request) -> dict:
+    """
+    Mint an access and a refresh token for a user, and record the refresh token
+    in `token_sessione` so it can be redeemed and revoked.
+    """
+    refresh_token = create_refresh_token(data={"sub": user["email"]})
+    auth_service.open_session(
+        session,
+        user["id_utente"],
+        refresh_token,
+        settings.REFRESH_TOKEN_EXPIRE_DAYS,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    return {
+        "access_token": create_access_token(data={"sub": user["email"]}),
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
 
 
 def authenticate_user(email: str, password: str) -> dict | None:
