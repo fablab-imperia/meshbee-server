@@ -21,7 +21,7 @@ dependencies = [
     "sqlmodel==0.0.48",
     "SQLAlchemy==2.1.4",
     "alembic==1.20.0",
-    "pydantic==2.13.5",
+    "pydantic==2.14.1",
     "pydantic-settings==2.15.0",
     "bcrypt==5.0.0",
 ]
