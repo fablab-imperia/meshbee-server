@@ -19,10 +19,10 @@ dependencies = [
     # Pinned exactly: SQLModel is still 0.0.x and caps the SQLAlchemy minor
     # (0.0.48 is the first to accept 2.1). Bump the two together.
     "sqlmodel==0.0.48",
-    "SQLAlchemy==2.1.4",
-    "alembic==1.20.0",
-    "pydantic==2.13.5",
-    "pydantic-settings==2.15.0",
+    "SQLAlchemy==2.1.6",
+    "alembic==1.20.1",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.1",
     "bcrypt==5.0.0",
 ]
 
