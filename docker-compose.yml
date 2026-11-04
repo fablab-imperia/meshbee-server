@@ -97,6 +97,7 @@ services:
       context: .
       dockerfile: api/Dockerfile
     container_name: meshbee-seed
+    profiles: ["seed"]
     restart: "no"
     depends_on:
       migrate:

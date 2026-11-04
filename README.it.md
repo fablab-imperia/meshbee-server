@@ -141,8 +141,8 @@ cp .env.example .env
 POSTGRES_PASSWORD=...      # database
 JWT_SECRET_KEY=...         # firma dei token — openssl rand -hex 32
 MQTT_PASSWORD=...          # broker
-ADMIN_PASSWORD=...         # admin@beehive.local, creato al primo avvio
-USER_PASSWORD=...          # utente@test.local, creato al primo avvio
+ADMIN_PASSWORD=...         # admin@beehive.local, creato dal seed (passo 5)
+USER_PASSWORD=...          # utente@test.local, creato dal seed (passo 5)
 ```
 
 `ADMIN_PASSWORD` e `USER_PASSWORD` sono **obbligatorie e di almeno 8 caratteri**. Se ne
@@ -177,9 +177,21 @@ docker-compose ps
 ```
 
 > **Scorciatoia:** `make setup` esegue in sequenza la copia del `.env`,
-> `make mqtt-passwd` e l'avvio. Non genera i certificati.
+> `make mqtt-passwd` e l'avvio. Non genera i certificati e non esegue il seed.
 
-**5. Verifica.**
+**5. Seed (solo al primo avvio).** Il servizio `seed` sta dietro il profilo compose
+`seed`, quindi un semplice `up` lo salta. Eseguilo una volta per creare gli account
+iniziali e i dati di esempio:
+
+```bash
+docker-compose --profile seed up -d seed
+```
+
+È idempotente: gli account esistenti mantengono le loro password, e i dati di esempio
+entrano solo in un database senza arnie. Saltalo su un'installazione che ha già i suoi
+account.
+
+**6. Verifica.**
 
 - HTTP: <http://localhost:8000/docs>
 - HTTPS: <https://localhost:8443/docs> (solo dopo `make certs`)
@@ -190,11 +202,11 @@ docker-compose ps
 curl -s localhost:8000/health | python3 -m json.tool
 ```
 
-> `meshbee-migrate` applica le migrazioni dello schema e `meshbee-seed` crea gli account
-> iniziali; poi entrambi terminano. Vederli come **`Exited (0)` è normale**: sono job
-> one-shot, non servizi andati in crash.
+> `meshbee-migrate` applica le migrazioni dello schema a ogni avvio e `meshbee-seed` crea
+> gli account iniziali quando lo esegui; poi entrambi terminano. Vederli come
+> **`Exited (0)` è normale**: sono job one-shot, non servizi andati in crash.
 
-Su un database nuovo trovi i due account qui sopra, un nodo di esempio con due arnie e
+Dopo il seed di un database nuovo trovi i due account qui sopra, un nodo di esempio con due arnie e
 qualche lettura. **Cambia quelle password prima di esporre qualsiasi cosa.**
 
 ## Configurazione
@@ -449,7 +461,7 @@ schema sono un'altra cosa: passano da una migrazione — vedi
 
 **`seed` esce con 1 e "Configurazione non valida".** `ADMIN_PASSWORD` o
 `USER_PASSWORD` manca o è più corta di 8 caratteri. Correggi il `.env`, poi
-`docker-compose up -d seed`.
+`docker-compose --profile seed up -d seed`.
 
 **Le letture non arrivano mai.** Nell'ordine: il broker è su
 (`docker-compose logs mosquitto`); l'handler è connesso e autenticato

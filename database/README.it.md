@@ -308,7 +308,9 @@ abbia qualcosa da disegnare. Appena esiste un'arnia qualsiasi non li tocca più,
 cancellare i dati di esempio non li fa ricomparire.
 
 Il seed crea anche gli account e un'attività di esempio; non condivide nulla, così le
-arnie di un'installazione reale non vengono mai aperte all'account di test. Vedi il
+arnie di un'installazione reale non vengono mai aperte all'account di test. Parte solo
+quando lo chiedi: sta dietro il profilo compose `seed`
+(`docker-compose --profile seed up -d seed`). Vedi il
 [README](../README.it.md#installazione) principale.
 
 ## Sviluppo
