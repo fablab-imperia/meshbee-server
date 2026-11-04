@@ -3,8 +3,14 @@
 Other repositories link to the committed file as the API contract, and the
 exporter runs by hand — so a route or schema change that skips
 `scripts.export_openapi` would leave the contract silently stale.
+
+The comparison is on the parsed documents, not the bytes: release-please bumps
+`info.version` with a JSON updater that re-serialises the whole file and writes
+`90.0` as `90`. Equal as JSON, different as text — a byte check would fail every
+release PR, and main after it merges.
 """
 
+import json
 from pathlib import Path
 
 from scripts.export_openapi import DEFAULT_OUTPUT, render
@@ -15,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def test_the_committed_openapi_is_what_the_app_generates():
     committed = (REPO_ROOT / DEFAULT_OUTPUT).read_text(encoding="utf-8")
 
-    assert committed == render(), (
+    assert json.loads(committed) == json.loads(render()), (
         "api/openapi.json is stale — regenerate it with "
         "`docker-compose exec api python -m scripts.export_openapi`."
     )
