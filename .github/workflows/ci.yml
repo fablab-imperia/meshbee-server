@@ -3,7 +3,8 @@
 # PR from a fork gets no secrets and no write access. Actions are pinned to
 # commit SHAs; Dependabot (.github/dependabot.yml) keeps the pins current.
 # The SonarQube Cloud scan needs the SONAR_TOKEN secret, so it is skipped on fork
-# PRs (config: sonar-project.properties).
+# PRs and on Dependabot's, which get no Actions secrets either
+# (config: sonar-project.properties).
 name: ci
 
 on:
@@ -47,9 +48,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history: SonarQube Cloud blames lines to find new code
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14" # same as the python:3.14-slim images
+          python-version: "3.15" # same as the python:3.15-slim images
           cache: pip
           cache-dependency-path: |
             api/requirements*.txt
@@ -63,7 +64,10 @@ jobs:
       - name: Run tests
         run: pytest --cov --cov-report=xml
       - name: SonarQube Cloud scan
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: >-
+          github.event_name == 'push' ||
+          (github.event.pull_request.head.repo.full_name == github.repository &&
+           github.event.pull_request.user.login != 'dependabot[bot]')
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -72,9 +76,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14"
+          python-version: "3.15"
       # Only ruff, at the pin the dev container uses, so the two never disagree.
       - name: Install ruff
         run: pip install "$(grep '^ruff==' api/requirements-dev.txt)"

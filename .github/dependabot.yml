@@ -12,17 +12,11 @@ updates:
       python:
         patterns: ["*"]
 
-  - package-ecosystem: docker
-    directories: ["/api", "/mqtt_handler"]
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: "chore(deps)"
-    # Floating tags like python:3.14-slim are re-pushed with every Debian or
-    # patch rebuild, so they always look days old and a cooldown skips them
-    # forever ("Skipping tag ... due to cooldown period" in the job log).
-    cooldown:
-      exclude: ["python"]
+  # No `docker` entry: the Dockerfiles' base images (python:3.15-slim) are
+  # watched by .github/workflows/base-images.yml, which opens an issue instead
+  # of a PR. A new Python minor needs CI, requires-python and wheels for every
+  # pin to move with it, which a one-Dockerfile PR can't do. The floating -slim
+  # tag already picks up patch and Debian rebuilds on every image build.
 
   - package-ecosystem: docker-compose
     directory: "/"

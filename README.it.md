@@ -512,7 +512,9 @@ Ogni pull request esegue quattro controlli, che devono passare tutti prima del m
   commit squashato che release-please legge.
 
 Dependabot (`.github/dependabot.yml`) apre ogni settimana PR per i pacchetti Python,
-le immagini di base e le GitHub Actions fissate a un commit.
+le immagini di Compose e le GitHub Actions fissate a un commit. L'immagine Python di
+base dei Dockerfile si aggiorna a mano: il workflow settimanale `base-images` apre una
+issue, con una checklist, quando esce un `python:X.Y-slim` più recente.
 
 I contributi sono benvenuti — vedi il
 [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md)
