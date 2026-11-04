@@ -303,7 +303,8 @@ draw. Once any hive exists it leaves them alone, so deleting the demo data does 
 bring it back.
 
 The seed also creates the accounts and a sample activity; it shares nothing, so a live
-install's hives are never opened to the test account. See the
+install's hives are never opened to the test account. It only runs when asked — it sits
+behind the `seed` compose profile (`docker-compose --profile seed up -d seed`). See the
 main [README](../README.md#setup).
 
 ## Development

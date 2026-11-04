@@ -140,8 +140,8 @@ cp .env.example .env
 POSTGRES_PASSWORD=...      # database
 JWT_SECRET_KEY=...         # token signing — openssl rand -hex 32
 MQTT_PASSWORD=...          # broker
-ADMIN_PASSWORD=...         # admin@beehive.local, created on first start
-USER_PASSWORD=...          # utente@test.local, created on first start
+ADMIN_PASSWORD=...         # admin@beehive.local, created by the seed (step 5)
+USER_PASSWORD=...          # utente@test.local, created by the seed (step 5)
 ```
 
 `ADMIN_PASSWORD` and `USER_PASSWORD` are **required and at least 8 characters**. If one
@@ -176,9 +176,20 @@ docker-compose ps
 ```
 
 > **Shortcut:** `make setup` does the `.env` copy, `make mqtt-passwd` and the start, in
-> that order. It does not generate certificates.
+> that order. It does not generate certificates, and it does not seed.
 
-**5. Check.**
+**5. Seed (first start only).** The `seed` service sits behind the `seed` compose
+profile, so a plain `up` skips it. Run it once to create the initial accounts and the
+sample data:
+
+```bash
+docker-compose --profile seed up -d seed
+```
+
+It is idempotent: existing accounts keep their passwords, and the sample data only goes
+into a database with no hives. Skip it on an install that already has its own accounts.
+
+**6. Check.**
 
 - HTTP: <http://localhost:8000/docs>
 - HTTPS: <https://localhost:8443/docs> (only after `make certs`)
@@ -189,11 +200,11 @@ docker-compose ps
 curl -s localhost:8000/health | python3 -m json.tool
 ```
 
-> `meshbee-migrate` applies the schema migrations and `meshbee-seed` creates the initial
-> accounts; both then exit. Seeing them as **`Exited (0)` is normal** — they are
-> one-shot jobs, not crashed services.
+> `meshbee-migrate` applies the schema migrations on every start and `meshbee-seed`
+> creates the initial accounts when you run it; both then exit. Seeing them as
+> **`Exited (0)` is normal** — they are one-shot jobs, not crashed services.
 
-On a fresh database you get: the two accounts above, one sample node with two hives, and
+After seeding a fresh database you get: the two accounts above, one sample node with two hives, and
 a handful of readings. **Change those passwords before exposing anything.**
 
 ## Configuration
@@ -441,7 +452,7 @@ it inside PostgreSQL. Schema changes are different: they go through a migration 
 
 **`seed` exits 1 with "Configurazione non valida".** `ADMIN_PASSWORD` or
 `USER_PASSWORD` is missing or shorter than 8 characters. Fix `.env`, then
-`docker-compose up -d seed`.
+`docker-compose --profile seed up -d seed`.
 
 **Readings never arrive.** In order: is the broker up (`docker-compose logs mosquitto`);
 is the handler connected and authenticated (`docker-compose logs -f mqtt-handler`); is
