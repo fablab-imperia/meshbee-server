@@ -1,0 +1,51 @@
+# Weekly check of the Dockerfiles' base images (python:3.15-slim). Instead of a
+# Dependabot PR, a newer major.minor opens an issue: the bump also moves CI's
+# python-version, requires-python and any pin without wheels for the new
+# version, so it is done by hand (.github/scripts/check_base_images.py).
+# One issue per target tag, ever: closing it as "not now" won't bring it back.
+name: base-images
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, alongside Dependabot's weekly run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Open an issue per outdated base image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/check_base_images.py api/Dockerfile mqtt_handler/Dockerfile |
+          while IFS=$'\t' read -r image current latest files; do
+            title="chore(deps): bump ${image} base image from ${current} to ${latest}"
+            existing=$(gh issue list --state all --search "\"${title}\" in:title" \
+                         --json title --jq "map(select(.title == \"${title}\")) | length")
+            if [ "$existing" != "0" ]; then
+              echo "Already tracked: ${title}"
+              continue
+            fi
+            gh issue create --title "$title" --label dependencies --label docker --body "$(cat <<EOF
+          \`${image}:${latest}\` is out; the images use \`${image}:${current}\` (${files}).
+
+          Bumped by hand, not by Dependabot, because these move together:
+
+          - [ ] \`FROM\` in \`api/Dockerfile\` and \`mqtt_handler/Dockerfile\`
+          - [ ] \`python-version\` (both jobs) in \`.github/workflows/ci.yml\`
+          - [ ] \`requires-python\` in \`pyproject.toml\`
+          - [ ] pins without wheels for the new version (a source build fails: the slim image has no compiler)
+          - [ ] \`target-version\` in \`ruff.toml\`, once ruff supports it outside preview
+          - [ ] \`make contract\`, in case a dependency bump changes the generated schemas
+          - [ ] the CI line in \`tests/README.md\` and \`tests/README.it.md\`
+
+          _Opened by the \`base-images\` workflow._
+          EOF
+          )"
+          done

@@ -499,8 +499,10 @@ Every pull request runs four checks, all of which should pass before merging:
 - **`pr-title`**: the PR title is a Conventional Commit, since it becomes the
   squashed commit release-please reads.
 
-Dependabot (`.github/dependabot.yml`) opens weekly PRs for Python packages, base
-images and the pinned GitHub Actions.
+Dependabot (`.github/dependabot.yml`) opens weekly PRs for Python packages, the
+Compose images and the pinned GitHub Actions. The Dockerfiles' Python base image is
+bumped by hand: the weekly `base-images` workflow opens an issue, with a checklist,
+when a newer `python:X.Y-slim` is out.
 
 Contributions are welcome — see the organisation's
 [CONTRIBUTING](https://github.com/fablab-imperia/.github/blob/main/CONTRIBUTING.md).
