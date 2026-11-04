@@ -18,7 +18,7 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(deps)"
-    # Floating tags like python:3.14-slim are re-pushed with every Debian or
+    # Floating tags like python:3.15-slim are re-pushed with every Debian or
     # patch rebuild, so they always look days old and a cooldown skips them
     # forever ("Skipping tag ... due to cooldown period" in the job log).
     cooldown:

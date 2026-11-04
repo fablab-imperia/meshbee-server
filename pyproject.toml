@@ -9,7 +9,7 @@ name = "meshbee-core"
 # Bumped by release-please together with API_VERSION; don't edit by hand.
 version = "1.2.0"
 description = "Shared persistence and business logic for the Meshbee backend"
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 
 # Only what meshbee_core itself imports. FastAPI/uvicorn/jose stay in
 # api/requirements.txt and paho-mqtt in mqtt_handler/requirements.txt: the
@@ -21,7 +21,7 @@ dependencies = [
     "sqlmodel==0.0.48",
     "SQLAlchemy==2.1.4",
     "alembic==1.20.0",
-    "pydantic==2.13.5",
+    "pydantic==2.14.2",
     "pydantic-settings==2.15.0",
     "bcrypt==5.0.0",
 ]
