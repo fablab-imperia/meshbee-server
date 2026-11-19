@@ -61,7 +61,7 @@ sull'accesso del chiamante all'apiario di quell'arnia, o a quell'apiario.
 |---|---|---|---|
 | GET | `/api/user/arnie` | utente | Le arnie degli apiari di cui il chiamante è proprietario o che gli sono condivisi, ciascuna con l'ultima lettura, il suo apiario e `accesso` (l'accesso del chiamante). `id_apiario` opzionale la restringe a un apiario. **Paginata**. |
 | GET | `/api/user/arnie/{id_arnia}` | utente + viewer | Una singola arnia con l'ultima lettura. |
-| PUT | `/api/user/arnie/{id_arnia}` | utente + manager | Rinomina/riposiziona un'arnia. `attiva` (dismetterla) vale solo per il proprietario. |
+| PUT | `/api/user/arnie/{id_arnia}` | utente + manager | Rinomina un'arnia o ne modifica i dettagli (`posizione` è una nota libera). Le coordinate sono dell'apiario: inviare `latitudine`/`longitudine` dà 422. `attiva` (dismetterla) vale solo per il proprietario. |
 | PUT | `/api/user/arnie/{id_arnia}/apiario` | utente + owner | Sposta l'arnia in un altro apiario del suo proprietario. Chi può vederla segue l'apiario. |
 | GET | `/api/user/arnie/{id_arnia}/letture` | utente + viewer | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). **Paginata**. |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + viewer | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |

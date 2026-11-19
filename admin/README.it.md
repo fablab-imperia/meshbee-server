@@ -6,7 +6,7 @@ Una piccola **pagina statica per gli amministratori**, servita dall'API su `/adm
 ([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)). Copre:
 
 - una panoramica: conteggi e i nodi attivi silenziosi da 24 ore;
-- utenti, nodi, arnie e apiari: elencare, creare, modificare e disattivare;
+- utenti, apiari, arnie e nodi: elencare, creare, modificare e disattivare;
 - assegnare il proprietario di un nodo e spostare un'arnia in un altro apiario del suo
   proprietario;
 - reimpostare una password;

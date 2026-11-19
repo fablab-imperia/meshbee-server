@@ -61,7 +61,7 @@ the caller's access to that hive's apiary, or that apiary.
 |---|---|---|---|
 | GET | `/api/user/arnie` | user | Hives in the apiaries the caller owns or has been shared, each with its latest reading, its apiary and `accesso` (the caller's access). Optional `id_apiario` narrows it to one apiary. **Paged**. |
 | GET | `/api/user/arnie/{id_arnia}` | user + viewer | One hive with its latest reading. |
-| PUT | `/api/user/arnie/{id_arnia}` | user + manager | Rename/reposition a hive. `attiva` (retiring it) is applied only for the owner. |
+| PUT | `/api/user/arnie/{id_arnia}` | user + manager | Rename a hive or edit its details (`posizione` is a free-text note). Coordinates are the apiary's: sending `latitudine`/`longitudine` is a 422. `attiva` (retiring it) is applied only for the owner. |
 | PUT | `/api/user/arnie/{id_arnia}/apiario` | user + owner | Move the hive into another apiary of its owner. Who can see it follows the apiary. |
 | GET | `/api/user/arnie/{id_arnia}/letture` | user + viewer | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). **Paged**. |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + viewer | `{timestamp, temperatura}` only — sized for charts. |

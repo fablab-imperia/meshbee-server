@@ -55,7 +55,7 @@ una fonte affidabile di INSERT falliti.
 | Colonna | Tipo | Note |
 |---|---|---|
 | `id_nodo` | VARCHAR(50) | PK — l'id con cui pubblica il firmware. |
-| `nome_nodo`, `descrizione`, `posizione` | | Testo libero. |
+| `nome_nodo`, `descrizione`, `posizione` | | Testo libero. `posizione` è una nota su come trovare il nodo, non una posizione geografica. |
 | `data_registrazione` | TIMESTAMP | |
 | `ultimo_messaggio` | TIMESTAMP | Quando è stato **ricevuto** l'ultimo messaggio MQTT; la imposta `services/ingest.py` — vedi [Niente viste, niente trigger](#niente-viste-niente-trigger). |
 | `attivo` | BOOLEAN | Soft delete. |
@@ -74,8 +74,7 @@ modello alternativo, mai collegato ad `arnie` né letto da alcuna query.
 | `id_arnia` | SERIAL | PK |
 | `id_nodo` | VARCHAR(50) | FK → `nodi` ON DELETE CASCADE. |
 | `id_sensore_fisico` | VARCHAR(50) | NOT NULL. **UNIQUE insieme a `id_nodo`** — quella coppia è il modo in cui l'ingest risolve una lettura sull'arnia. |
-| `nome_arnia`, `descrizione`, `posizione` | | Testo libero. |
-| `latitudine`, `longitudine` | DECIMAL(9,6) | Gradi decimali, opzionali. CHECK −90..90 e −180..180. |
+| `nome_arnia`, `descrizione`, `posizione` | | Testo libero. `posizione` è una nota su come trovare l'arnia (fila, posto…). Un'arnia non ha coordinate: sta dove sta il suo apiario (#84). |
 | `data_installazione`, `data_rimozione` | TIMESTAMP | |
 | `attiva` | BOOLEAN | Soft delete — le letture restano. |
 | `metadati` | JSONB | Razza e anno della regina, colore dell'arnia, quello che l'apicoltore vuole tracciare. |
@@ -89,7 +88,7 @@ modello alternativo, mai collegato ad `arnie` né letto da alcuna query.
 | `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. Possiede l'apiario e ogni arnia che contiene. |
 | `nome_apiario` | VARCHAR(100) | NOT NULL |
 | `descrizione`, `posizione` | | Testo libero. |
-| `latitudine`, `longitudine` | DECIMAL(9,6) | Stessi limiti di un'arnia, CHECK con prefisso `apiari_`. Indipendenti dalle coordinate delle arnie. |
+| `latitudine`, `longitudine` | DECIMAL(9,6) | Gradi decimali, opzionali. CHECK `apiari_valid_latitudine` (−90..90) e `apiari_valid_longitudine` (−180..180). Le uniche coordinate dello schema: quelle che mostra la mappa. |
 | `predefinito` | BOOLEAN | Il `Default` dell'utente, dove finiscono le arnie dei nodi che gli vengono assegnati. **Uno per utente** (indice unico parziale `uq_apiari_predefinito`); il service non lo elimina mai. |
 | `data_creazione` | TIMESTAMP | |
 | `metadati` | JSONB | |
@@ -284,6 +283,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0005` | Proprietà e apiari (#2, #36): `apiari` con un `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, e `utenti_apiari` al posto di `utenti_arnie`. Il proprietario di un'arnia diventa la sua associazione attiva meglio piazzata (`admin` > `write` > `read`, la più vecchia prima); un nodo va al proprietario della maggior parte delle sue arnie, e tutte le sue arnie nel Default di quel proprietario; ogni altra associazione attiva diventa un ruolo su quel Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), che può allargare l'accesso ma non toglierlo mai. Le arnie che nessuno poteva vedere restano non assegnate. Il downgrade ricostruisce l'accesso per arnia. |
 | `0006` | `token_monouso`, token monouso inviati per email: reset della password (#54) e inviti agli apiari (#55). |
 | `0007` | `inviti_apiari`, condivisioni in attesa verso email ancora senza account (#40). |
+| `0008` | Coordinate solo su `apiari` (#84): un apiario che non ne ha riceve la media di quelle delle sue arnie, poi `arnie.latitudine`/`longitudine` e i loro CHECK vengono eliminati. Il downgrade dà a ogni arnia quelle del suo apiario. |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:

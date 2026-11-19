@@ -388,3 +388,104 @@ def test_0005_downgrades_back_to_per_hive_access(before_0005):
         (2, "S3", "admin"),
     ]
     assert rows(cursor, "SELECT to_regclass('apiari') IS NULL") == [(True,)]
+
+
+# ============================================
+# 0008: coordinates only on apiari
+# ============================================
+
+
+@pytest.fixture
+def before_0008(scratch_schemas):
+    """
+    A schema at 0007 with three apiaries and five hives:
+
+    - apiary 1 has no coordinates; its hives S1 and S2 (retired) have nearby ones;
+    - apiary 2 has its own; its hive S3 has others;
+    - apiary 3 has none; its hive S5 has only a latitude;
+    - S4 is unassigned, with coordinates.
+    """
+    upgrade(TEST_DB_URL, "0007", search_path=FROM_MIGRATIONS)
+    cursor = scratch_schemas
+    cursor.execute(f"SET search_path TO {FROM_MIGRATIONS}")
+    cursor.execute(
+        "INSERT INTO utenti (email, password_hash, nome, cognome)"
+        " VALUES ('a@b.org', 'x', 'A', 'A')"
+    )
+    cursor.execute(
+        "INSERT INTO apiari (id_apiario, nome_apiario, id_utente_proprietario,"
+        " latitudine, longitudine) VALUES"
+        " (1, 'Uno', 1, NULL, NULL), (2, 'Due', 1, 44, 8), (3, 'Tre', 1, NULL, NULL)"
+    )
+    cursor.execute("INSERT INTO nodi (id_nodo) VALUES ('N1')")
+    cursor.execute(
+        "INSERT INTO arnie (id_nodo, id_sensore_fisico, id_apiario, attiva,"
+        " latitudine, longitudine) VALUES"
+        " ('N1', 'S1', 1, true, 45.000000, 9.000000),"
+        " ('N1', 'S2', 1, false, 45.000002, 9.000003),"
+        " ('N1', 'S3', 2, true, 45, 9),"
+        " ('N1', 'S4', NULL, true, 46, 10),"
+        " ('N1', 'S5', 3, true, 47, NULL)"
+    )
+    cursor.execute(
+        "UPDATE arnie SET posizione = 'Fila 1' WHERE id_sensore_fisico = 'S1'"
+    )
+    return cursor
+
+
+APIARI_COORDINATES = (
+    "SELECT id_apiario, latitudine::text, longitudine::text FROM apiari ORDER BY 1"
+)
+
+
+def test_0008_moves_hive_coordinates_into_empty_apiaries(before_0008):
+    cursor = before_0008
+
+    upgrade(TEST_DB_URL, "0008", search_path=FROM_MIGRATIONS)
+
+    assert rows(cursor, APIARI_COORDINATES) == [
+        # The centroid of S1 and S2, the retired one included.
+        (1, "45.000001", "9.000002"),
+        # Its own coordinates win over its hive's.
+        (2, "44.000000", "8.000000"),
+        # A hive with one coordinate gives none.
+        (3, None, None),
+    ]
+    assert rows(
+        cursor,
+        "SELECT count(*) FROM information_schema.columns WHERE table_schema ="
+        f" '{FROM_MIGRATIONS}' AND table_name = 'arnie'"
+        " AND column_name IN ('latitudine', 'longitudine')",
+    ) == [(0,)]
+    # posizione is a free-text note, and stays.
+    assert rows(
+        cursor, "SELECT posizione FROM arnie WHERE id_sensore_fisico = 'S1'"
+    ) == [("Fila 1",)]
+
+
+def test_0008_downgrades_by_giving_each_hive_its_apiary_s_coordinates(before_0008):
+    from alembic import command
+
+    from meshbee_core.migrations import alembic_config
+
+    cursor = before_0008
+    upgrade(TEST_DB_URL, "0008", search_path=FROM_MIGRATIONS)
+
+    command.downgrade(alembic_config(TEST_DB_URL, search_path=FROM_MIGRATIONS), "0007")
+
+    assert rows(
+        cursor,
+        "SELECT id_sensore_fisico, latitudine::text, longitudine::text"
+        " FROM arnie ORDER BY 1",
+    ) == [
+        ("S1", "45.000001", "9.000002"),
+        ("S2", "45.000001", "9.000002"),
+        ("S3", "44.000000", "8.000000"),
+        ("S4", None, None),
+        ("S5", None, None),
+    ]
+    # The CHECKs are back.
+    with pytest.raises(psycopg.errors.CheckViolation):
+        cursor.execute("UPDATE arnie SET latitudine = 91")
+    # And up again, cleanly.
+    upgrade(TEST_DB_URL, "0008", search_path=FROM_MIGRATIONS)

@@ -177,3 +177,38 @@ def test_a_valid_user_update_still_succeeds(admin_client, make_utente):
 
     assert response.status_code == 200
     assert response.json()["email"] == "nuova@example.org"
+
+
+# ============================================
+# Hive coordinates → 422 (they are the apiary's, #84)
+# ============================================
+
+
+def test_creating_an_arnia_with_coordinates_is_refused(admin_client, make_arnia, db):
+    """Refused with the reason, and the hive is not created without them."""
+    arnia = make_arnia()
+
+    response = admin_client.post(
+        "/api/admin/arnie",
+        json={
+            "id_nodo": arnia["id_nodo"],
+            "id_sensore_fisico": "S9",
+            "latitudine": "45.4",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "le coordinate appartengono all'apiario" in response.text
+    db.execute("SELECT count(*) FROM arnie WHERE id_sensore_fisico = 'S9'")
+    assert db.fetchone()["count"] == 0
+
+
+def test_updating_an_arnia_with_coordinates_is_refused(admin_client, make_arnia):
+    arnia = make_arnia()
+
+    response = admin_client.put(
+        f"/api/admin/arnie/{arnia['id_arnia']}", json={"longitudine": "9.19"}
+    )
+
+    assert response.status_code == 422
+    assert "longitudine: le coordinate appartengono all'apiario" in response.text

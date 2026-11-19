@@ -147,35 +147,38 @@ def test_update_leaves_unmentioned_fields_alone(as_user, utente_con_arnia, db):
     assert response.json()["descrizione"] == "Regina ligustica"
 
 
-def test_update_can_set_coordinates(as_user, utente_con_arnia):
-    """Coordinates round-trip through the Decimal columns."""
-    utente, arnia = utente_con_arnia("manager")
-
-    response = as_user(utente).put(
-        f"/api/user/arnie/{arnia['id_arnia']}",
-        json={"latitudine": "45.464200", "longitudine": "9.190000"},
-    )
-
-    assert float(response.json()["latitudine"]) == 45.4642
-    assert float(response.json()["longitudine"]) == 9.19
-
-
 @pytest.mark.parametrize(
     "payload",
     [
-        {"latitudine": "91"},
-        {"latitudine": "-91"},
-        {"longitudine": "181"},
-        {"longitudine": "-181"},
+        {"latitudine": "45.464200"},
+        {"longitudine": "9.190000"},
+        {"latitudine": None, "nome_arnia": "Arnia Gamma"},
     ],
 )
-def test_update_rejects_out_of_range_coordinates(as_user, utente_con_arnia, payload):
-    """ArniaUpdate bounds are enforced at the edge, before the UPDATE runs."""
+def test_update_refuses_coordinates(as_user, utente_con_arnia, db, payload):
+    """
+    Coordinates are the apiary's (#84): a body still sending them is a 422
+    that says so, not a 200 that drops them — and nothing else is written.
+    """
     utente, arnia = utente_con_arnia("manager")
 
     response = as_user(utente).put(f"/api/user/arnie/{arnia['id_arnia']}", json=payload)
 
     assert response.status_code == 422
+    assert "le coordinate appartengono all'apiario" in response.text
+    db.execute("SELECT nome_arnia FROM arnie WHERE id_arnia = %s", (arnia["id_arnia"],))
+    assert db.fetchone()["nome_arnia"] == arnia["nome_arnia"]
+
+
+def test_a_hive_carries_no_coordinates(as_user, utente_con_arnia):
+    """The map reads them from the apiaries; the hive has its `id_apiario`."""
+    utente, arnia = utente_con_arnia("viewer")
+
+    hive = as_user(utente).get(f"/api/user/arnie/{arnia['id_arnia']}").json()
+
+    assert "latitudine" not in hive
+    assert "longitudine" not in hive
+    assert hive["id_apiario"] is not None
 
 
 def test_a_manager_cannot_retire_an_arnia(as_user, utente_con_arnia, db):

@@ -16,8 +16,7 @@ ARNIA_FIELDS_BEFORE_APIARI = {
     "nome_arnia",
     "descrizione",
     "posizione",
-    "latitudine",
-    "longitudine",
+    # latitudine / longitudine left in #84: they are the apiary's now.
     "data_installazione",
     "data_rimozione",
     "attiva",

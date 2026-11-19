@@ -43,7 +43,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, conlist, field_validator
+from pydantic import BaseModel, ConfigDict, conlist, field_validator, model_validator
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -508,6 +508,26 @@ class Apiario(ApiarioResponse, table=True):
 # ============================================
 
 
+HIVE_COORDINATES = ("latitudine", "longitudine")
+
+
+def reject_hive_coordinates(data: Any) -> Any:
+    """
+    Refuse coordinates in a hive body instead of dropping them unseen.
+
+    They moved to the apiary (#84). Unknown fields are otherwise ignored, so a
+    client still sending them would get a 200 and lose the value.
+    """
+    if isinstance(data, dict):
+        for field in HIVE_COORDINATES:
+            if field in data:
+                raise ValueError(
+                    f"{field}: le coordinate appartengono all'apiario, non all'arnia: "
+                    "impostale sull'apiario (PUT /api/user/apiari/{id_apiario})"
+                )
+    return data
+
+
 class ArniaBase(SQLModel):
     """Base arnia"""
 
@@ -515,9 +535,8 @@ class ArniaBase(SQLModel):
     id_sensore_fisico: str = Field(sa_type=ID)
     nome_arnia: str | None = Field(None, sa_type=String(100))
     descrizione: str | None = Field(None, sa_type=Text)
+    # A free-text note on how to find the hive. Its coordinates are its apiary's.
     posizione: str | None = Field(None, sa_type=String(255))
-    latitudine: Decimal | None = latitudine_column()
-    longitudine: Decimal | None = longitudine_column()
     # The hive's owner is this apiary's owner. Null while its node is
     # unassigned; on creation, the node owner's default apiary.
     id_apiario: int | None = Field(None, foreign_key=APIARIO_FK)
@@ -528,6 +547,11 @@ class ArniaCreate(ArniaBase):
 
     metadati: dict[str, Any] | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_coordinates(cls, data: Any) -> Any:
+        return reject_hive_coordinates(data)
+
 
 class ArniaUpdate(BaseModel):
     """Aggiornamento arnia"""
@@ -535,20 +559,13 @@ class ArniaUpdate(BaseModel):
     nome_arnia: str | None = None
     descrizione: str | None = None
     posizione: str | None = None
-    latitudine: Decimal | None = Field(
-        None,
-        ge=LATITUDINE_MIN,
-        le=LATITUDINE_MAX,
-        description="Latitudine in formato DD",
-    )
-    longitudine: Decimal | None = Field(
-        None,
-        ge=LONGITUDINE_MIN,
-        le=LONGITUDINE_MAX,
-        description="Longitudine in formato DD",
-    )
     attiva: bool | None = None
     metadati: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_coordinates(cls, data: Any) -> Any:
+        return reject_hive_coordinates(data)
 
 
 class ArniaResponse(ArniaBase):
@@ -569,7 +586,6 @@ class Arnia(ArniaResponse, table=True):
         UniqueConstraint(
             "id_nodo", "id_sensore_fisico", name="arnie_id_nodo_id_sensore_fisico_key"
         ),
-        *coordinate_checks(),
         {"comment": "Arnie monitorate con sensori"},
     )
 
@@ -581,7 +597,7 @@ class ArniaApiarioUpdate(BaseModel):
 
 
 class ArniaConStato(ArniaResponse):
-    """Arnia con ultime letture e coordinate"""
+    """Arnia con ultime letture"""
 
     nome_apiario: str | None = None
     # "owner", or the role granted to the caller on the hive's apiary; null

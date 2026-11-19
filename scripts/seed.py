@@ -18,7 +18,14 @@ from pydantic import Field, SecretStr, ValidationError
 
 from meshbee_core.config import CoreSettings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool
-from meshbee_core.models import ArniaCreate, AttivitaCreate, NodoCreate, UserCreate
+from meshbee_core.models import (
+    ApiarioUpdate,
+    ArniaCreate,
+    AttivitaCreate,
+    NodoCreate,
+    UserCreate,
+)
+from meshbee_core.services import apiari as apiari_service
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import attivita as attivita_service
 from meshbee_core.services import letture as letture_service
@@ -43,8 +50,10 @@ SAMPLE_NODO = NodoCreate(
     id_nodo="NODE001",
     nome_nodo="Apiario Collina",
     descrizione="Nodo principale apiario collina sud",
-    posizione="Lat: 45.4642, Lon: 9.1900",
+    posizione="Collina sud, accanto al capanno degli attrezzi",
 )
+# Where the demo hives stand: coordinates are the apiary's, not the hives' (#84).
+SAMPLE_APIARIO = ApiarioUpdate(latitudine="45.464200", longitudine="9.190000")
 SAMPLE_ARNIE = [
     ArniaCreate(
         id_nodo="NODE001",
@@ -52,8 +61,6 @@ SAMPLE_ARNIE = [
         nome_arnia="Arnia Alpha",
         descrizione="Arnia con regina ligustica",
         posizione="Fila 1, Posizione 1",
-        latitudine="45.464200",
-        longitudine="9.190000",
         metadati={"razza": "Ligustica", "anno_regina": 2024, "colore_arnia": "giallo"},
     ),
     ArniaCreate(
@@ -62,8 +69,6 @@ SAMPLE_ARNIE = [
         nome_arnia="Arnia Beta",
         descrizione="Arnia con regina carnica",
         posizione="Fila 1, Posizione 2",
-        latitudine="45.464250",
-        longitudine="9.190050",
         metadati={"razza": "Carnica", "anno_regina": 2023, "colore_arnia": "verde"},
     ),
 ]
@@ -145,7 +150,8 @@ def create_users(users) -> dict:
 def add_sample_apiary(id_proprietario: int) -> list[int]:
     """
     Give an install with no hives at all one node, owned by `id_proprietario`,
-    with two arnie in their default apiary and a few readings. Returns the new
+    with two arnie in their default apiary (placed at the sample coordinates)
+    and a few readings. Returns the new
     arnie, or none when the step is skipped.
 
     Keyed on "no arnie", not on the sample node: once anyone has registered a
@@ -161,6 +167,8 @@ def add_sample_apiary(id_proprietario: int) -> list[int]:
 
         nodi_service.create_nodo(session, SAMPLE_NODO)
         nodi_service.assign_proprietario(session, SAMPLE_NODO.id_nodo, id_proprietario)
+        apiario = apiari_service.ensure_predefinito(session, id_proprietario)
+        apiari_service.update_apiario(session, apiario["id_apiario"], SAMPLE_APIARIO)
         now = datetime.now()
         created_ids = []
         for arnia, readings in zip(SAMPLE_ARNIE, SAMPLE_LETTURE, strict=True):

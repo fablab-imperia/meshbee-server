@@ -32,8 +32,9 @@ _latest = (
 )
 
 # An arnia with its node's name and its current state: what the hive list shows.
-# The columns are those of the former `v_arnie_stato` view, in the same order,
-# followed by the hive's apiary.
+# The columns are those of the former `v_arnie_stato` view, in the same order
+# but without the coordinates (they are the apiary's, #84), followed by the
+# hive's apiary.
 STATO = (
     select(
         Arnia.id_arnia,
@@ -42,8 +43,6 @@ STATO = (
         Arnia.nome_arnia,
         Nodo.nome_nodo,
         Arnia.posizione,
-        Arnia.latitudine,
-        Arnia.longitudine,
         Arnia.data_installazione,
         Arnia.data_rimozione,
         Arnia.attiva,
@@ -167,8 +166,6 @@ def insert(
     nome_arnia: str,
     descrizione: str | None = None,
     posizione: str | None = None,
-    latitudine=None,
-    longitudine=None,
     metadati: dict | None = None,
     id_apiario: int | None = None,
 ) -> dict[str, Any]:
@@ -178,8 +175,6 @@ def insert(
         nome_arnia=nome_arnia,
         descrizione=descrizione,
         posizione=posizione,
-        latitudine=latitudine,
-        longitudine=longitudine,
         attiva=True,
         metadati=metadati or None,
         id_apiario=id_apiario,
@@ -196,8 +191,6 @@ def update(
     nome_arnia=None,
     descrizione=None,
     posizione=None,
-    latitudine=None,
-    longitudine=None,
     metadati=None,
     attiva=UNSET,
 ) -> dict[str, Any] | None:
@@ -216,8 +209,6 @@ def update(
         "nome_arnia": nome_arnia,
         "descrizione": descrizione,
         "posizione": posizione,
-        "latitudine": latitudine,
-        "longitudine": longitudine,
     }
     if attiva is not UNSET:
         changes["attiva"] = attiva

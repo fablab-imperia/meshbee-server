@@ -444,6 +444,9 @@ function adminCore() {
           return v ? new Date(v).toLocaleString("it-IT") : "—";
         case "utente":
           return this.userName(v);
+        case "coordinate":
+          // An apiary's latitudine/longitudine pair, the only coordinates (#84).
+          return v == null || row.longitudine == null ? "—" : `${v}, ${row.longitudine}`;
         case "apiario": {
           const a = this.lookups.apiari.find((x) => x.id_apiario === v);
           if (a) return a.nome_apiario;

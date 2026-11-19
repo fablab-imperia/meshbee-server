@@ -52,6 +52,32 @@ def test_the_page_never_inserts_markup():
         assert "outerHTML" not in source, name
 
 
+# Attributes whose mere presence turns them on, whatever their value.
+BOOLEAN_ATTRIBUTES = (
+    "readonly",
+    "required",
+    "disabled",
+    "checked",
+    "hidden",
+    "multiple",
+)
+
+
+def test_boolean_bindings_never_yield_undefined():
+    """
+    Alpine binds an undefined dotted expression as "" rather than removing the
+    attribute, so `:readonly="f.readonly"` made every form input read-only
+    (and required) when the field had no `readonly`. A boolean binding must be
+    a boolean: `!!f.readonly`, a comparison, or a call.
+    """
+    binding = re.compile(rf':({"|".join(BOOLEAN_ATTRIBUTES)})="([^"]*)"')
+    for name in ("index.html", "invite.html", "reset-password.html"):
+        source = (ADMIN_DIR / name).read_text(encoding="utf-8")
+        for attribute, expression in binding.findall(source):
+            bare_property = re.fullmatch(r"[\w$]+(\.[\w$]+)+", expression.strip())
+            assert not bare_property, f'{name}: :{attribute}="{expression}" needs !!'
+
+
 def test_the_reset_password_page_is_served_at_reset_password(client):
     """The link in a reset email; served bare, so its token-bearing URL is never cached."""
     response = client.get("/reset-password")
