@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0](https://github.com/fablab-imperia/meshbee-server/compare/2.0.0...2.1.0) (2026-11-19)
+
+
+### Features
+
+* **api:** coordinates only on apiari, drop them from arnie ([#84](https://github.com/fablab-imperia/meshbee-server/issues/84)) ([#85](https://github.com/fablab-imperia/meshbee-server/issues/85)) ([e937812](https://github.com/fablab-imperia/meshbee-server/commit/e937812439c328f1869171927f402967458e3f0a))
+
+
+### Bug Fixes
+
+* **admin:** edit forms no longer make every input read-only and required ([#85](https://github.com/fablab-imperia/meshbee-server/issues/85)) ([e937812](https://github.com/fablab-imperia/meshbee-server/commit/e937812439c328f1869171927f402967458e3f0a))
+* **mqtt:** drop duplicate readings within a time window ([#4](https://github.com/fablab-imperia/meshbee-server/issues/4)) ([#82](https://github.com/fablab-imperia/meshbee-server/issues/82)) ([9b9741d](https://github.com/fablab-imperia/meshbee-server/commit/9b9741d5d85b4c3aa1f1cb579c7b7ed16f9decb9))
+
 ## [2.0.0](https://github.com/fablab-imperia/meshbee-server/compare/1.2.0...2.0.0) (2026-11-04)
 
 
