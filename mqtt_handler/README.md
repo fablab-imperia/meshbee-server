@@ -166,7 +166,7 @@ reports faster than the window (minutes apart).
 
 It is **best effort**, by decision (#4): a node reporting more often than the window
 loses readings, and two handler instances running at once could both store a copy.
-Neither matters for hive data, and the firmware is left alone. `0` turns it off.
+Neither matters for hive data, and the firmware is left alone. `0` turns it off. To change it, set `DEDUP_WINDOW_SECONDS` in `.env` and run `docker-compose up -d mqtt-handler` (a `restart` keeps the old environment).
 **The API never deduplicates**: a reading posted to `/api/admin/letture` is stored
 however close it is to the last one.
 
@@ -183,7 +183,7 @@ however close it is to the last one.
 | `MQTT_CLIENT_ID` | `beehive-mqtt-handler` | — |
 | `MQTT_USER` | none | `${MQTT_USER:-beehive}` |
 | `MQTT_PASSWORD` | none | `${MQTT_PASSWORD}` |
-| `DEDUP_WINDOW_SECONDS` | `300` | — (see [Duplicates](#duplicates)) |
+| `DEDUP_WINDOW_SECONDS` | `300` | `${DEDUP_WINDOW_SECONDS:-300}` (see [Duplicates](#duplicates)) |
 
 Credentials are only sent when **both** are set; with either missing the client
 connects anonymously, which the broker refuses (`allow_anonymous false`). The password
