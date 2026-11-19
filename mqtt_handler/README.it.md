@@ -172,7 +172,7 @@ da un nodo che trasmette più spesso della finestra (a minuti di distanza).
 È **best effort**, per decisione (#4): un nodo che trasmette più spesso della finestra
 perde letture, e due istanze dell'handler in esecuzione insieme potrebbero salvare
 entrambe una copia. Nessuna delle due cose conta per i dati delle arnie, e il firmware
-non viene toccato. `0` la disattiva. **L'API non deduplica mai**: una lettura inviata a
+non viene toccato. `0` la disattiva. Per cambiarla, imposta `DEDUP_WINDOW_SECONDS` nel `.env` ed esegui `docker-compose up -d mqtt-handler` (un `restart` tiene il vecchio ambiente). **L'API non deduplica mai**: una lettura inviata a
 `/api/admin/letture` viene salvata per quanto vicina sia all'ultima.
 
 ## Configurazione
@@ -188,7 +188,7 @@ non viene toccato. `0` la disattiva. **L'API non deduplica mai**: una lettura in
 | `MQTT_CLIENT_ID` | `beehive-mqtt-handler` | — |
 | `MQTT_USER` | assente | `${MQTT_USER:-beehive}` |
 | `MQTT_PASSWORD` | assente | `${MQTT_PASSWORD}` |
-| `DEDUP_WINDOW_SECONDS` | `300` | — (vedi [Duplicati](#duplicati)) |
+| `DEDUP_WINDOW_SECONDS` | `300` | `${DEDUP_WINDOW_SECONDS:-300}` (vedi [Duplicati](#duplicati)) |
 
 Le credenziali vengono inviate solo se ci sono **entrambe**; se ne manca una il client
 si connette in anonimo, cosa che il broker rifiuta (`allow_anonymous false`). La

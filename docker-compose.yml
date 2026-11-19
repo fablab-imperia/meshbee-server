@@ -142,6 +142,7 @@ services:
       DB_NAME: beehive_iot
       DB_USER: beehive_user
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DEDUP_WINDOW_SECONDS: ${DEDUP_WINDOW_SECONDS:-300}
     networks:
       - beehive-network
     volumes:
