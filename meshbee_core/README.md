@@ -159,8 +159,8 @@ The ranges are validated by the models in `models.py`, with the bounds from `lim
 | `temperatura` | −50 to 100 °C | CHECK `valid_temperatura`, MQTT contract |
 | `umidita` | 0 to 100 % | CHECK `valid_umidita`, MQTT contract |
 | `peso` | ≥ 0 kg | CHECK `valid_peso`, MQTT contract |
-| `latitudine` | −90 to 90 | CHECK `valid_latitudine` |
-| `longitudine` | −180 to 180 | CHECK `valid_longitudine` |
+| `latitudine` | −90 to 90 | CHECK `apiari_valid_latitudine` |
+| `longitudine` | −180 to 180 | CHECK `apiari_valid_longitudine` |
 | password | 8 chars min, **72 bytes** max | — |
 | `ruolo` | `user`, `admin` | CHECK on `utenti.ruolo` |
 | apiary roles | `viewer`, `collaborator`, `manager` | CHECK on `utenti_apiari.ruolo` |

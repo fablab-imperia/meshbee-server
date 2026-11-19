@@ -55,7 +55,7 @@ a reliable source of a failing INSERT.
 | Column | Type | Notes |
 |---|---|---|
 | `id_nodo` | VARCHAR(50) | PK — the id the firmware publishes under. |
-| `nome_nodo`, `descrizione`, `posizione` | | Free text. |
+| `nome_nodo`, `descrizione`, `posizione` | | Free text. `posizione` is a note on how to find the node, not a position. |
 | `data_registrazione` | TIMESTAMP | |
 | `ultimo_messaggio` | TIMESTAMP | When the last MQTT message was **received**; set by `services/ingest.py` — see [No views, no triggers](#no-views-no-triggers). |
 | `attivo` | BOOLEAN | Soft delete. |
@@ -74,8 +74,7 @@ joined to `arnie` and never read.
 | `id_arnia` | SERIAL | PK |
 | `id_nodo` | VARCHAR(50) | FK → `nodi` ON DELETE CASCADE. |
 | `id_sensore_fisico` | VARCHAR(50) | NOT NULL. **UNIQUE together with `id_nodo`** — that pair is how ingest resolves a reading to a hive. |
-| `nome_arnia`, `descrizione`, `posizione` | | Free text. |
-| `latitudine`, `longitudine` | DECIMAL(9,6) | Decimal degrees, optional. CHECK −90..90 and −180..180. |
+| `nome_arnia`, `descrizione`, `posizione` | | Free text. `posizione` is a note on how to find the hive (row, slot…). A hive has no coordinates: it is where its apiary is (#84). |
 | `data_installazione`, `data_rimozione` | TIMESTAMP | |
 | `attiva` | BOOLEAN | Soft delete — readings survive. |
 | `metadati` | JSONB | Queen's race and year, hive colour, whatever the beekeeper tracks. |
@@ -89,7 +88,7 @@ joined to `arnie` and never read.
 | `id_utente_proprietario` | INTEGER | NOT NULL. FK → `utenti` ON DELETE CASCADE. Owns the apiary and every hive in it. |
 | `nome_apiario` | VARCHAR(100) | NOT NULL |
 | `descrizione`, `posizione` | | Free text. |
-| `latitudine`, `longitudine` | DECIMAL(9,6) | Same bounds as a hive's, CHECKs prefixed `apiari_`. Independent of the hives' own coordinates. |
+| `latitudine`, `longitudine` | DECIMAL(9,6) | Decimal degrees, optional. CHECKs `apiari_valid_latitudine` (−90..90) and `apiari_valid_longitudine` (−180..180). The only coordinates in the schema: what the map shows. |
 | `predefinito` | BOOLEAN | The user's `Default`, where the hives of their newly assigned nodes land. **One per user** (partial unique index `uq_apiari_predefinito`); the service never deletes it. |
 | `data_creazione` | TIMESTAMP | |
 | `metadati` | JSONB | |
@@ -279,6 +278,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0005` | Ownership and apiaries (#2, #36): `apiari` with a `Default` per account, `nodi.id_proprietario`, `arnie.id_apiario`, and `utenti_apiari` replacing `utenti_arnie`. A hive's owner becomes its best-placed active association (`admin` > `write` > `read`, earliest first); a node goes to the owner of most of its hives, and all its hives to that owner's Default; every other active association becomes a role on that Default (`read`→`viewer`, `write`→`collaborator`, `admin`→`manager`), which can widen access but never removes it. Hives nobody could access stay unassigned. Downgrade rebuilds per-hive access. |
 | `0006` | `token_monouso`, single-use tokens sent by email: password reset (#54) and apiary invitations (#55). |
 | `0007` | `inviti_apiari`, pending shares to emails with no account yet (#40). |
+| `0008` | Coordinates only on `apiari` (#84): an apiary with none gets the average of its hives', then `arnie.latitudine`/`longitudine` and their CHECKs are dropped. Downgrade gives each hive its apiary's. |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:

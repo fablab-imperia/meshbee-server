@@ -14,7 +14,10 @@ from pydantic import ValidationError
 
 from meshbee_core.models import (
     BCRYPT_MAX_BYTES,
-    ArniaBase,
+    ApiarioBase,
+    ApiarioResponse,
+    ApiarioUpdate,
+    ArniaCreate,
     ArniaResponse,
     ArniaUpdate,
     AttivitaCreate,
@@ -29,12 +32,6 @@ from meshbee_core.models import (
     UserResponse,
     UserUpdate,
 )
-
-
-def arnia(**overrides):
-    """ArniaBase with the two required identifiers filled in."""
-    return ArniaBase(id_nodo="NODE001", id_sensore_fisico="SENSOR01", **overrides)
-
 
 # ============================================
 # Email validation
@@ -175,8 +172,13 @@ def test_readings_are_all_optional():
 
 
 # ============================================
-# Coordinates
+# Coordinates: the apiary's only (#84)
 # ============================================
+
+
+def apiario(**overrides):
+    """ApiarioBase with its required name filled in."""
+    return ApiarioBase(nome_apiario="Orto", **overrides)
 
 
 @pytest.mark.parametrize(
@@ -192,7 +194,7 @@ def test_readings_are_all_optional():
 )
 def test_coordinates_accept_values_inside_the_range(field, value):
     """Bounds are inclusive, matching the CHECK constraints in the database."""
-    assert getattr(arnia(**{field: Decimal(value)}), field) == Decimal(value)
+    assert getattr(apiario(**{field: Decimal(value)}), field) == Decimal(value)
 
 
 @pytest.mark.parametrize(
@@ -209,43 +211,76 @@ def test_coordinates_reject_values_outside_the_range(field, value):
     fields = {field: Decimal(value)}
 
     with pytest.raises(ValidationError):
-        arnia(**fields)
+        apiario(**fields)
 
 
 def test_coordinates_are_optional():
-    """Coordinates are opt-in: an arnia without them is valid."""
-    assert arnia().latitudine is None
+    """Coordinates are opt-in: an apiary without them is valid."""
+    assert apiario().latitudine is None
 
 
 @pytest.mark.parametrize(
     "field, value", [("latitudine", "90.01"), ("longitudine", "180.01")]
 )
-def test_arnia_update_applies_the_same_coordinate_bounds(field, value):
-    """Editing an arnia cannot bypass the bounds that creation enforces."""
+def test_apiario_update_applies_the_same_coordinate_bounds(field, value):
+    """Editing an apiary cannot bypass the bounds that creation enforces."""
     fields = {field: Decimal(value)}
 
     with pytest.raises(ValidationError):
-        ArniaUpdate(**fields)
+        ApiarioUpdate(**fields)
 
 
-def test_arnia_response_applies_the_same_coordinate_bounds():
+def test_apiario_response_applies_the_same_coordinate_bounds():
     """
-    The response shares ArniaBase's declaration, bounds included.
-
-    It used to redeclare latitudine/longitudine without them, so that a stored
-    out-of-range value would serialise instead of raising. The declaration is
-    now shared with the table, and the valid_latitudine / valid_longitudine
-    CHECKs mean no such row can exist to be serialised.
+    The response shares ApiarioBase's declaration, bounds included, so a
+    stored out-of-range value would raise instead of serialising. The
+    apiari_valid_* CHECKs mean no such row can exist.
     """
     with pytest.raises(ValidationError):
-        ArniaResponse(
-            id_nodo="NODE001",
-            id_sensore_fisico="SENSOR01",
-            id_arnia=1,
-            data_installazione=datetime(2026, 1, 1),
-            attiva=True,
+        ApiarioResponse(
+            nome_apiario="Orto",
+            id_apiario=1,
+            id_utente_proprietario=1,
+            predefinito=False,
+            data_creazione=datetime(2026, 1, 1),
             latitudine=Decimal("999"),
         )
+
+
+HIVE_BODIES = [
+    pytest.param(
+        lambda **f: ArniaCreate(id_nodo="NODE001", id_sensore_fisico="SENSOR01", **f),
+        id="ArniaCreate",
+    ),
+    pytest.param(lambda **f: ArniaUpdate(**f), id="ArniaUpdate"),
+]
+
+
+@pytest.mark.parametrize("build", HIVE_BODIES)
+@pytest.mark.parametrize(
+    "field, value",
+    [("latitudine", "45.4642"), ("longitudine", "9.19"), ("latitudine", None)],
+)
+def test_a_hive_body_with_coordinates_is_refused(build, field, value):
+    """
+    Coordinates moved to the apiary. A body still sending them is refused,
+    even with null, with a message that says where they went, rather than
+    being dropped silently like other unknown fields.
+    """
+    with pytest.raises(ValidationError, match=f"{field}: le coordinate appartengono"):
+        build(**{field: value})
+
+
+@pytest.mark.parametrize("build", HIVE_BODIES)
+def test_a_hive_body_still_takes_posizione(build):
+    """`posizione` stays on the hive, as a free-text note on how to find it."""
+    assert build(posizione="Fila 1, sotto il fico").posizione == "Fila 1, sotto il fico"
+
+
+def test_a_hive_has_no_coordinates():
+    """Neither the table nor the response declares them any more."""
+    assert "latitudine" not in ArniaResponse.model_fields
+    assert "longitudine" not in ArniaResponse.model_fields
 
 
 # ============================================

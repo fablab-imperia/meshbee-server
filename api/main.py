@@ -1508,7 +1508,8 @@ def update_arnia_user(
 ):
     """
     Aggiorna un'arnia (richiede permesso write o admin sull'arnia).
-    Campi modificabili: nome, descrizione, posizione, coordinate, metadati.
+    Campi modificabili: nome, descrizione, posizione (nota libera), metadati.
+    Le coordinate sono dell'apiario: inviarle qui restituisce 422.
     Non è possibile modificare attiva (usa admin per quello).
     """
     require_arnia_access(current_user, id_arnia, "arnia.update")

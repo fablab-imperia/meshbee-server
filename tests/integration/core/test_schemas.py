@@ -18,6 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from meshbee_core.models import (
+    ApiarioBase,
     ArniaBase,
     LetturaBase,
     Ruolo,
@@ -55,10 +56,10 @@ def contract_cases(*, inside: bool):
 # (model, field, value just outside the allowed range)
 OUT_OF_RANGE = [
     *contract_cases(inside=False),
-    (ArniaBase, "latitudine", "-90.01"),
-    (ArniaBase, "latitudine", "90.01"),
-    (ArniaBase, "longitudine", "-180.01"),
-    (ArniaBase, "longitudine", "180.01"),
+    (ApiarioBase, "latitudine", "-90.01"),
+    (ApiarioBase, "latitudine", "90.01"),
+    (ApiarioBase, "longitudine", "-180.01"),
+    (ApiarioBase, "longitudine", "180.01"),
 ]
 
 # Which table/column each model field maps to.
@@ -67,8 +68,8 @@ COLUMN = {
     (LetturaBase, "umidita"): ("letture", "umidita"),
     (LetturaBase, "peso"): ("letture", "peso"),
     (LetturaBase, "batteria"): ("letture", "batteria"),
-    (ArniaBase, "latitudine"): ("arnie", "latitudine"),
-    (ArniaBase, "longitudine"): ("arnie", "longitudine"),
+    (ApiarioBase, "latitudine"): ("apiari", "latitudine"),
+    (ApiarioBase, "longitudine"): ("apiari", "longitudine"),
 }
 
 
@@ -84,6 +85,20 @@ def insert_value(db, arnia_row, table, column, value):
         db.execute(
             f"INSERT INTO letture (id_arnia, id_nodo, {column}) VALUES (%s, %s, %s)",
             (arnia_row["id_arnia"], arnia_row["id_nodo"], value),
+        )
+    elif table == "apiari":
+        # Coordinates are only the apiary's (#84); it needs an owner to exist.
+        db.execute(
+            f"""
+            WITH owner AS (
+                INSERT INTO utenti (email, password_hash, nome, cognome)
+                VALUES ('bounds@test.local', 'x', 'B', 'B')
+                RETURNING id_utente
+            )
+            INSERT INTO apiari (nome_apiario, id_utente_proprietario, {column})
+            SELECT 'Bounds', id_utente, %s FROM owner
+            """,
+            (value,),
         )
     else:
         db.execute(
@@ -113,10 +128,10 @@ def test_model_and_schema_reject_the_same_value(db, arnia_row, model, field, val
     "model, field, value",
     [
         *contract_cases(inside=True),
-        (ArniaBase, "latitudine", "-90"),
-        (ArniaBase, "latitudine", "90"),
-        (ArniaBase, "longitudine", "-180"),
-        (ArniaBase, "longitudine", "180"),
+        (ApiarioBase, "latitudine", "-90"),
+        (ApiarioBase, "latitudine", "90"),
+        (ApiarioBase, "longitudine", "-180"),
+        (ApiarioBase, "longitudine", "180"),
     ],
 )
 def test_model_and_schema_accept_the_same_boundary(db, arnia_row, model, field, value):
@@ -161,6 +176,8 @@ def required_fields(model):
     """The non-defaulted fields each model needs before it will construct."""
     if model is ArniaBase:
         return {"id_nodo": "NODE001", "id_sensore_fisico": "SENSOR01"}
+    if model is ApiarioBase:
+        return {"nome_apiario": "Bounds"}
     return {}
 
 

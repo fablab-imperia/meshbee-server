@@ -88,8 +88,6 @@ def create_arnia(session, arnia) -> dict[str, Any]:
                 or f"Arnia {arnia.id_nodo}-{arnia.id_sensore_fisico}",
                 descrizione=arnia.descrizione,
                 posizione=arnia.posizione,
-                latitudine=arnia.latitudine,
-                longitudine=arnia.longitudine,
                 metadati=arnia.metadati,
                 id_apiario=id_apiario,
             )
@@ -116,8 +114,6 @@ def update_arnia(
         nome_arnia=arnia.nome_arnia,
         descrizione=arnia.descrizione,
         posizione=arnia.posizione,
-        latitudine=arnia.latitudine,
-        longitudine=arnia.longitudine,
         metadati=arnia.metadati,
         **optional,
     )

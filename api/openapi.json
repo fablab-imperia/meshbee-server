@@ -22,8 +22,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90,
-                "minimum": -90,
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
@@ -39,8 +39,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180,
-                "minimum": -180,
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
@@ -209,8 +209,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90,
-                "minimum": -90,
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
@@ -226,8 +226,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180,
-                "minimum": -180,
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
@@ -384,8 +384,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90,
-                "minimum": -90,
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
@@ -401,8 +401,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180,
-                "minimum": -180,
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
@@ -468,7 +468,7 @@
         "type": "object"
       },
       "ArniaConStato": {
-        "description": "Arnia con ultime letture e coordinate",
+        "description": "Arnia con ultime letture",
         "properties": {
           "accesso": {
             "anyOf": [
@@ -535,30 +535,6 @@
           "id_sensore_fisico": {
             "title": "Id Sensore Fisico",
             "type": "string"
-          },
-          "latitudine": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Latitudine in formato DD, es: 45.464200",
-            "title": "Latitudine"
-          },
-          "longitudine": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Longitudine in formato DD, es: 9.190000",
-            "title": "Longitudine"
           },
           "metadati": {
             "anyOf": [
@@ -705,40 +681,6 @@
             "title": "Id Sensore Fisico",
             "type": "string"
           },
-          "latitudine": {
-            "anyOf": [
-              {
-                "maximum": 90,
-                "minimum": -90,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Latitudine in formato DD, es: 45.464200",
-            "title": "Latitudine"
-          },
-          "longitudine": {
-            "anyOf": [
-              {
-                "maximum": 180,
-                "minimum": -180,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Longitudine in formato DD, es: 9.190000",
-            "title": "Longitudine"
-          },
           "metadati": {
             "anyOf": [
               {
@@ -839,30 +781,6 @@
             "title": "Id Sensore Fisico",
             "type": "string"
           },
-          "latitudine": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Latitudine in formato DD, es: 45.464200",
-            "title": "Latitudine"
-          },
-          "longitudine": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Longitudine in formato DD, es: 9.190000",
-            "title": "Longitudine"
-          },
           "metadati": {
             "anyOf": [
               {
@@ -932,40 +850,6 @@
               }
             ],
             "title": "Descrizione"
-          },
-          "latitudine": {
-            "anyOf": [
-              {
-                "maximum": 90,
-                "minimum": -90,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Latitudine in formato DD",
-            "title": "Latitudine"
-          },
-          "longitudine": {
-            "anyOf": [
-              {
-                "maximum": 180,
-                "minimum": -180,
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Longitudine in formato DD",
-            "title": "Longitudine"
           },
           "metadati": {
             "anyOf": [
@@ -5171,7 +5055,7 @@
         ]
       },
       "put": {
-        "description": "Aggiorna un'arnia (richiede permesso write o admin sull'arnia).\nCampi modificabili: nome, descrizione, posizione, coordinate, metadati.\nNon è possibile modificare attiva (usa admin per quello).",
+        "description": "Aggiorna un'arnia (richiede permesso write o admin sull'arnia).\nCampi modificabili: nome, descrizione, posizione (nota libera), metadati.\nLe coordinate sono dell'apiario: inviarle qui restituisce 422.\nNon è possibile modificare attiva (usa admin per quello).",
         "operationId": "update_arnia_user_api_user_arnie__id_arnia__put",
         "parameters": [
           {

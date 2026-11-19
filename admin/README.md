@@ -6,7 +6,7 @@ A small **static page for administrators**, served by the API at `/admin/`
 ([#41](https://github.com/fablab-imperia/meshbee-server/issues/41)). It covers:
 
 - an overview: counts, and the active nodes silent for 24 hours;
-- users, nodes, hives and apiaries: list, create, edit and deactivate;
+- users, apiaries, hives and nodes: list, create, edit and deactivate;
 - assigning a node's owner and moving a hive to another apiary of its owner;
 - resetting a password;
 - readings, as a table or as charts, and activities;

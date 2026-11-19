@@ -166,8 +166,8 @@ I limiti sono validati dai modelli in `models.py`, con i valori di `limits.py`:
 | `temperatura` | da −50 a 100 °C | CHECK `valid_temperatura`, contratto MQTT |
 | `umidita` | da 0 a 100 % | CHECK `valid_umidita`, contratto MQTT |
 | `peso` | ≥ 0 kg | CHECK `valid_peso`, contratto MQTT |
-| `latitudine` | da −90 a 90 | CHECK `valid_latitudine` |
-| `longitudine` | da −180 a 180 | CHECK `valid_longitudine` |
+| `latitudine` | da −90 a 90 | CHECK `apiari_valid_latitudine` |
+| `longitudine` | da −180 a 180 | CHECK `apiari_valid_longitudine` |
 | password | minimo 8 caratteri, massimo **72 byte** | — |
 | `ruolo` | `user`, `admin` | CHECK su `utenti.ruolo` |
 | ruoli sugli apiari | `viewer`, `collaborator`, `manager` | CHECK su `utenti_apiari.ruolo` |
