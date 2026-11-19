@@ -8,6 +8,7 @@ tests/integration/test_ingest_parity.py.
 
 import json
 from contextlib import contextmanager
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -37,9 +38,12 @@ def session_calls(monkeypatch):
     return opened
 
 
-def deliver(msg):
+def deliver(msg, dedup_window_seconds=300):
     """Invoke the real callback unbound, so no broker connection is needed."""
-    mqtt_handler.BeehiveMQTTHandler.on_message(None, None, None, msg)
+    handler = SimpleNamespace(
+        settings=SimpleNamespace(DEDUP_WINDOW_SECONDS=dedup_window_seconds)
+    )
+    mqtt_handler.BeehiveMQTTHandler.on_message(handler, None, None, msg)
 
 
 def test_malformed_json_never_reaches_the_database(session_calls):
@@ -83,7 +87,7 @@ def test_a_rejected_reading_does_not_propagate(monkeypatch, caplog):
     def _session():
         yield object()
 
-    def _reject(session, payload):
+    def _reject(session, payload, **kwargs):
         raise InvalidData("Temperatura deve essere tra -50 e 100°C")
 
     monkeypatch.setattr(mqtt_handler, "get_session", _session)
@@ -102,7 +106,7 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
     def _session():
         yield object()
 
-    def _store(session, payload):
+    def _store(session, payload, **kwargs):
         return {
             "id_arnia": 7,
             "id_nodo": "NODE001",
@@ -121,6 +125,47 @@ def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
     assert "Salvata lettura per arnia 7" in caplog.text
     assert "34.5" in caplog.text
     assert "B: 4.01V" in caplog.text
+
+
+def test_a_duplicate_is_not_logged_as_stored(monkeypatch, caplog):
+    """The service logs the skip; a "Salvata" line would count it twice."""
+    import logging
+
+    @contextmanager
+    def _session():
+        yield object()
+
+    monkeypatch.setattr(mqtt_handler, "get_session", _session)
+    monkeypatch.setattr(
+        mqtt_handler.ingest, "record_node_reading", lambda *a, **kw: None
+    )
+
+    with caplog.at_level(logging.INFO):
+        deliver(message({"id_sensore": "SENSOR01"}))
+
+    assert "Salvata" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("seconds", "window"), [(300, timedelta(minutes=5)), (0, None)]
+)
+def test_the_configured_window_reaches_the_service(monkeypatch, seconds, window):
+    """0 turns dedup off: the service gets no window at all."""
+    received = {}
+
+    @contextmanager
+    def _session():
+        yield object()
+
+    def _record(session, payload, dedup_window=None):
+        received["window"] = dedup_window
+
+    monkeypatch.setattr(mqtt_handler, "get_session", _session)
+    monkeypatch.setattr(mqtt_handler.ingest, "record_node_reading", _record)
+
+    deliver(message({"id_sensore": "SENSOR01"}), dedup_window_seconds=seconds)
+
+    assert received["window"] == window
 
 
 SETTINGS = SimpleNamespace(

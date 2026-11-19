@@ -6,7 +6,8 @@ callback. These pin the two defects of the trigger this service replaced (#17):
 the value came from the node's clock, so it could go backwards.
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -211,3 +212,119 @@ def test_an_unknown_node_and_its_hive_start_unassigned(session, db):
     db.execute("SELECT id_proprietario FROM nodi WHERE id_nodo = 'NODE-NEW'")
     assert db.fetchone()["id_proprietario"] is None
     assert apiario_of(db, "NODE-NEW", "S1") is None
+
+
+# ============================================
+# Duplicates within the window are dropped (#4)
+# ============================================
+
+WINDOW = timedelta(minutes=5)
+
+
+def readings_of(db, id_nodo):
+    db.execute("SELECT count(*) AS n FROM letture WHERE id_nodo = %s", (id_nodo,))
+    return db.fetchone()["n"]
+
+
+def test_the_four_retransmissions_store_one_reading(session, db, caplog):
+    """The sender repeats every reading 4 times; without a clock all look new."""
+    payload = {"id_nodo": "NODE-REPEAT", "id_sensore": "S1", "temperatura": 20}
+
+    with caplog.at_level(logging.INFO):
+        results = [
+            ingest.record_node_reading(session, payload, dedup_window=WINDOW)
+            for _ in range(4)
+        ]
+
+    assert results[0] is not None
+    assert results[1:] == [None, None, None]
+    assert readings_of(db, "NODE-REPEAT") == 1
+    assert caplog.text.count("Lettura duplicata ignorata") == 3
+
+
+def test_a_dropped_copy_is_logged_with_what_it_carried_and_what_it_matched(
+    session, db, caplog
+):
+    """The line alone must say which reading was dropped and which one stayed."""
+    timestamp = datetime(2026, 6, 1, 12, 0, 0)
+    payload = {
+        "id_nodo": "NODE-LOGGED",
+        "id_sensore": "S1",
+        "timestamp": timestamp,
+        "temperatura": 34.5,
+        "umidita": 65,
+        "peso": 42.35,
+        "bat": 4.01,
+    }
+    kept = ingest.record_node_reading(session, payload, dedup_window=WINDOW)
+
+    with caplog.at_level(logging.INFO):
+        ingest.record_node_reading(session, payload, dedup_window=WINDOW)
+
+    (line,) = [r.getMessage() for r in caplog.records if "duplicata" in r.getMessage()]
+    assert f"arnia {kept['id_arnia']}" in line
+    assert "nodo: NODE-LOGGED, sensore: S1" in line
+    assert "timestamp: 2026-06-01 12:00:00" in line
+    assert "T: 34.5°C" in line
+    assert "B: 4.01V" in line
+    assert f"lettura {kept['id_lettura']} delle 2026-06-01 12:00:00" in line
+
+
+def test_a_duplicate_still_counts_as_hearing_from_the_node(session, db):
+    payload = {"id_nodo": "NODE-HEARD", "id_sensore": "S1"}
+    ingest.record_node_reading(session, payload, dedup_window=WINDOW)
+    db.execute("UPDATE nodi SET ultimo_messaggio = NULL WHERE id_nodo = 'NODE-HEARD'")
+
+    assert ingest.record_node_reading(session, payload, dedup_window=WINDOW) is None
+    assert ultimo_messaggio(db, "NODE-HEARD")["is_now"] is True
+
+
+@pytest.mark.parametrize(
+    ("gap", "stored"), [(timedelta(seconds=1), 1), (timedelta(minutes=6), 2)]
+)
+def test_node_timestamps_are_compared_against_the_window(session, db, gap, stored):
+    first = datetime(2026, 6, 1, 12, 0, 0)
+    for timestamp in (first, first + gap):
+        ingest.record_node_reading(
+            session,
+            {"id_nodo": "NODE-CLOCK", "id_sensore": "S1", "timestamp": timestamp},
+            dedup_window=WINDOW,
+        )
+
+    assert readings_of(db, "NODE-CLOCK") == stored
+
+
+def test_each_sensor_of_a_node_keeps_its_own_reading(session, db):
+    """Dedup is per arnia: two hives on one node are not duplicates of each other."""
+    for id_sensore in ("S1", "S2"):
+        ingest.record_node_reading(
+            session,
+            {"id_nodo": "NODE-TWIN", "id_sensore": id_sensore},
+            dedup_window=WINDOW,
+        )
+
+    assert readings_of(db, "NODE-TWIN") == 2
+
+
+def test_without_a_window_every_message_is_stored(session, db):
+    payload = {"id_nodo": "NODE-ALL", "id_sensore": "S1"}
+    ingest.record_node_reading(session, payload)
+    ingest.record_node_reading(session, payload)
+
+    assert readings_of(db, "NODE-ALL") == 2
+
+
+def test_the_api_path_never_deduplicates(session, db, make_arnia):
+    """A person entering a reading means it, however close to the last one."""
+    arnia = make_arnia(id_nodo="NODE-HAND")
+    reading = {"id_arnia": arnia["id_arnia"], "id_nodo": "NODE-HAND", "temperatura": 20}
+    ingest.record_node_reading(
+        session,
+        {"id_nodo": "NODE-HAND", "id_sensore": arnia["id_sensore_fisico"]},
+        dedup_window=WINDOW,
+    )
+
+    letture.record_reading(session, reading)
+    letture.record_reading(session, reading)
+
+    assert readings_of(db, "NODE-HAND") == 3

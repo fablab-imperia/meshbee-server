@@ -50,9 +50,14 @@ def deliver(use_db):
     """
     use_db(mqtt_entry)
 
-    def _deliver(topic, payload):
+    def _deliver(topic, payload, dedup_window_seconds=0):
+        # Dedup off by default: these tests compare the two paths, and the API
+        # path never deduplicates.
+        handler = SimpleNamespace(
+            settings=SimpleNamespace(DEDUP_WINDOW_SECONDS=dedup_window_seconds)
+        )
         mqtt_entry.BeehiveMQTTHandler.on_message(
-            None, None, None, mqtt_message(topic, payload)
+            handler, None, None, mqtt_message(topic, payload)
         )
 
     return _deliver
@@ -195,6 +200,19 @@ def test_ingest_provisions_the_arnia_the_api_would_have_refused(db, deliver):
 
     assert created is not None, "l'ingest deve creare l'arnia mancante"
     assert len(stored(db, created["id_arnia"])) == 1
+
+
+def test_a_message_repeated_within_the_window_is_stored_once(db, deliver):
+    """The sender's 4 retransmissions, end to end through the callback (#4)."""
+    for _ in range(4):
+        deliver(
+            "beehive/NODE-REPEAT/data",
+            {"id_sensore": "SENSOR-R", **on_the_wire(MEASUREMENTS)},
+            dedup_window_seconds=300,
+        )
+
+    db.execute("SELECT id_arnia FROM arnie WHERE id_nodo = %s", ("NODE-REPEAT",))
+    assert len(stored(db, db.fetchone()["id_arnia"])) == 1
 
 
 def test_ingest_does_not_persist_the_node_when_the_arnia_is_unresolvable(db, deliver):

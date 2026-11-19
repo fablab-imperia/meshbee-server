@@ -23,7 +23,7 @@ lettura arrivata via MQTT e una inviata a `/api/admin/letture` producono la stes
 | `payload.py` | La decodifica di quello che il nodo ha messo davvero sul filo. Niente broker, niente database — la parte testabile. |
 | `contract.py` | Il formato del filo come modello pydantic. Niente ci valida contro a runtime: serve a generare lo schema. |
 | `mqtt-payload.schema.json` | Lo JSON Schema generato. Committato — vedi [Schema](#schema). |
-| `config.py` | `Settings(CoreSettings)` — i campi `MQTT_*` sopra a quelli del database. |
+| `config.py` | `Settings(CoreSettings)` — i campi `MQTT_*` e `DEDUP_WINDOW_SECONDS` sopra a quelli del database. |
 | `__main__.py` | `python -m mqtt_handler` → `handler.main()`. |
 | `Dockerfile` | Immagine del servizio `mqtt-handler`. Il contesto di build è la root del repo. |
 | `requirements.txt` | Solo `paho-mqtt` — tutto il resto arriva da `meshbee_core`. |
@@ -151,6 +151,30 @@ del livello condiviso. Tutto quello che invece deve restare identico fra i due p
 è fissato da `tests/integration/test_ingest_parity.py`, che confronta ogni colonna
 tranne `id_lettura`.
 
+## Duplicati
+
+Una misura arriva al broker più volte. Il sender trasmette ogni lettura **4 volte**, a
+circa un secondo l'una dall'altra, per compensare un collegamento LoRa senza conferma
+di ricezione, e ogni receiver in portata inoltra la propria copia. Le copie non hanno
+un id del messaggio e spesso nemmeno un timestamp, quindi niente in esse dice che sono
+la stessa lettura.
+
+Per questo l'ingest tiene **una lettura per arnia entro `DEDUP_WINDOW_SECONDS`**
+(default 300, cioè 5 minuti). Una lettura che cade entro la finestra di una che l'arnia
+ha già, prima o dopo, viene scartata. Il tempo di riferimento è il `timestamp` del nodo,
+o l'istante di ricezione se il nodo non l'ha mandato. Una copia scartata aggiorna
+comunque l'`ultimo_messaggio` del nodo, perché il nodo *è stato* sentito, e finisce nel
+log a livello `INFO` come `Lettura duplicata ignorata per arnia …` con nodo, sensore,
+timestamp e misure che portava e con id e ora della lettura che ha trovato, così il tasso
+di duplicati resta visibile e si distinguono le ritrasmissioni (a secondi di distanza)
+da un nodo che trasmette più spesso della finestra (a minuti di distanza).
+
+È **best effort**, per decisione (#4): un nodo che trasmette più spesso della finestra
+perde letture, e due istanze dell'handler in esecuzione insieme potrebbero salvare
+entrambe una copia. Nessuna delle due cose conta per i dati delle arnie, e il firmware
+non viene toccato. `0` la disattiva. **L'API non deduplica mai**: una lettura inviata a
+`/api/admin/letture` viene salvata per quanto vicina sia all'ultima.
+
 ## Configurazione
 
 `Settings` estende `CoreSettings` (i campi del database — vedi
@@ -164,6 +188,7 @@ tranne `id_lettura`.
 | `MQTT_CLIENT_ID` | `beehive-mqtt-handler` | — |
 | `MQTT_USER` | assente | `${MQTT_USER:-beehive}` |
 | `MQTT_PASSWORD` | assente | `${MQTT_PASSWORD}` |
+| `DEDUP_WINDOW_SECONDS` | `300` | — (vedi [Duplicati](#duplicati)) |
 
 Le credenziali vengono inviate solo se ci sono **entrambe**; se ne manca una il client
 si connette in anonimo, cosa che il broker rifiuta (`allow_anonymous false`). La
