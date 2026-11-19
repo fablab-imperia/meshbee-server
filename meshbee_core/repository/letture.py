@@ -1,7 +1,9 @@
 """Queries on `letture`."""
 
+from datetime import datetime, timedelta
 from typing import Any
 
+from sqlalchemy import func
 from sqlmodel import Session, delete, select
 
 from meshbee_core.models import Lettura
@@ -44,6 +46,36 @@ def insert(
     session.add(lettura)
     session.flush()
     return as_dict(lettura)
+
+
+def find_near(
+    session: Session, id_arnia: int, at: datetime | None, window: timedelta
+) -> dict[str, Any] | None:
+    """
+    The arnia's newest reading less than `window` away from `at`, as
+    `id_lettura` and `timestamp`, or None if there is none.
+
+    The window reaches both ways, so a late or out-of-order copy that carries
+    the node's own timestamp is caught too. A null `at` means "now", the same
+    instant a null timestamp is stored as: the column defaults to
+    CURRENT_TIMESTAMP into a naive TIMESTAMP, which is what LOCALTIMESTAMP is.
+
+    The predicate and order match `idx_letture_arnia_timestamp`
+    (id_arnia, timestamp DESC), so this is one index range scan that stops at
+    its first row.
+    """
+    reference = func.localtimestamp() if at is None else at
+    row = session.exec(
+        select(Lettura.id_lettura, Lettura.timestamp)
+        .where(
+            Lettura.id_arnia == id_arnia,
+            Lettura.timestamp > reference - window,
+            Lettura.timestamp < reference + window,
+        )
+        .order_by(Lettura.timestamp.desc())
+        .limit(1)
+    ).first()
+    return mapping(row)
 
 
 # Newest first; the id breaks ties between readings with the same timestamp.

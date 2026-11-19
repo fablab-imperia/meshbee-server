@@ -5,7 +5,7 @@ column name into its statement — the two things most worth pinning against a
 real database.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -156,3 +156,76 @@ def test_readings_are_scoped_to_their_arnia(session, db, make_arnia, make_lettur
     ).items
 
     assert [float(r["temperatura"]) for r in rows] == [1]
+
+
+# ============================================
+# find_near — the ingest dedup check (#4)
+# ============================================
+
+FIVE_MINUTES = timedelta(minutes=5)
+NOON = datetime(2026, 6, 1, 12, 0, 0)
+
+
+def store_at(session, arnia, timestamp):
+    return letture.insert(
+        session,
+        id_arnia=arnia["id_arnia"],
+        id_nodo=arnia["id_nodo"],
+        timestamp=timestamp,
+        temperatura=20,
+        umidita=None,
+        peso=None,
+        dati_raw=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("offset", "near"),
+    [
+        (timedelta(seconds=1), True),
+        (-timedelta(minutes=4), True),
+        (timedelta(minutes=6), False),
+        (-timedelta(minutes=6), False),
+    ],
+)
+def test_a_reading_is_near_within_the_window_either_way(
+    session, make_arnia, offset, near
+):
+    """Both ways: a late copy carrying the node's timestamp is caught too."""
+    arnia = make_arnia()
+    stored = store_at(session, arnia, NOON)
+
+    found = letture.find_near(session, arnia["id_arnia"], NOON + offset, FIVE_MINUTES)
+
+    assert found == (
+        {"id_lettura": stored["id_lettura"], "timestamp": NOON} if near else None
+    )
+
+
+def test_the_newest_reading_in_the_window_is_the_one_found(session, make_arnia):
+    arnia = make_arnia()
+    store_at(session, arnia, NOON - timedelta(minutes=2))
+    newest = store_at(session, arnia, NOON + timedelta(minutes=2))
+
+    found = letture.find_near(session, arnia["id_arnia"], NOON, FIVE_MINUTES)
+
+    assert found["id_lettura"] == newest["id_lettura"]
+
+
+def test_another_arnias_reading_is_not_near(session, make_arnia):
+    """One node, two sensors: each hive is deduplicated on its own."""
+    mine, other = make_arnia(), make_arnia()
+    store_at(session, other, NOON)
+
+    assert letture.find_near(session, mine["id_arnia"], NOON, FIVE_MINUTES) is None
+
+
+def test_no_timestamp_compares_with_the_time_a_null_is_stored_as(session, make_arnia):
+    """Two copies without a clock are both stamped "now", so they collide."""
+    arnia = make_arnia()
+    assert letture.find_near(session, arnia["id_arnia"], None, FIVE_MINUTES) is None
+
+    stored = store_at(session, arnia, None)
+
+    found = letture.find_near(session, arnia["id_arnia"], None, FIVE_MINUTES)
+    assert found["id_lettura"] == stored["id_lettura"]

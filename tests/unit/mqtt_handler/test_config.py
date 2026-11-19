@@ -70,3 +70,14 @@ def test_the_database_password_is_still_required(monkeypatch, required_env):
 def test_get_settings_returns_a_cached_singleton(required_env):
     """The handler reads its settings once, at startup."""
     assert get_settings() is get_settings()
+
+
+def test_duplicates_are_dropped_within_five_minutes_by_default(required_env):
+    assert Settings(_env_file=None).DEDUP_WINDOW_SECONDS == 300
+
+
+def test_a_negative_dedup_window_is_refused(monkeypatch, required_env):
+    monkeypatch.setenv("DEDUP_WINDOW_SECONDS", "-1")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

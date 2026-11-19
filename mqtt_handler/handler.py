@@ -12,6 +12,7 @@ import logging
 import signal
 import sys
 import time
+from datetime import timedelta
 
 import paho.mqtt.client as mqtt
 
@@ -85,9 +86,14 @@ class BeehiveMQTTHandler:
             logger.warning(str(exc))
             return
 
+        window = self.settings.DEDUP_WINDOW_SECONDS
         try:
             with get_session() as session:
-                lettura = ingest.record_node_reading(session, payload)
+                lettura = ingest.record_node_reading(
+                    session,
+                    payload,
+                    dedup_window=timedelta(seconds=window) if window else None,
+                )
         except CoreError as exc:
             # An unresolvable arnia or an out-of-range measurement. Expected
             # enough to report without a traceback; the session has rolled back.
@@ -95,6 +101,10 @@ class BeehiveMQTTHandler:
             return
         except Exception as exc:
             logger.exception(f"Errore salvataggio dati: {exc}")
+            return
+
+        if lettura is None:
+            # A duplicate; the service has logged it.
             return
 
         logger.info(

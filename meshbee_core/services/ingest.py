@@ -11,9 +11,18 @@ reading with an out-of-range value (the person typing it can fix it); a node
 can't, and one faulty sensor must not cost the others. So ingest clears the
 bad measurement, keeps the rest of the reading, and records what it discarded
 in `dati_raw`.
+
+Duplicates are the third (#4). The sender transmits every reading four times
+about a second apart, and every receiver in range forwards its own copy, so one
+measurement arrives several times with nothing to identify it by — no message
+id, and often no timestamp. Ingest keeps one reading per arnia within a time
+window and drops the rest. It is best effort by decision: an odd duplicate or
+a lost reading is acceptable, a firmware change was not. The API never
+deduplicates — a person typing a reading means it.
 """
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 from pydantic import ValidationError
@@ -21,6 +30,7 @@ from pydantic import ValidationError
 from meshbee_core.errors import NotFound
 from meshbee_core.models import LetturaCreate
 from meshbee_core.repository import arnie, nodi
+from meshbee_core.repository import letture as letture_repo
 from meshbee_core.services import arnie as arnie_service
 from meshbee_core.services import letture
 
@@ -61,6 +71,28 @@ def clear_invalid_measurements(reading: dict[str, Any]) -> dict[str, Any]:
     if dati_raw is None or isinstance(dati_raw, dict):
         cleared["dati_raw"] = {**(dati_raw or {}), "discarded": discarded}
     return cleared
+
+
+def log_dropped_duplicate(
+    reading: dict[str, Any], id_sensore, kept: dict[str, Any]
+) -> None:
+    """
+    One INFO line per dropped copy, with what was dropped and what it matched.
+
+    Enough to tell retransmissions (seconds apart) from a node reporting
+    faster than the window (minutes apart) without opening the database.
+    """
+    timestamp = reading["timestamp"] or "assente (ora di ricezione)"
+    logger.info(
+        f"Lettura duplicata ignorata per arnia {reading['id_arnia']} "
+        f"(nodo: {reading['id_nodo']}, sensore: {id_sensore}, "
+        f"timestamp: {timestamp}, "
+        f"T: {reading['temperatura']}°C, "
+        f"H: {reading['umidita']}%, "
+        f"W: {reading['peso']}kg, "
+        f"B: {reading['batteria']}V) — "
+        f"già presente la lettura {kept['id_lettura']} delle {kept['timestamp']}"
+    )
 
 
 def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
@@ -104,10 +136,18 @@ def register_node_and_resolve_arnia(session, id_nodo: str, id_sensore) -> int:
     raise NotFound(f"Impossibile determinare id_arnia per nodo {id_nodo}")
 
 
-def record_node_reading(session, payload: dict[str, Any]) -> dict[str, Any]:
+def record_node_reading(
+    session, payload: dict[str, Any], dedup_window: timedelta | None = None
+) -> dict[str, Any] | None:
     """
     Store one reading from a node, provisioning the nodo and arnia as needed,
     and stamp the node's `ultimo_messaggio` with the time it was received.
+
+    With a `dedup_window`, a reading that falls within it of one the arnia
+    already has is a duplicate: nothing is stored and None is returned, but
+    the node is still stamped — it was heard. The check reads before it
+    writes, so two handlers running at once could both store a copy; there is
+    one, and paho delivers its messages one at a time.
 
     Only this path stamps it: a message from the node is what "ultimo
     messaggio" means. A reading entered through the API is not one, so it
@@ -136,6 +176,14 @@ def record_node_reading(session, payload: dict[str, Any]) -> dict[str, Any]:
         "batteria": payload.get("bat"),
         "dati_raw": payload.get("dati_raw"),
     }
+    kept = dedup_window and letture_repo.find_near(
+        session, id_arnia, reading["timestamp"], dedup_window
+    )
+    if kept:
+        log_dropped_duplicate(reading, payload.get("id_sensore"), kept)
+        nodi.touch_ultimo_messaggio(session, id_nodo)
+        return None
+
     lettura = letture.record_reading(session, clear_invalid_measurements(reading))
     # After the reading, inside the same transaction: a message that is
     # refused rolls this back with everything else.

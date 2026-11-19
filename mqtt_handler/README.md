@@ -24,7 +24,7 @@ row.
 | `payload.py` | Decoding what a node actually put on the wire. No broker, no database — the testable part. |
 | `contract.py` | The wire format as a pydantic model. Nothing validates against it at runtime; it exists to generate the schema. |
 | `mqtt-payload.schema.json` | The generated JSON Schema. Committed — see [Schema](#schema). |
-| `config.py` | `Settings(CoreSettings)` — the `MQTT_*` fields on top of the DB fields. |
+| `config.py` | `Settings(CoreSettings)` — the `MQTT_*` fields and `DEDUP_WINDOW_SECONDS` on top of the DB fields. |
 | `__main__.py` | `python -m mqtt_handler` → `handler.main()`. |
 | `Dockerfile` | Image for the `mqtt-handler` service. Build context is the repo root. |
 | `requirements.txt` | `paho-mqtt` only — everything else comes from `meshbee_core`. |
@@ -147,6 +147,29 @@ layer. Everything that must stay identical between the two paths is pinned by
 `tests/integration/test_ingest_parity.py`, which compares every column but
 `id_lettura`.
 
+## Duplicates
+
+One measurement reaches the broker several times. The sender transmits every reading
+**4 times**, about a second apart, to make up for a LoRa link with no acknowledgement,
+and every receiver in range forwards its own copy. The copies carry no message id and
+often no timestamp, so nothing in them says they are the same reading.
+
+Ingest therefore keeps **one reading per hive within `DEDUP_WINDOW_SECONDS`** (default
+300, i.e. 5 minutes). A reading within the window of one the hive already has,
+in either direction, is dropped. The reference time is the node's `timestamp`, or the
+time of receipt when the node sent none. A dropped copy still updates the node's
+`ultimo_messaggio`, because the node *was* heard, and it is logged at `INFO` as
+`Lettura duplicata ignorata per arnia …` with the node, sensor, timestamp and
+measurements it carried and the id and time of the reading it matched, so the duplicate
+rate stays visible and retransmissions (seconds apart) can be told from a node that
+reports faster than the window (minutes apart).
+
+It is **best effort**, by decision (#4): a node reporting more often than the window
+loses readings, and two handler instances running at once could both store a copy.
+Neither matters for hive data, and the firmware is left alone. `0` turns it off.
+**The API never deduplicates**: a reading posted to `/api/admin/letture` is stored
+however close it is to the last one.
+
 ## Configuration
 
 `Settings` extends `CoreSettings` (the database fields — see
@@ -160,6 +183,7 @@ layer. Everything that must stay identical between the two paths is pinned by
 | `MQTT_CLIENT_ID` | `beehive-mqtt-handler` | — |
 | `MQTT_USER` | none | `${MQTT_USER:-beehive}` |
 | `MQTT_PASSWORD` | none | `${MQTT_PASSWORD}` |
+| `DEDUP_WINDOW_SECONDS` | `300` | — (see [Duplicates](#duplicates)) |
 
 Credentials are only sent when **both** are set; with either missing the client
 connects anonymously, which the broker refuses (`allow_anonymous false`). The password

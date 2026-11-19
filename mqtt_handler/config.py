@@ -11,7 +11,7 @@ instead of at connect time with an authentication error.
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 
 from meshbee_core.config import CoreSettings
 
@@ -27,6 +27,9 @@ class Settings(CoreSettings):
     # allow it, but a local broker might.
     MQTT_USER: str | None = None
     MQTT_PASSWORD: SecretStr | None = None
+    # One reading per arnia within this many seconds; the rest are duplicates
+    # (#4). 0 stores every message.
+    DEDUP_WINDOW_SECONDS: int = Field(default=300, ge=0)
 
 
 @lru_cache
