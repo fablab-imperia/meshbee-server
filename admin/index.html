@@ -211,11 +211,14 @@
                     <template x-if="f.type === 'checkbox'">
                       <label><input type="checkbox" role="switch" x-model="dialog.values[f.name]" :aria-checked="String(!!dialog.values[f.name])" /> <span x-text="f.label"></span></label>
                     </template>
+                    <!-- Boolean bindings need `!!`: Alpine turns an undefined dotted
+                         expression (f.readonly on most fields) into "", which sets
+                         the attribute and made every input read-only and required. -->
                     <template x-if="f.type !== 'checkbox'">
                       <label>
                         <span x-text="f.label"></span>
                         <template x-if="f.type === 'select'">
-                          <select x-model="dialog.values[f.name]" :required="f.required">
+                          <select x-model="dialog.values[f.name]" :required="!!f.required">
                             <option value="">—</option>
                             <template x-for="o in options(f.options)" :key="o.value">
                               <option :value="o.value" x-text="o.label" :selected="o.value === dialog.values[f.name]"></option>
@@ -230,8 +233,8 @@
                             :type="f.type || 'text'"
                             :step="f.type === 'number' ? 'any' : f.type === 'datetime-local' ? '1' : null"
                             x-model="dialog.values[f.name]"
-                            :required="f.required"
-                            :readonly="f.readonly"
+                            :required="!!f.required"
+                            :readonly="!!f.readonly"
                             :autocomplete="f.type === 'password' ? 'new-password' : 'off'"
                           />
                         </template>
