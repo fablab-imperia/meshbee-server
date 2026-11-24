@@ -136,3 +136,25 @@ jobs:
           MESHBEE_DOMAIN: ci.example.org
           ACME_EMAIL: ci@example.org
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+
+  # Starts the real broker image from docker-compose.yml, on Linux: the passwd
+  # file's owner matters there (2.1 reads it as uid 1883), which a macOS bind
+  # mount hides. Uses `just mqtt-passwd` itself, so the recipe is tested too.
+  broker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Throwaway credentials
+        run: printf 'MQTT_USER=beehive\nMQTT_PASSWORD=ci\n' > .env
+      - name: Generate passwd
+        run: just mqtt-passwd
+      - name: Check mosquitto.conf
+        run: docker compose run --rm --no-deps mosquitto mosquitto -c /mosquitto/config/mosquitto.conf --test-config
+      # --wait fails unless the healthcheck passes: the broker is up and
+      # accepts the credentials in passwd.
+      - name: Start the broker
+        run: docker compose up -d --wait --wait-timeout 60 mosquitto
+      - name: Broker log
+        if: always()
+        run: docker compose logs mosquitto

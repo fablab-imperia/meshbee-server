@@ -49,7 +49,8 @@ services:
 
   # Mosquitto MQTT Broker (con autenticazione)
   mosquitto:
-    image: eclipse-mosquitto:2.0
+    # 2.1 is published only as -alpine (#46); Dependabot follows the -alpine tags from here.
+    image: eclipse-mosquitto:2.1-alpine
     container_name: meshbee-mosquitto
     restart: unless-stopped
     ports:
@@ -62,11 +63,16 @@ services:
       # Nessun mount per i log: il broker scrive solo su stdout (vedi mosquitto.conf).
     networks:
       - beehive-network
+    # Healthy only when the broker is up and accepts our credentials: read one
+    # retained $SYS message, failing after 5 s. A passwd that doesn't match
+    # MQTT_PASSWORD shows up here as `unhealthy`.
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_pub -h localhost -t '$$SYS/test' -m '' -u ${MQTT_USER:-beehive} -P ${MQTT_PASSWORD} 2>/dev/null || exit 0"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u ${MQTT_USER:-beehive} -P ${MQTT_PASSWORD} -t '$$SYS/broker/uptime' -C 1 -W 5 >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+      start_interval: 2s
 
   # Migrate: brings the schema to the latest Alembic revision, then exits.
   # Every service that touches the database waits for it to exit 0, so none of

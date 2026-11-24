@@ -24,7 +24,10 @@ setup:
         echo "⚠️  Open .env and set real passwords, then run: just setup"
         exit 0
     fi
-    {{ just_executable() }} mqtt-passwd
+    # Only the first time: an existing passwd is kept (see mqtt-passwd --force).
+    if [ ! -e mosquitto/config/passwd ]; then
+        {{ just_executable() }} mqtt-passwd
+    fi
     {{ just_executable() }} start
 
 # Start every service
@@ -33,20 +36,37 @@ start:
     @echo "API HTTP:  http://localhost:8000/docs"
     @echo "API HTTPS: https://localhost:8443/docs (requires 'just certs')"
 
-# Generate mosquitto/config/passwd from MQTT_USER / MQTT_PASSWORD in .env
-mqtt-passwd:
+# Generate mosquitto/config/passwd from MQTT_USER / MQTT_PASSWORD in .env.
+# Refuses to replace an existing file unless given --force.
+mqtt-passwd *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    force=false
+    for arg in "$@"; do
+        case "$arg" in
+            --force) force=true ;;
+            *) echo "Usage: just mqtt-passwd [--force]" >&2; exit 2 ;;
+        esac
+    done
     if [ ! -f .env ]; then
         echo "❌ No .env found. Run 'just setup' first." >&2
         exit 1
     fi
+    if [ -e mosquitto/config/passwd ] && [ "$force" = false ]; then
+        echo "❌ mosquitto/config/passwd already exists; nothing changed." >&2
+        echo "   To replace it (e.g. after changing MQTT_PASSWORD): just mqtt-passwd --force" >&2
+        echo "   It is rewritten with only MQTT_USER: any other user in it is lost." >&2
+        exit 1
+    fi
     set -a; . ./.env; set +a
     mkdir -p mosquitto/config
-    docker run --rm \
-        -v "$PWD/mosquitto/config:/mosquitto/config" \
-        eclipse-mosquitto:2.0 \
-        mosquitto_passwd -b -c /mosquitto/config/passwd "$MQTT_USER" "$MQTT_PASSWORD"
+    # The broker's own image, so its tag lives only in docker-compose.yml. Since
+    # 2.1 the broker reads passwd after dropping to the mosquitto user (uid 1883),
+    # so on Linux the file must be theirs: a root-owned 0600 one stops the broker.
+    # 2.1's `mosquitto_passwd -c` refuses to overwrite, hence the rm (--force only).
+    {{ compose }} run --rm --no-deps mosquitto sh -c \
+        'f=/mosquitto/config/passwd; rm -f "$f" && mosquitto_passwd -b -c "$f" "$1" "$2" && chown mosquitto:mosquitto "$f"' \
+        _ "$MQTT_USER" "$MQTT_PASSWORD"
     echo "✓ mosquitto/config/passwd generated"
 
 # Generate the local HTTPS certificate for the Caddy proxy (requires mkcert)
