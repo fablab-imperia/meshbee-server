@@ -8,3 +8,6 @@ python-multipart==0.0.33
 python-dotenv==1.2.4
 # Transitive (starlette), pinned so the test client's event loop is reproducible.
 anyio==4.16.0
+# The error-reporting backend (#56), off until configured. Keep the pin in step
+# with the `rollbar` extra in pyproject.toml, which non-Docker installs use.
+rollbar==1.5.0

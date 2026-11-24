@@ -151,17 +151,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configurazione CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    # A cross-origin client can read a paged list's total only if it is exposed.
-    expose_headers=[TOTAL_HEADER],
-)
-
 
 def route_of(scope) -> str:
     """The route template (/api/arnie/{id_arnia}) once routing has run, else the path."""
@@ -188,6 +177,18 @@ class ReportingContextMiddleware:
 
 
 app.add_middleware(ReportingContextMiddleware)
+
+# Configurazione CORS. Added last, so it is the outermost middleware and every
+# response, an error included, carries the CORS headers.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    # A cross-origin client can read a paged list's total only if it is exposed.
+    expose_headers=[TOTAL_HEADER],
+)
 
 
 @app.exception_handler(Exception)

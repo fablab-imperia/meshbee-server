@@ -62,7 +62,7 @@ jobs:
         run: |
           pip install -r api/requirements.txt -r api/requirements-dev.txt \
                       -r mqtt_handler/requirements.txt
-          pip install -e ".[rollbar]"
+          pip install -e .
       - name: Run tests
         run: pytest --cov --cov-report=xml
       - name: SonarQube Cloud scan

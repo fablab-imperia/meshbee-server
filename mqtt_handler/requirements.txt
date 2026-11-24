@@ -2,3 +2,6 @@
 # psycopg and pydantic come from meshbee-core (pyproject.toml), which the
 # Dockerfile installs editable.
 paho-mqtt==2.2.0
+# The error-reporting backend (#56), off until configured. Keep the pin in step
+# with the `rollbar` extra in pyproject.toml, which non-Docker installs use.
+rollbar==1.5.0

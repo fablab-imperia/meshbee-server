@@ -27,7 +27,8 @@ dependencies = [
 ]
 
 # Error-reporting backends (#56), one extra each: an install carries only the
-# SDK of the provider it reports to. The images install `.[rollbar]`.
+# SDK of the provider it reports to. The images get rollbar from their
+# requirements.txt instead; keep the pins in step.
 [project.optional-dependencies]
 rollbar = ["rollbar==1.5.0"]
 

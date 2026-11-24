@@ -74,9 +74,11 @@ class NullReporter:
     """Reporting off: every call is a no-op."""
 
     def report(self, exc, context, person_id) -> None:
+        # Reporting is off: dropping the exception is the whole job.
         pass
 
     def flush(self, timeout: float) -> None:
+        # Nothing is ever queued, so there is nothing to wait for.
         pass
 
 
@@ -314,9 +316,8 @@ class ReportingHandler(logging.Handler):
 def install_logging_bridge() -> ReportingHandler:
     """Attach the bridge to the root logger, replacing one attached before."""
     root = logging.getLogger()
-    for handler in list(root.handlers):
-        if isinstance(handler, ReportingHandler):
-            root.removeHandler(handler)
+    for old in [h for h in root.handlers if isinstance(h, ReportingHandler)]:
+        root.removeHandler(old)
     handler = ReportingHandler()
     root.addHandler(handler)
     return handler

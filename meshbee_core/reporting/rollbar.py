@@ -75,7 +75,7 @@ class RollbarReporter:
             payload_data=payload,
         )
 
-    def flush(self, timeout: float) -> None:
+    def flush(self, _timeout: float) -> None:
         # rollbar.wait() joins its sender threads; it takes no timeout, and each
         # send is bounded by the SDK's own HTTP timeout.
         rollbar.wait()

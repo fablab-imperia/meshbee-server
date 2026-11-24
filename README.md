@@ -370,8 +370,8 @@ DSN) are scrubbed before sending.
 function that returns an object with `report(exc, context, person_id)` and
 `flush(timeout)`. Register it in the `meshbee.error_reporters` entry-point group of any
 installed package's `pyproject.toml`, then set `ERROR_REPORTER` to its name. Each SDK is
-an optional extra, so an install carries only its own provider's: the images install
-`.[rollbar]`.
+an optional extra (`pip install -e ".[rollbar]"`), so an install carries only its own
+provider's. The images pin `rollbar` in their `requirements.txt`.
 
 ## Development
 

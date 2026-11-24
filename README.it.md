@@ -378,8 +378,9 @@ cookie, email, DSN) vengono oscurate prima dell'invio.
 `report(exc, context, person_id)` e `flush(timeout)`. Registralo nel gruppo di entry
 point `meshbee.error_reporters` nel `pyproject.toml` di un qualunque pacchetto
 installato, poi imposta `ERROR_REPORTER` al suo nome. Ogni SDK è un extra opzionale,
-così un'installazione porta solo quello del proprio fornitore: le immagini installano
-`.[rollbar]`.
+così un'installazione porta solo quello del proprio fornitore
+(`pip install -e ".[rollbar]"`). Le immagini fissano `rollbar` nel loro
+`requirements.txt`.
 
 ## Sviluppo
 
