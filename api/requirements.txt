@@ -3,7 +3,7 @@
 # (pyproject.toml), which the Dockerfile installs editable.
 fastapi==0.163.1
 uvicorn[standard]==0.54.0
-python-jose[cryptography]==3.5.0
+PyJWT==2.15.1
 python-multipart==0.0.33
 python-dotenv==1.2.4
 # Transitive (starlette), pinned so the test client's event loop is reproducible.

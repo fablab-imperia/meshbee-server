@@ -79,11 +79,11 @@ ci:
         {{ compose }} -f docker-compose.yml -f docker-compose.prod.yml config -q
     {{ compose }} --profile test up -d --wait postgres-test
     {{ compose }} run --rm --no-deps -v ./.github:/app/.github:ro api sh -c \
-        'ruff check . && ruff format --check . && pytest && sh .github/scripts/pip_audit.sh'
+        'ruff check . && ruff format --check . && pytest && pip-audit --skip-editable'
 
 # Check the installed dependencies for known vulnerabilities (needs network)
 audit:
-    {{ compose }} run --rm --no-deps -v ./.github:/app/.github:ro api sh .github/scripts/pip_audit.sh
+    {{ compose }} run --rm --no-deps api pip-audit --skip-editable
 
 # Regenerate api/openapi.json and the MQTT payload schema (api container up)
 contract:

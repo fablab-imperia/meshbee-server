@@ -11,7 +11,7 @@ version = "2.1.1"
 description = "Shared persistence and business logic for the Meshbee backend"
 requires-python = ">=3.15"
 
-# Only what meshbee_core itself imports. FastAPI/uvicorn/jose stay in
+# Only what meshbee_core itself imports. FastAPI/uvicorn/PyJWT stay in
 # api/requirements.txt and paho-mqtt in mqtt_handler/requirements.txt: the
 # library must not drag either entry point's framework into the other's image.
 dependencies = [

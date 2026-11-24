@@ -2,10 +2,11 @@
 
 from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from pydantic import SecretStr
 from sqlalchemy.exc import OperationalError
 
 from api import auth
@@ -141,18 +142,62 @@ def test_decode_token_rejects_an_expired_token():
     """An expired token is refused rather than silently accepted."""
     expired = create_access_token({"sub": "a@b.org"}, timedelta(minutes=-1))
 
-    with pytest.raises(JWTError):
+    with pytest.raises(jwt.InvalidTokenError):
         decode_token(expired)
 
 
 def test_decode_token_rejects_a_token_signed_with_another_key():
     """A token forged with a different secret does not validate against ours."""
     forged = jwt.encode(
-        {"sub": "a@b.org", "type": "access"}, "another-secret", algorithm="HS256"
+        {"sub": "a@b.org", "type": "access"},
+        "another-secret-at-least-32-bytes-long",
+        algorithm="HS256",
     )
 
-    with pytest.raises(JWTError):
+    with pytest.raises(jwt.InvalidTokenError):
         decode_token(forged)
+
+
+def test_decode_token_rejects_an_unsigned_token():
+    """`alg: none` carries no signature at all; it must never be accepted."""
+    unsigned = jwt.encode({"sub": "a@b.org", "type": "access"}, None, algorithm="none")
+
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_token(unsigned)
+
+
+def test_decode_token_accepts_only_the_configured_algorithm(monkeypatch):
+    """Signed with our own secret but another HMAC: still refused (algorithm pinned)."""
+    secret = "a-secret-long-enough-for-hs512-signing-0123456789-abcdefghijklmn"
+    monkeypatch.setattr(auth.settings, "JWT_SECRET_KEY", SecretStr(secret))
+    other_algorithm = jwt.encode(
+        {"sub": "a@b.org", "type": "access"}, secret, algorithm="HS512"
+    )
+
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_token(other_algorithm)
+
+
+# Issued by python-jose 3.5.0, the library before PyJWT, with the secret below:
+# {"sub": "a@b.org", "type": "access", "exp": 4102444800} (year 2100), HS256.
+TOKEN_FROM_PYTHON_JOSE = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+    ".eyJzdWIiOiJhQGIub3JnIiwidHlwZSI6ImFjY2VzcyIsImV4cCI6NDEwMjQ0NDgwMH0"
+    ".AiEZmKKli5gQyzfzwHH5g--C7IuwdSxxbAiCaDX1seM"
+)
+
+
+def test_a_token_issued_before_the_switch_to_pyjwt_still_validates(monkeypatch):
+    """Nobody is logged out by the library change: a JWT is a JWT."""
+    monkeypatch.setattr(
+        auth.settings,
+        "JWT_SECRET_KEY",
+        SecretStr("legacy-test-secret-at-least-32-bytes-long"),
+    )
+
+    payload = decode_token(TOKEN_FROM_PYTHON_JOSE)
+
+    assert payload == {"sub": "a@b.org", "type": "access", "exp": 4102444800}
 
 
 # ============================================
