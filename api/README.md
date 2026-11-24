@@ -419,7 +419,7 @@ generate a client from.
 it automatically:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi     # or: make openapi
+docker-compose exec api python -m scripts.export_openapi
 ```
 
 It must run in the container: `api/config.py` builds `Settings` at import, so on the
@@ -432,7 +432,7 @@ The container runs uvicorn with `--reload`, so **editing a file here is enough**
 `api/` is bind-mounted. (The MQTT handler has no such thing; see its README.)
 
 ```bash
-docker-compose logs -f api                  # or: make logs-api
+docker-compose logs -f api
 docker-compose restart api                  # only needed after a dependency change
 curl -s localhost:8000/health | python3 -m json.tool
 ```
@@ -457,7 +457,7 @@ access level against its minimum. It is what catches a missing or wrong gate.
 
 ## Gotchas
 
-- **A new route needs three follow-ups**: `make openapi`, a row in the tables above,
+- **A new route needs three follow-ups**: `just contract`, a row in the tables above,
   and a row in `test_main_authz.py`. None of them happen on their own.
 - **The image is not API-only.** It also carries `admin/` (served at `/admin/`),
   `mqtt_handler/`, `scripts/` and `tests/` plus `paho-mqtt`, so the whole suite — both entry points included — runs in

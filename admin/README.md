@@ -49,7 +49,7 @@ The page has no server of its own. `api/main.py` mounts this directory at `/admi
   so an edit shows on the next request. No restart, and `--reload` isn't involved.
 - `api/Dockerfile` copies `admin/` into the image, next to `api/`.
 - Without a Caddy proxy, the page is at <http://localhost:8000/admin/>. With
-  [`make certs`](../README.md#local-https), it is also at <https://localhost:8443/admin/>.
+  [`just certs`](../README.md#local-https), it is also at <https://localhost:8443/admin/>.
 
 This directory also holds **`reset-password.html`** and **`reset-password.js`**, the
 public page a password-reset email links to (#54). The API serves it at

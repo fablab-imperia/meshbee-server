@@ -121,7 +121,7 @@ reale.
 **Rigeneralo dopo ogni modifica alla forma del payload** — non lo fa niente in automatico:
 
 ```bash
-docker-compose exec api python -m scripts.export_mqtt_schema   # oppure: make mqtt-schema
+docker-compose exec api python -m scripts.export_mqtt_schema
 ```
 
 L'output è ordinato e indentato, quindi rigenerare un contratto invariato lascia un diff
@@ -193,7 +193,7 @@ non viene toccato. `0` la disattiva. Per cambiarla, imposta `DEDUP_WINDOW_SECOND
 Le credenziali vengono inviate solo se ci sono **entrambe**; se ne manca una il client
 si connette in anonimo, cosa che il broker rifiuta (`allow_anonymous false`). La
 password deve corrispondere all'hash in `mosquitto/config/passwd` — rigeneralo con
-`make mqtt-passwd` ogni volta che cambi `MQTT_PASSWORD`.
+`just mqtt-passwd` ogni volta che cambi `MQTT_PASSWORD`.
 
 ## Sviluppo
 
@@ -202,8 +202,8 @@ riparte — è il modo più comune di passare dieci minuti a fare debug di codic
 in esecuzione:
 
 ```bash
-docker-compose restart mqtt-handler        # oppure: make restart-mqtt
-docker-compose logs -f mqtt-handler        # oppure: make logs-mqtt
+docker-compose restart mqtt-handler
+docker-compose logs -f mqtt-handler
 ```
 
 Pubblica una lettura di prova da dentro il container del broker, così non serve
@@ -238,7 +238,7 @@ broker) e in `tests/integration/test_ingest_parity.py` — vedi
 - **`beehive/+/data` copre esattamente un livello** — vedi [Il topic](#il-topic).
 - **`contract.py` è documentazione, non validazione.** Modificarlo non cambia nessun
   comportamento; modificare `payload.py` non cambia nessun contratto. Cambiare la forma
-  del payload è entrambe le cose, più `make mqtt-schema`.
+  del payload è entrambe le cose, più `just contract`.
 - **Tutti i nodi condividono una sola credenziale.** Un nodo compromesso non si può
   revocare singolarmente, e qualsiasi account autenticato può pubblicare su qualsiasi
   topic (nessuna ACL). Vedi [`mosquitto/`](../mosquitto/README.it.md).

@@ -60,10 +60,10 @@ Il broker gira con `allow_anonymous false`, quindi **non parte senza
 avvia.
 
 ```bash
-make mqtt-passwd     # genera config/passwd da MQTT_USER / MQTT_PASSWORD in .env
+just mqtt-passwd     # genera config/passwd da MQTT_USER / MQTT_PASSWORD in .env
 ```
 
-`make setup` lo fa già su un clone nuovo. **Va rigenerato ogni volta che
+`just setup` lo fa già su un clone nuovo. **Va rigenerato ogni volta che
 `MQTT_PASSWORD` cambia** in `.env`: il file contiene un hash, quindi non segue
 automaticamente la variabile, e l'handler comincerebbe a fallire
 l'autenticazione.
@@ -93,7 +93,7 @@ Seguire broker e handler affiancati:
 
 ```bash
 docker-compose logs -f mosquitto
-docker-compose logs -f mqtt-handler     # oppure: make logs-mqtt
+docker-compose logs -f mqtt-handler
 ```
 
 Verificare che l'autenticazione sia davvero attiva — questo deve essere

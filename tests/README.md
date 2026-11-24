@@ -14,7 +14,7 @@ the host collection fails before a single test runs.
 
 ```bash
 docker-compose --profile test up -d postgres-test    # once per boot, for the integration tier
-docker-compose exec api pytest                       # everything (= make test)
+docker-compose exec api pytest                       # everything (= just test)
 ```
 
 Paths are relative to the repo root, which is `/app` in the container:
@@ -41,7 +41,7 @@ into the image). New *test files* need nothing — `tests/` is bind-mounted.
 
 **CI runs the same suite** on every pull request and every push to `main`
 (`.github/workflows/ci.yml`), outside Docker: Python 3.15 on the runner, a throwaway
-`postgres:15-alpine` service in place of `postgres-test`, and
+`postgres:18-alpine` service in place of `postgres-test`, and
 `TEST_DB_HOST=localhost` / `TEST_DB_SCHEMA=database/init.sql` pointing the fixtures at
 it. So a test may not depend on anything only the `api` container provides — a path
 under `/app`, or an environment variable compose sets. CI only exports

@@ -428,7 +428,7 @@ del repo ombrello, ed è quello da cui
 niente in automatico:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi     # oppure: make openapi
+docker-compose exec api python -m scripts.export_openapi
 ```
 
 Deve girare nel container: `api/config.py` costruisce le `Settings` all'import, quindi
@@ -441,7 +441,7 @@ Il container esegue uvicorn con `--reload`, quindi **basta modificare un file qu
 `api/` è montata in bind. (L'handler MQTT non ha niente del genere; vedi il suo README.)
 
 ```bash
-docker-compose logs -f api                  # oppure: make logs-api
+docker-compose logs -f api
 docker-compose restart api                  # serve solo dopo un cambio di dipendenze
 curl -s localhost:8000/health | python3 -m json.tool
 ```
@@ -467,7 +467,7 @@ dimenticato o sbagliato.
 
 ## Trappole
 
-- **Una rotta nuova richiede tre cose dopo**: `make openapi`, una riga nelle tabelle qui
+- **Una rotta nuova richiede tre cose dopo**: `just contract`, una riga nelle tabelle qui
   sopra e una riga in `test_main_authz.py`. Nessuna delle tre succede da sola.
 - **L'immagine non contiene solo l'API.** Porta anche `admin/` (servita su `/admin/`),
   `mqtt_handler/`, `scripts/` e `tests/` più `paho-mqtt`, così l'intera suite — entrambi gli entry point compresi —

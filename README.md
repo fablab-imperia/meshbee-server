@@ -113,7 +113,7 @@ Ports:
 | Port | Service | Notes |
 |---|---|---|
 | 8000 | `api` | HTTP. `/admin/`, `/docs`, `/redoc`, `/openapi.json`. |
-| 8443 | `caddy` | HTTPS. Only if you ran `make certs`. Override with `HTTPS_PORT`. |
+| 8443 | `caddy` | HTTPS. Only if you ran `just certs`. Override with `HTTPS_PORT`. |
 | 1883 | `mosquitto` | MQTT. Authentication required. |
 | 9001 | `mosquitto` | MQTT over WebSockets. Configured but unused. |
 | 5432 | `postgres` | Published for `psql` and GUI clients. |
@@ -125,6 +125,10 @@ These are the development ports. A production install publishes fewer; see
 
 Docker and Docker Compose. Optionally git, and
 [mkcert](https://github.com/FiloSottile/mkcert) if you want local HTTPS.
+
+[just](https://just.systems) runs the shortcuts below (`brew install just`,
+`apt install just`, …); `just` alone lists them. Each is a few lines in the `justfile`,
+so without it you can run them by hand.
 
 ## Setup
 
@@ -152,7 +156,7 @@ working administrator account with an empty password.
 so **without this step Mosquitto will not start**:
 
 ```bash
-make mqtt-passwd
+just mqtt-passwd
 ```
 
 Re-run it whenever you change `MQTT_PASSWORD` — the file holds a hash, so it does not
@@ -162,7 +166,7 @@ follow the variable.
 system trust store:
 
 ```bash
-make certs
+just certs
 ```
 
 Skip it and Caddy prints a note and exits 0. The rest of the stack, and HTTP on `:8000`,
@@ -171,11 +175,11 @@ carry on regardless.
 **4. Start.**
 
 ```bash
-docker-compose up -d       # or: make start
+docker-compose up -d       # or: just start
 docker-compose ps
 ```
 
-> **Shortcut:** `make setup` does the `.env` copy, `make mqtt-passwd` and the start, in
+> **Shortcut:** `just setup` does the `.env` copy, `just mqtt-passwd` and the start, in
 > that order. It does not generate certificates, and it does not seed.
 
 **5. Seed (first start only).** The `seed` service sits behind the `seed` compose
@@ -192,7 +196,7 @@ into a database with no hives. Skip it on an install that already has its own ac
 **6. Check.**
 
 - HTTP: <http://localhost:8000/docs>
-- HTTPS: <https://localhost:8443/docs> (only after `make certs`)
+- HTTPS: <https://localhost:8443/docs> (only after `just certs`)
 - Admin page: <http://localhost:8000/admin/> — log in with the admin account
   ([details](admin/README.md))
 
@@ -304,10 +308,10 @@ and `tests/` are bind-mounted, so editing a file is enough. **The MQTT handler h
 reload** and must be restarted:
 
 ```bash
-docker-compose logs -f                       # everything (make logs)
-docker-compose logs -f api                   # make logs-api
-docker-compose restart mqtt-handler          # make restart-mqtt — after every edit there
-docker-compose exec postgres psql -U beehive_user -d beehive_iot     # make db-shell
+docker-compose logs -f                       # everything
+docker-compose logs -f api
+docker-compose restart mqtt-handler          # after every edit there
+docker-compose exec postgres psql -U beehive_user -d beehive_iot
 ```
 
 **Tests** run in the container, always — `config.py` builds its `Settings` at import, so
@@ -315,7 +319,7 @@ on the host collection fails:
 
 ```bash
 docker-compose --profile test up -d postgres-test    # once per boot
-docker-compose exec api pytest                       # make test
+docker-compose exec api pytest                       # just test
 docker-compose exec api pytest -m "not integration"  # no database needed
 ```
 
@@ -326,21 +330,26 @@ test belongs.
 (config in `ruff.toml`, version pinned in `api/requirements-dev.txt`):
 
 ```bash
-docker-compose exec api ruff check .          # lint (make lint runs both checks)
+docker-compose exec api ruff check .          # lint (just lint runs both checks)
 docker-compose exec api ruff format --check . # formatting
-docker-compose exec api ruff check --fix .    # apply the safe fixes (make format)
+docker-compose exec api ruff check --fix .    # apply the safe fixes (just format)
 docker-compose exec api ruff format .         # reformat
 ```
 
 New Alembic revisions are run through Ruff as they are generated (`alembic.ini`).
 
+**The whole CI at once**, before a push: `just ci` builds both images, checks the
+production compose layer, starts `postgres-test`, then runs Ruff and the full suite in a
+one-off `api` container. The stack doesn't need to be up, and the dev database isn't
+touched.
+
 **After changing a route, a schema or the payload shape**, regenerate the committed
 contract artifacts:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi        # make openapi
-docker-compose exec api python -m scripts.export_mqtt_schema    # make mqtt-schema
-make contract                                                   # both at once
+docker-compose exec api python -m scripts.export_openapi
+docker-compose exec api python -m scripts.export_mqtt_schema
+just contract                                                   # both at once
 ```
 
 `api/openapi.json` and `mqtt_handler/mqtt-payload.schema.json` are what the umbrella
@@ -362,12 +371,12 @@ docker-compose exec -T mosquitto mosquitto_pub \
 **Backups:**
 
 ```bash
-make db-backup                                          # → backups/backup_<timestamp>.sql
-make db-restore FILE=backups/backup_20260805_120000.sql
+just db-backup                                          # → backups/backup_<timestamp>.sql
+just db-restore backups/backup_20260805_120000.sql
 ```
 
-**Stopping:** `docker-compose stop` pauses; `docker-compose down` (`make clean`) removes
-the containers and **keeps the data**; `make clean-all` runs `down -v` and **destroys
+**Stopping:** `docker-compose stop` pauses; `docker-compose down` removes
+the containers and **keeps the data**; `just clean-all` runs `down -v` and **destroys
 the database**.
 
 ### Local HTTPS
@@ -377,7 +386,7 @@ the database**.
 and trusted by your machine. It exists so the mobile app can be developed against
 `https://` without certificate warnings.
 
-`make certs` runs on the **host** (mkcert installs a local CA into your trust store) and
+`just certs` runs on the **host** (mkcert installs a local CA into your trust store) and
 writes `caddy/certs/`, which is gitignored. Without those files Caddy prints how to
 create them and exits 0, so the stack still comes up.
 
@@ -433,7 +442,7 @@ docker compose config --format json | python3 -c "import json,sys; c=json.load(s
 ## Troubleshooting
 
 **Mosquitto will not start / restarts in a loop.** Almost always the missing password
-file — it is gitignored, so a fresh clone never has one. Run `make mqtt-passwd`, then
+file — it is gitignored, so a fresh clone never has one. Run `just mqtt-passwd`, then
 `docker-compose logs mosquitto`. Same if you changed `MQTT_PASSWORD` and did not
 regenerate.
 
@@ -443,7 +452,7 @@ Alembic: stamp it once, as described in
 [`database/README.md`](database/README.md#existing-installations).
 
 **A password change had no effect.** `POSTGRES_PASSWORD` is applied **only when the data
-directory is empty**, and `postgres_data` survives `docker-compose down`, rebuilds and
+directory is empty**, and `pgdata` survives `docker-compose down`, rebuilds and
 restarts. Either `docker-compose down -v` (which **destroys every reading**) or change
 it inside PostgreSQL. Schema changes are different: they go through a migration — see
 [`database/README.md`](database/README.md#changing-the-schema).

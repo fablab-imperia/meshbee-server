@@ -2,8 +2,8 @@
 
 *[English version](README.md)*
 
-Cosa c'è nel database, e come cambia. PostgreSQL 15, in esecuzione come servizio
-`postgres`; i dati stanno nel volume `postgres_data`.
+Cosa c'è nel database, e come cambia. PostgreSQL 18, in esecuzione come servizio
+`postgres`; i dati stanno nel volume `pgdata`.
 
 Questa directory contiene solo documentazione. Lo schema è definito in Python, in
 [`meshbee_core/models.py`](../meshbee_core/models.py), con limiti e insiemi di valori in
@@ -264,7 +264,7 @@ mancanti; si trovano nella cronologia git prima del passaggio ad Alembic.
 ### Volumi nuovi
 
 `POSTGRES_PASSWORD` vale ancora **solo quando la directory dati è vuota** — PostgreSQL
-la imposta all'inizializzazione e poi ignora la variabile — e `postgres_data`
+la imposta all'inizializzazione e poi ignora la variabile — e `pgdata`
 sopravvive a `docker-compose down`, alle ricostruzioni e ai riavvii. Per ripartire da
 zero in sviluppo:
 
@@ -316,9 +316,9 @@ quando lo chiedi: sta dietro il profilo compose `seed`
 ## Sviluppo
 
 ```bash
-docker-compose exec postgres psql -U beehive_user -d beehive_iot      # oppure: make db-shell
-make db-backup                                                        # → backups/backup_<timestamp>.sql
-make db-restore FILE=backups/backup_20260805_120000.sql
+docker-compose exec postgres psql -U beehive_user -d beehive_iot
+just db-backup                                                        # → backups/backup_<timestamp>.sql
+just db-restore backups/backup_20260805_120000.sql
 ```
 
 Utili una volta dentro:

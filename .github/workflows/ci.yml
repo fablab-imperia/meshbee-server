@@ -26,7 +26,7 @@ jobs:
     # the fixtures rebuild it with `alembic upgrade head` on every run.
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_DB: beehive_test
           POSTGRES_USER: beehive_user

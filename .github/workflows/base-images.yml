@@ -42,7 +42,7 @@ jobs:
           - [ ] \`requires-python\` in \`pyproject.toml\`
           - [ ] pins without wheels for the new version (a source build fails: the slim image has no compiler)
           - [ ] \`target-version\` in \`ruff.toml\`, once ruff supports it outside preview
-          - [ ] \`make contract\`, in case a dependency bump changes the generated schemas
+          - [ ] \`just contract\`, in case a dependency bump changes the generated schemas
           - [ ] the CI line in \`tests/README.md\` and \`tests/README.it.md\`
 
           _Opened by the \`base-images\` workflow._
