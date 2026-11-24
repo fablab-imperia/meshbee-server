@@ -57,10 +57,10 @@ The broker runs with `allow_anonymous false`, so **it will not start without
 `config/passwd`**. This is the single most common cause of a failing stack.
 
 ```bash
-make mqtt-passwd     # generates config/passwd from MQTT_USER / MQTT_PASSWORD in .env
+just mqtt-passwd     # generates config/passwd from MQTT_USER / MQTT_PASSWORD in .env
 ```
 
-`make setup` does this for you on a fresh clone. **Regenerate it whenever
+`just setup` does this for you on a fresh clone. **Regenerate it whenever
 `MQTT_PASSWORD` changes in `.env`** — the file holds a hash, so it does not
 follow the variable automatically, and the handler will start failing
 authentication.

@@ -187,7 +187,7 @@ however close it is to the last one.
 
 Credentials are only sent when **both** are set; with either missing the client
 connects anonymously, which the broker refuses (`allow_anonymous false`). The password
-must match the hash in `mosquitto/config/passwd` — regenerate it with `make mqtt-passwd`
+must match the hash in `mosquitto/config/passwd` — regenerate it with `just mqtt-passwd`
 whenever you change `MQTT_PASSWORD`.
 
 ## Development
@@ -231,7 +231,7 @@ needed) and `tests/integration/test_ingest_parity.py` — see [`tests/`](../test
 - **`beehive/+/data` matches exactly one level** — see [The topic](#the-topic).
 - **`contract.py` is documentation, not validation.** Editing it changes no behaviour;
   editing `payload.py` changes no contract. A payload-shape change is both, plus
-  `make contract`.
+  `just contract`.
 - **Every node shares one credential.** A compromised node cannot be revoked
   individually, and any account that authenticates can publish to any topic (no ACLs).
   See [`mosquitto/`](../mosquitto/README.md).

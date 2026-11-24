@@ -317,8 +317,8 @@ quando lo chiedi: sta dietro il profilo compose `seed`
 
 ```bash
 docker-compose exec postgres psql -U beehive_user -d beehive_iot
-make db-backup                                                        # → backups/backup_<timestamp>.sql
-make db-restore FILE=backups/backup_20260805_120000.sql
+just db-backup                                                        # → backups/backup_<timestamp>.sql
+just db-restore backups/backup_20260805_120000.sql
 ```
 
 Utili una volta dentro:

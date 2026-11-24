@@ -11,7 +11,7 @@ https://github.com/fablab-imperia/meshbee/blob/main/docs/contract/api.md
 Run it inside the container — `api/config.py` builds `Settings` at import, so on
 the host it fails before reaching the schema:
 
-    docker-compose exec api python -m scripts.export_openapi   (or: make contract)
+    docker-compose exec api python -m scripts.export_openapi   (or: just contract)
 
 The output is sorted and indented so regenerating an unchanged API produces an
 empty diff.

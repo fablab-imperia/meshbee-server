@@ -14,7 +14,7 @@ sull'host fallisce la collection prima ancora di eseguire un test.
 
 ```bash
 docker-compose --profile test up -d postgres-test    # una volta per avvio, per il livello di integrazione
-docker-compose exec api pytest                       # tutto (= make test)
+docker-compose exec api pytest                       # tutto (= just test)
 ```
 
 I percorsi sono relativi alla root del repo, che nel container è `/app`:

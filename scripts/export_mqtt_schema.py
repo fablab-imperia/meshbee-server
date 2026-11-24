@@ -6,7 +6,7 @@ Export the MQTT payload contract to a JSON Schema file.
 contract can be published as something a machine reads — the counterpart of what
 `export_openapi.py` does for the API. This writes that artifact:
 
-    docker-compose exec api python -m scripts.export_mqtt_schema   (or: make contract)
+    docker-compose exec api python -m scripts.export_mqtt_schema   (or: just contract)
 
 The api image carries `mqtt_handler/` and compose bind-mounts it, so the output
 lands in the working tree. Unlike `export_openapi.py` nothing here builds

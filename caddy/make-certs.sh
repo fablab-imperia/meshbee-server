@@ -11,7 +11,7 @@ CERT_DIR="certs"
 
 if ! command -v mkcert >/dev/null 2>&1; then
   echo "mkcert is not installed. On macOS:  brew install mkcert" >&2
-  echo "Then re-run this script (or: make certs)." >&2
+  echo "Then re-run this script (or: just certs)." >&2
   exit 1
 fi
 
@@ -35,6 +35,6 @@ cat <<'EOF'
 ✓ certs written to caddy/certs/ (gitignored)
 
 Start (or restart) the stack, then open the HTTPS URL:
-  make start          # or: docker compose up -d
+  just start          # or: docker compose up -d
   → https://localhost:8443/docs
 EOF

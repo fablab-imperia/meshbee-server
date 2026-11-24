@@ -114,7 +114,7 @@ Porte:
 | Porta | Servizio | Note |
 |---|---|---|
 | 8000 | `api` | HTTP. `/admin/`, `/docs`, `/redoc`, `/openapi.json`. |
-| 8443 | `caddy` | HTTPS. Solo dopo `make certs`. Si cambia con `HTTPS_PORT`. |
+| 8443 | `caddy` | HTTPS. Solo dopo `just certs`. Si cambia con `HTTPS_PORT`. |
 | 1883 | `mosquitto` | MQTT. Autenticazione obbligatoria. |
 | 9001 | `mosquitto` | MQTT su WebSocket. Configurata ma non usata. |
 | 5432 | `postgres` | Esposta per `psql` e i client grafici. |
@@ -126,6 +126,10 @@ Sono le porte di sviluppo. Un'installazione di produzione ne pubblica meno; vedi
 
 Docker e Docker Compose. Opzionalmente git e
 [mkcert](https://github.com/FiloSottile/mkcert) se vuoi l'HTTPS locale.
+
+[just](https://just.systems) esegue le scorciatoie qui sotto (`brew install just`,
+`apt install just`, …); `just` da solo le elenca. Ognuna è poche righe nel `justfile`,
+quindi senza di esso puoi eseguirle a mano.
 
 ## Installazione
 
@@ -153,7 +157,7 @@ account amministratore funzionante con password vuota.
 quindi **senza questo passo Mosquitto non parte**:
 
 ```bash
-make mqtt-passwd
+just mqtt-passwd
 ```
 
 Rieseguilo ogni volta che cambi `MQTT_PASSWORD` — il file contiene un hash, quindi non
@@ -163,7 +167,7 @@ segue la variabile.
 store di sistema:
 
 ```bash
-make certs
+just certs
 ```
 
 Se lo salti, Caddy stampa un avviso ed esce con 0. Il resto dello stack, e l'HTTP su
@@ -172,12 +176,12 @@ Se lo salti, Caddy stampa un avviso ed esce con 0. Il resto dello stack, e l'HTT
 **4. Avvia.**
 
 ```bash
-docker-compose up -d       # oppure: make start
+docker-compose up -d       # oppure: just start
 docker-compose ps
 ```
 
-> **Scorciatoia:** `make setup` esegue in sequenza la copia del `.env`,
-> `make mqtt-passwd` e l'avvio. Non genera i certificati e non esegue il seed.
+> **Scorciatoia:** `just setup` esegue in sequenza la copia del `.env`,
+> `just mqtt-passwd` e l'avvio. Non genera i certificati e non esegue il seed.
 
 **5. Seed (solo al primo avvio).** Il servizio `seed` sta dietro il profilo compose
 `seed`, quindi un semplice `up` lo salta. Eseguilo una volta per creare gli account
@@ -194,7 +198,7 @@ account.
 **6. Verifica.**
 
 - HTTP: <http://localhost:8000/docs>
-- HTTPS: <https://localhost:8443/docs> (solo dopo `make certs`)
+- HTTPS: <https://localhost:8443/docs> (solo dopo `just certs`)
 - Pagina admin: <http://localhost:8000/admin/> — accedi con l'account admin
   ([dettagli](admin/README.it.md))
 
@@ -319,7 +323,7 @@ all'import, quindi sull'host fallisce già la collection:
 
 ```bash
 docker-compose --profile test up -d postgres-test    # una volta per avvio della macchina
-docker-compose exec api pytest                       # make test
+docker-compose exec api pytest                       # just test
 docker-compose exec api pytest -m "not integration"  # senza database
 ```
 
@@ -330,15 +334,15 @@ un test nuovo.
 container (configurazione in `ruff.toml`, versione fissata in `api/requirements-dev.txt`):
 
 ```bash
-docker-compose exec api ruff check .          # lint (make lint esegue entrambi i controlli)
+docker-compose exec api ruff check .          # lint (just lint esegue entrambi i controlli)
 docker-compose exec api ruff format --check . # formattazione
-docker-compose exec api ruff check --fix .    # applica le correzioni sicure (make format)
+docker-compose exec api ruff check --fix .    # applica le correzioni sicure (just format)
 docker-compose exec api ruff format .         # riformatta
 ```
 
 Le nuove revisioni Alembic passano da Ruff appena generate (`alembic.ini`).
 
-**Tutta la CI in un colpo**, prima di un push: `make ci` costruisce entrambe le immagini,
+**Tutta la CI in un colpo**, prima di un push: `just ci` costruisce entrambe le immagini,
 controlla il livello compose di produzione, avvia `postgres-test`, poi esegue Ruff e
 l'intera suite in un container `api` usa e getta. Lo stack non deve essere avviato, e il
 database di sviluppo non viene toccato.
@@ -349,7 +353,7 @@ artefatti del contratto committati:
 ```bash
 docker-compose exec api python -m scripts.export_openapi
 docker-compose exec api python -m scripts.export_mqtt_schema
-make contract                                                   # entrambi in un colpo
+just contract                                                   # entrambi in un colpo
 ```
 
 `api/openapi.json` e `mqtt_handler/mqtt-payload.schema.json` sono quelli che
@@ -373,12 +377,12 @@ docker-compose exec -T mosquitto mosquitto_pub \
 **Backup:**
 
 ```bash
-make db-backup                                          # → backups/backup_<timestamp>.sql
-make db-restore FILE=backups/backup_20260805_120000.sql
+just db-backup                                          # → backups/backup_<timestamp>.sql
+just db-restore backups/backup_20260805_120000.sql
 ```
 
 **Spegnere:** `docker-compose stop` mette in pausa; `docker-compose down`
-rimuove i container e **mantiene i dati**; `make clean-all` esegue
+rimuove i container e **mantiene i dati**; `just clean-all` esegue
 `down -v` e **distrugge il database**.
 
 ### HTTPS locale
@@ -389,7 +393,7 @@ In `caddy/` c'è un reverse proxy Caddy che termina il TLS su `:8443` e inoltra 
 macchina. Serve a sviluppare l'app mobile contro `https://` senza avvisi sul
 certificato.
 
-`make certs` gira sull'**host** (mkcert installa una CA locale nel trust store) e scrive
+`just certs` gira sull'**host** (mkcert installa una CA locale nel trust store) e scrive
 in `caddy/certs/`, che è gitignorato. Senza quei file Caddy stampa come crearli ed esce
 con 0, così lo stack parte lo stesso.
 
@@ -446,7 +450,7 @@ docker compose config --format json | python3 -c "import json,sys; c=json.load(s
 ## Troubleshooting
 
 **Mosquitto non parte / si riavvia in loop.** Quasi sempre manca il file password — è
-gitignorato, quindi un clone nuovo non ce l'ha mai. Esegui `make mqtt-passwd`, poi
+gitignorato, quindi un clone nuovo non ce l'ha mai. Esegui `just mqtt-passwd`, poi
 `docker-compose logs mosquitto`. Stessa cosa se hai cambiato `MQTT_PASSWORD` senza
 rigenerarlo.
 

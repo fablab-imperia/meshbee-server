@@ -193,7 +193,7 @@ non viene toccato. `0` la disattiva. Per cambiarla, imposta `DEDUP_WINDOW_SECOND
 Le credenziali vengono inviate solo se ci sono **entrambe**; se ne manca una il client
 si connette in anonimo, cosa che il broker rifiuta (`allow_anonymous false`). La
 password deve corrispondere all'hash in `mosquitto/config/passwd` — rigeneralo con
-`make mqtt-passwd` ogni volta che cambi `MQTT_PASSWORD`.
+`just mqtt-passwd` ogni volta che cambi `MQTT_PASSWORD`.
 
 ## Sviluppo
 
@@ -238,7 +238,7 @@ broker) e in `tests/integration/test_ingest_parity.py` — vedi
 - **`beehive/+/data` copre esattamente un livello** — vedi [Il topic](#il-topic).
 - **`contract.py` è documentazione, non validazione.** Modificarlo non cambia nessun
   comportamento; modificare `payload.py` non cambia nessun contratto. Cambiare la forma
-  del payload è entrambe le cose, più `make contract`.
+  del payload è entrambe le cose, più `just contract`.
 - **Tutti i nodi condividono una sola credenziale.** Un nodo compromesso non si può
   revocare singolarmente, e qualsiasi account autenticato può pubblicare su qualsiasi
   topic (nessuna ACL). Vedi [`mosquitto/`](../mosquitto/README.it.md).

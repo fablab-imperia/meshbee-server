@@ -48,7 +48,7 @@ def test_the_committed_schema_is_what_the_model_generates():
     """
     assert COMMITTED.read_text(encoding="utf-8") == render(), (
         "mqtt_handler/mqtt-payload.schema.json is stale — regenerate it with "
-        "`make contract` (docker-compose exec api python -m scripts.export_mqtt_schema)."
+        "`just contract` (docker-compose exec api python -m scripts.export_mqtt_schema)."
     )
 
 

@@ -51,7 +51,7 @@ un URL dell'API.
   modifica si vede alla richiesta successiva. Nessun riavvio, e `--reload` non c'entra.
 - `api/Dockerfile` copia `admin/` nell'immagine, accanto ad `api/`.
 - Senza il proxy Caddy la pagina è su <http://localhost:8000/admin/>. Con
-  [`make certs`](../README.it.md#https-locale) è anche su <https://localhost:8443/admin/>.
+  [`just certs`](../README.it.md#https-locale) è anche su <https://localhost:8443/admin/>.
 
 Questa directory contiene anche **`reset-password.html`** e **`reset-password.js`**, la
 pagina pubblica a cui porta l'email di reset della password (#54). L'API la serve su

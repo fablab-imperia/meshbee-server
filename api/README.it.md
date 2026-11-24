@@ -467,7 +467,7 @@ dimenticato o sbagliato.
 
 ## Trappole
 
-- **Una rotta nuova richiede tre cose dopo**: `make contract`, una riga nelle tabelle qui
+- **Una rotta nuova richiede tre cose dopo**: `just contract`, una riga nelle tabelle qui
   sopra e una riga in `test_main_authz.py`. Nessuna delle tre succede da sola.
 - **L'immagine non contiene solo l'API.** Porta anche `admin/` (servita su `/admin/`),
   `mqtt_handler/`, `scripts/` e `tests/` più `paho-mqtt`, così l'intera suite — entrambi gli entry point compresi —

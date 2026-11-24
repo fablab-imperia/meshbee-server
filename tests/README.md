@@ -14,7 +14,7 @@ the host collection fails before a single test runs.
 
 ```bash
 docker-compose --profile test up -d postgres-test    # once per boot, for the integration tier
-docker-compose exec api pytest                       # everything (= make test)
+docker-compose exec api pytest                       # everything (= just test)
 ```
 
 Paths are relative to the repo root, which is `/app` in the container:

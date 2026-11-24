@@ -457,7 +457,7 @@ access level against its minimum. It is what catches a missing or wrong gate.
 
 ## Gotchas
 
-- **A new route needs three follow-ups**: `make contract`, a row in the tables above,
+- **A new route needs three follow-ups**: `just contract`, a row in the tables above,
   and a row in `test_main_authz.py`. None of them happen on their own.
 - **The image is not API-only.** It also carries `admin/` (served at `/admin/`),
   `mqtt_handler/`, `scripts/` and `tests/` plus `paho-mqtt`, so the whole suite — both entry points included — runs in
