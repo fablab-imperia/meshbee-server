@@ -37,7 +37,7 @@ class Settings(CoreSettings):
     # API
     API_TITLE: str = "Meshbee API"
     # Bumped by release-please (release-please-config.json); don't edit by hand.
-    API_VERSION: str = "2.1.0"  # x-release-please-version
+    API_VERSION: str = "2.1.1"  # x-release-please-version
     API_DESCRIPTION: str = "Meshbee API - Open beehive telemetry server API"
 
     # CORS — from the environment, pass a JSON list: CORS_ORIGINS=["https://example.org"]
