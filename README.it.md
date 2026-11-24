@@ -160,8 +160,9 @@ quindi **senza questo passo Mosquitto non parte**:
 just mqtt-passwd
 ```
 
-Rieseguilo ogni volta che cambi `MQTT_PASSWORD` — il file contiene un hash, quindi non
-segue la variabile.
+Rieseguilo come `just mqtt-passwd --force` ogni volta che cambi `MQTT_PASSWORD`: il
+file contiene un hash, quindi non segue la variabile. Senza `--force` si rifiuta di
+sostituire un file esistente.
 
 **3. (Opzionale) Abilita l'HTTPS.** Richiede mkcert; gira sull'host e tocca il trust
 store di sistema:
@@ -181,7 +182,7 @@ docker-compose ps
 ```
 
 > **Scorciatoia:** `just setup` esegue in sequenza la copia del `.env`,
-> `just mqtt-passwd` e l'avvio. Non genera i certificati e non esegue il seed.
+> `just mqtt-passwd` (solo se `passwd` non esiste ancora) e l'avvio. Non genera i certificati e non esegue il seed.
 
 **5. Seed (solo al primo avvio).** Il servizio `seed` sta dietro il profilo compose
 `seed`, quindi un semplice `up` lo salta. Eseguilo una volta per creare gli account
@@ -544,7 +545,9 @@ docker compose config --format json | python3 -c "import json,sys; c=json.load(s
 **Mosquitto non parte / si riavvia in loop.** Quasi sempre manca il file password — è
 gitignorato, quindi un clone nuovo non ce l'ha mai. Esegui `just mqtt-passwd`, poi
 `docker-compose logs mosquitto`. Stessa cosa se hai cambiato `MQTT_PASSWORD` senza
-rigenerarlo.
+rigenerarlo con `just mqtt-passwd --force` (`docker-compose ps` lo mostra allora `unhealthy`). Su un server Linux,
+`Unable to open pwfile` significa che `passwd` non appartiene all'uid 1883: vedi
+[`mosquitto/`](mosquitto/README.it.md#setup).
 
 **`api` e `mqtt-handler` non partono mai; `meshbee-migrate` è uscito con 1.** Leggi
 `docker-compose logs migrate`. "no alembic_version" indica un database creato prima di

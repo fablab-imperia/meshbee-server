@@ -187,7 +187,7 @@ however close it is to the last one.
 
 Credentials are only sent when **both** are set; with either missing the client
 connects anonymously, which the broker refuses (`allow_anonymous false`). The password
-must match the hash in `mosquitto/config/passwd` — regenerate it with `just mqtt-passwd`
+must match the hash in `mosquitto/config/passwd` — regenerate it with `just mqtt-passwd --force`
 whenever you change `MQTT_PASSWORD`.
 
 ## Development

@@ -193,7 +193,7 @@ non viene toccato. `0` la disattiva. Per cambiarla, imposta `DEDUP_WINDOW_SECOND
 Le credenziali vengono inviate solo se ci sono **entrambe**; se ne manca una il client
 si connette in anonimo, cosa che il broker rifiuta (`allow_anonymous false`). La
 password deve corrispondere all'hash in `mosquitto/config/passwd` — rigeneralo con
-`just mqtt-passwd` ogni volta che cambi `MQTT_PASSWORD`.
+`just mqtt-passwd --force` ogni volta che cambi `MQTT_PASSWORD`.
 
 ## Sviluppo
 

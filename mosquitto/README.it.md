@@ -3,7 +3,7 @@
 *[English version](README.md)*
 
 Questa directory è la **directory di stato del broker Mosquitto**, montata
-direttamente dentro il container `eclipse-mosquitto:2.0`. Non contiene codice
+direttamente dentro il container `eclipse-mosquitto:2.1-alpine`. Non contiene codice
 applicativo: il broker è un'immagine pronta all'uso, e qui c'è soltanto la sua
 configurazione e i suoi dati di runtime.
 
@@ -12,7 +12,7 @@ configurazione e i suoi dati di runtime.
 | Percorso | Cos'è | In git |
 |---|---|---|
 | `config/mosquitto.conf` | Configurazione del broker. L'unico file sorgente qui. | **versionato** |
-| `config/passwd` | Credenziali del broker, con hash bcrypt generato da `mosquitto_passwd`. | ignorato — è un segreto |
+| `config/passwd` | Credenziali del broker, con hash (sha512-pbkdf2) generato da `mosquitto_passwd`. Di proprietà dell'uid 1883. | ignorato — è un segreto |
 | `data/mosquitto.db` | Persistenza: messaggi retained e code QoS 1/2 per i subscriber offline. | ignorato — stato di runtime |
 
 `docker-compose.yml` monta i primi due:
@@ -60,13 +60,28 @@ Il broker gira con `allow_anonymous false`, quindi **non parte senza
 avvia.
 
 ```bash
-just mqtt-passwd     # genera config/passwd da MQTT_USER / MQTT_PASSWORD in .env
+just mqtt-passwd           # genera config/passwd da MQTT_USER / MQTT_PASSWORD in .env
+just mqtt-passwd --force   # sostituisce quello esistente
 ```
 
-`just setup` lo fa già su un clone nuovo. **Va rigenerato ogni volta che
-`MQTT_PASSWORD` cambia** in `.env`: il file contiene un hash, quindi non segue
-automaticamente la variabile, e l'handler comincerebbe a fallire
-l'autenticazione.
+`just setup` lo fa già su un clone nuovo. **Va rigenerato con `--force` ogni
+volta che `MQTT_PASSWORD` cambia** in `.env`: il file contiene un hash, quindi
+non segue automaticamente la variabile, e l'handler comincerebbe a fallire
+l'autenticazione. Senza `--force` la ricetta si rifiuta di toccare un file
+esistente: quello nuovo contiene solo `MQTT_USER`, quindi ogni altro account
+andrebbe perso.
+
+Il controllo della password è il **plugin password-file** di Mosquitto
+(`global_plugin` + `plugin_opt_password_file` in `mosquitto.conf`), che
+sostituisce l'opzione `password_file`, deprecata nella 2.1. Il file è lo stesso
+che `mosquitto_passwd` ha sempre scritto.
+
+**Su Linux il file deve appartenere all'uid 1883.** Dalla 2.1 il broker lo legge
+dopo essere passato al suo utente `mosquitto`, quindi un file `0600` di root
+ferma il broker con `Unable to open pwfile`. `just mqtt-passwd` imposta il
+proprietario. Per un file creato in altro modo:
+`sudo chown 1883:1883 mosquitto/config/passwd`. (I bind mount di macOS ignorano
+il proprietario, quindi in sviluppo il problema non si vede mai.)
 
 ## Sviluppo
 
@@ -126,6 +141,16 @@ docker-compose logs --tail=20 mosquitto
   e viene ignorato in silenzio. Vedi `MQTT_TOPIC` in `mqtt_handler/config.py`.
 - **Le credenziali sono condivise.** Tutti i nodi usano lo stesso `MQTT_USER`,
   quindi un nodo compromesso non può essere revocato singolarmente.
+- **Il tag dell'immagine è `2.1-alpine`.** La 2.1 non ha un tag semplice, quindi
+  Dependabot segue solo la linea `-alpine`. Il tag compare solo in
+  `docker-compose.yml`: `just mqtt-passwd` e la CI usano il servizio compose.
+- **`unhealthy` è reale.** L'healthcheck legge un messaggio `$SYS` con
+  `MQTT_USER`/`MQTT_PASSWORD`, quindi `docker-compose ps` mostra `unhealthy` se il
+  broker è giù *oppure* se `passwd` non corrisponde più a `.env`.
+- **`mosquitto_passwd -c` non sovrascrive più** un file esistente nella 2.1; la
+  ricetta lo cancella prima.
+- **Anche `acl_file` è deprecato.** Se arriveranno le ACL (#38), usare il plugin
+  acl-file o la dynamic security.
 
 ## Collegamenti
 
