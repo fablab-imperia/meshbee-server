@@ -322,7 +322,7 @@ right away, rather than leaving it running without the reports it was asked to s
 
 **What is reported:**
 
-- a 500 from the API;
+- a 500 from the API, and a 503 when the API cannot reach its database;
 - a reading the MQTT handler could not save;
 - a crash of the handler's loop;
 - a failed migration or seed;

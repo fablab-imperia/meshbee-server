@@ -39,7 +39,12 @@ def database_unavailable_error(exc: Exception) -> HTTPException:
     A connection problem must not be reported as wrong credentials or a missing
     permission: clients would log the user out and retry the login, hammering the
     database exactly when it is already struggling.
+
+    Reported as an error (#56): a 503 here is an outage, not normal traffic, and
+    every authenticated request passes through here first, so nothing else in
+    the API would report it.
     """
+    reporting.report_exception(exc)
     logger.error(f"Database non raggiungibile: {exc}")
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

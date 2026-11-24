@@ -328,7 +328,7 @@ sono state chieste.
 
 **Cosa viene segnalato:**
 
-- un 500 dell'API;
+- un 500 dell'API, e un 503 quando l'API non raggiunge il suo database;
 - una lettura che l'handler MQTT non è riuscito a salvare;
 - un crash del ciclo dell'handler;
 - una migrazione o un seed falliti;
