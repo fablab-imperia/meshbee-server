@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.2.0](https://github.com/fablab-imperia/meshbee-server/compare/2.1.1...2.2.0) (2026-11-24)
+
+
+### Features
+
+* **admin:** view, upload and remove a hive's photo ([#3](https://github.com/fablab-imperia/meshbee-server/issues/3)) ([#94](https://github.com/fablab-imperia/meshbee-server/issues/94)) ([733e972](https://github.com/fablab-imperia/meshbee-server/commit/733e972349885d18a63f2541f190b1181e9e1f5b))
+* **api:** hive photo upload, stored on a local volume ([#3](https://github.com/fablab-imperia/meshbee-server/issues/3)) ([#94](https://github.com/fablab-imperia/meshbee-server/issues/94)) ([733e972](https://github.com/fablab-imperia/meshbee-server/commit/733e972349885d18a63f2541f190b1181e9e1f5b))
+* **core:** pluggable error reporting, with a Rollbar backend ([#56](https://github.com/fablab-imperia/meshbee-server/issues/56)) ([#89](https://github.com/fablab-imperia/meshbee-server/issues/89)) ([d568ea7](https://github.com/fablab-imperia/meshbee-server/commit/d568ea760824c334a849676304a944bd365ddddd))
+* **mqtt:** upgrade Mosquitto to 2.1-alpine, password-file plugin, real healthcheck ([#46](https://github.com/fablab-imperia/meshbee-server/issues/46)) ([#93](https://github.com/fablab-imperia/meshbee-server/issues/93)) ([a6afb3a](https://github.com/fablab-imperia/meshbee-server/commit/a6afb3a6c9537cbd042d12fa06229124f1418655))
+
+
+### Bug Fixes
+
+* **compose:** migrate and seed run the api image instead of a stale copy of their own ([#89](https://github.com/fablab-imperia/meshbee-server/issues/89)) ([d568ea7](https://github.com/fablab-imperia/meshbee-server/commit/d568ea760824c334a849676304a944bd365ddddd))
+* **just:** mqtt-passwd keeps an existing passwd unless --force ([#46](https://github.com/fablab-imperia/meshbee-server/issues/46)) ([#93](https://github.com/fablab-imperia/meshbee-server/issues/93)) ([a6afb3a](https://github.com/fablab-imperia/meshbee-server/commit/a6afb3a6c9537cbd042d12fa06229124f1418655))
+* **security:** replace python-jose with PyJWT ([#92](https://github.com/fablab-imperia/meshbee-server/issues/92)) ([748c000](https://github.com/fablab-imperia/meshbee-server/commit/748c000c70a5452e7b383bc023db5a7a121dc10a))
+
 ## [2.1.1](https://github.com/fablab-imperia/meshbee-server/compare/2.1.0...2.1.1) (2026-11-24)
 
 
