@@ -426,8 +426,7 @@ le regole pensate solo per il codice di produzione (`ruff.toml`).
 
 **Vulnerabilità note nelle dipendenze:** `just audit` esegue
 [pip-audit](https://pypi.org/project/pip-audit/) nell'immagine dell'api, che contiene
-tutte le dipendenze. Gli avvisi che ignora, e perché, sono in
-`.github/scripts/pip_audit.sh`.
+tutte le dipendenze.
 
 **Tutta la CI in un colpo**, prima di un push: `just ci` costruisce entrambe le immagini,
 controlla il livello compose di produzione, avvia `postgres-test`, poi esegue Ruff,
@@ -623,8 +622,9 @@ Ogni pull request esegue cinque controlli, che devono passare tutti prima del me
 - **`ci / lint`**: `ruff check` e `ruff format --check` non segnalano nulla.
 - **`ci / audit`**: pip-audit non trova vulnerabilità note nelle dipendenze fissate.
   Un nuovo avviso può far fallire una PR che non ha cambiato nulla: aggiorna il
-  pacchetto indicato oppure, se non c'è una correzione e non ci riguarda, ignoralo in
-  `.github/scripts/pip_audit.sh` con il motivo.
+  pacchetto indicato. Se non c'è una correzione e non ci riguarda, aggiungi
+  `--ignore-vuln <ID>` alla chiamata di pip-audit sia in `.github/workflows/ci.yml` sia
+  nel `justfile`, con il motivo.
 - **`ci / images`**: entrambe le immagini Docker si costruiscono ancora.
 - **`pr-title`**: il titolo della PR è un Conventional Commit, perché diventa il
   commit squashato che release-please legge.

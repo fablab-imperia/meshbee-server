@@ -49,7 +49,10 @@ def anyio_backend():
 # The only settings without a default: every instance needs them. CoreSettings
 # requires just the database password; the API adds the JWT signing key.
 CORE_REQUIRED_ENV = {"DB_PASSWORD": "test-db-password"}
-REQUIRED_ENV = {**CORE_REQUIRED_ENV, "JWT_SECRET_KEY": "test-jwt-secret"}
+REQUIRED_ENV = {
+    **CORE_REQUIRED_ENV,
+    "JWT_SECRET_KEY": "test-jwt-secret-at-least-32-bytes-long",
+}
 
 
 @pytest.fixture(autouse=True)

@@ -11,9 +11,9 @@ import logging
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
@@ -114,7 +114,7 @@ def decode_token(token: str) -> dict:
         Payload del token
 
     Raises:
-        JWTError: Se il token non è valido
+        jwt.InvalidTokenError: Se il token non è valido
     """
     try:
         payload = jwt.decode(
@@ -123,7 +123,7 @@ def decode_token(token: str) -> dict:
             algorithms=[settings.JWT_ALGORITHM],
         )
         return payload
-    except JWTError as e:
+    except jwt.InvalidTokenError as e:
         logger.warning(f"Errore decodifica token: {e}")
         raise
 
@@ -132,7 +132,7 @@ def is_refresh_token(token: str) -> bool:
     """Whether a token is a well-signed, unexpired refresh token."""
     try:
         return decode_token(token).get("type") == "refresh"
-    except JWTError:
+    except jwt.InvalidTokenError:
         return False
 
 
@@ -214,7 +214,7 @@ def get_current_user(
 
         token_data = TokenData(email=email)
 
-    except JWTError as e:
+    except jwt.InvalidTokenError as e:
         raise credentials_exception from e
 
     # Recupera utente dal database

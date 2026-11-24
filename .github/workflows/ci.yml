@@ -43,7 +43,8 @@ jobs:
       # api/config.py builds Settings at import; these are the two fields with no
       # default. Dummy values — the tests never reach a real database or token.
       DB_PASSWORD: ci-not-a-secret
-      JWT_SECRET_KEY: ci-not-a-secret
+      # At least 32 bytes: PyJWT warns about a shorter HS256 key (RFC 7518).
+      JWT_SECRET_KEY: ci-not-a-secret-but-32-bytes-long
       # CI never reports errors anywhere (tests/conftest.py forces it off too).
       ERROR_REPORTING_ENABLED: "false"
     steps:
@@ -109,9 +110,9 @@ jobs:
           pip install -r api/requirements.txt -r api/requirements-dev.txt \
                       -r mqtt_handler/requirements.txt
           pip install -e .
-      # The ignored advisories, and why, are in the script.
+      # --skip-editable: meshbee-core is this repository, not a PyPI package.
       - name: Audit dependencies
-        run: sh .github/scripts/pip_audit.sh
+        run: pip-audit --skip-editable
 
   images:
     runs-on: ubuntu-latest

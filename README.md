@@ -417,7 +417,7 @@ fit production code (`ruff.toml`).
 
 **Known vulnerabilities in the dependencies:** `just audit` runs
 [pip-audit](https://pypi.org/project/pip-audit/) in the api image, which carries every
-dependency. The advisories it ignores, and why, are in `.github/scripts/pip_audit.sh`.
+dependency.
 
 **The whole CI at once**, before a push: `just ci` builds both images, checks the
 production compose layer, starts `postgres-test`, then runs Ruff, the full suite and
@@ -602,9 +602,9 @@ Every pull request runs five checks, all of which should pass before merging:
   `api/openapi.json` and `mqtt_handler/mqtt-payload.schema.json` match the code.
 - **`ci / lint`**: `ruff check` and `ruff format --check` are clean.
 - **`ci / audit`**: pip-audit finds no known vulnerability in the pinned dependencies.
-  A new advisory can fail a PR that changed nothing: bump the package it names, or,
-  if there is no fix and it doesn't apply, ignore it in `.github/scripts/pip_audit.sh`
-  with the reason.
+  A new advisory can fail a PR that changed nothing: bump the package it names. If
+  there is no fix and it doesn't apply, add `--ignore-vuln <ID>` to the pip-audit call
+  in both `.github/workflows/ci.yml` and the `justfile`, with the reason.
 - **`ci / images`**: both Docker images still build.
 - **`pr-title`**: the PR title is a Conventional Commit, since it becomes the
   squashed commit release-please reads.
