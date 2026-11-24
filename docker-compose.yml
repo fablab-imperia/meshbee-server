@@ -1,7 +1,7 @@
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     container_name: meshbee-postgres
     restart: unless-stopped
     environment:
@@ -9,7 +9,10 @@ services:
       POSTGRES_USER: beehive_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # From 18 the image keeps its data in a per-version subdirectory
+      # (PGDATA=/var/lib/postgresql/18/docker) and refuses to start with a
+      # mount at the old /var/lib/postgresql/data.
+      - pgdata:/var/lib/postgresql
       # No init script: the schema comes from the `migrate` service below.
     ports:
       - "5432:5432"
@@ -27,7 +30,7 @@ services:
   # (alembic upgrade head) a ogni esecuzione della suite, quindi il DB è sempre pulito.
   #   docker-compose --profile test up -d postgres-test
   postgres-test:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     container_name: meshbee-postgres-test
     profiles: ["test"]
     environment:
@@ -35,7 +38,7 @@ services:
       POSTGRES_USER: beehive_user
       POSTGRES_PASSWORD: test
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     networks:
       - beehive-network
     healthcheck:
@@ -273,5 +276,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  pgdata:
     driver: local

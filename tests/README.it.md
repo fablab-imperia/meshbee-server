@@ -42,7 +42,7 @@ montata in bind.
 
 **La CI esegue la stessa suite** a ogni pull request e a ogni push su `main`
 (`.github/workflows/ci.yml`), fuori da Docker: Python 3.15 sul runner, un servizio
-`postgres:15-alpine` usa e getta al posto di `postgres-test`, e
+`postgres:18-alpine` usa e getta al posto di `postgres-test`, e
 `TEST_DB_HOST=localhost` / `TEST_DB_SCHEMA=database/init.sql` che vi indirizzano le
 fixture. Quindi un test non può dipendere da nulla che solo il container `api`
 fornisce — un percorso sotto `/app`, o una variabile d'ambiente impostata da compose.

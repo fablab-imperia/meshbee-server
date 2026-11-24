@@ -443,7 +443,7 @@ Alembic: stamp it once, as described in
 [`database/README.md`](database/README.md#existing-installations).
 
 **A password change had no effect.** `POSTGRES_PASSWORD` is applied **only when the data
-directory is empty**, and `postgres_data` survives `docker-compose down`, rebuilds and
+directory is empty**, and `pgdata` survives `docker-compose down`, rebuilds and
 restarts. Either `docker-compose down -v` (which **destroys every reading**) or change
 it inside PostgreSQL. Schema changes are different: they go through a migration — see
 [`database/README.md`](database/README.md#changing-the-schema).

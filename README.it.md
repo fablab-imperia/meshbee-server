@@ -451,7 +451,7 @@ Alembic: marcalo una volta, come descritto in
 [`database/README.it.md`](database/README.it.md#installazioni-esistenti).
 
 **Una modifica alla password non ha avuto effetto.** `POSTGRES_PASSWORD` viene applicata
-**solo quando la directory dati è vuota**, e `postgres_data` sopravvive a
+**solo quando la directory dati è vuota**, e `pgdata` sopravvive a
 `docker-compose down`, alle ricostruzioni e ai riavvii. O `docker-compose down -v` (che
 **distrugge tutte le letture**) oppure cambiala dentro PostgreSQL. Le modifiche allo
 schema sono un'altra cosa: passano da una migrazione — vedi

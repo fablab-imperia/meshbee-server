@@ -2,8 +2,8 @@
 
 *[Versione italiana](README.it.md)*
 
-What is in the database, and how it changes. PostgreSQL 15, running as the
-`postgres` service; the data lives in the named volume `postgres_data`.
+What is in the database, and how it changes. PostgreSQL 18, running as the
+`postgres` service; the data lives in the named volume `pgdata`.
 
 This directory holds documentation only. The schema is defined in Python, in
 [`meshbee_core/models.py`](../meshbee_core/models.py), with its bounds and value sets in
@@ -260,7 +260,7 @@ they are in git history before the switch to Alembic.
 ### Fresh volumes
 
 `POSTGRES_PASSWORD` still applies **only when the data directory is empty** —
-PostgreSQL sets it at init and ignores the variable afterwards — and `postgres_data`
+PostgreSQL sets it at init and ignores the variable afterwards — and `pgdata`
 survives `docker-compose down`, rebuilds and restarts. To start over in development:
 
 ```bash
