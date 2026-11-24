@@ -72,14 +72,18 @@ format:
 # What .github/workflows/ci.yml runs, locally. One-off containers (`run --rm
 # --no-deps`), so the stack doesn't have to be up and the dev database isn't touched.
 
-# Run the whole CI locally: image builds, compose check, ruff, tests
+# Run the whole CI locally: image builds, compose check, ruff, tests, pip-audit
 ci:
     {{ compose }} build api mqtt-handler
     MESHBEE_DOMAIN=ci.example.org ACME_EMAIL=ci@example.org \
         {{ compose }} -f docker-compose.yml -f docker-compose.prod.yml config -q
     {{ compose }} --profile test up -d --wait postgres-test
-    {{ compose }} run --rm --no-deps api sh -c \
-        'ruff check . && ruff format --check . && pytest'
+    {{ compose }} run --rm --no-deps -v ./.github:/app/.github:ro api sh -c \
+        'ruff check . && ruff format --check . && pytest && sh .github/scripts/pip_audit.sh'
+
+# Check the installed dependencies for known vulnerabilities (needs network)
+audit:
+    {{ compose }} run --rm --no-deps -v ./.github:/app/.github:ro api sh .github/scripts/pip_audit.sh
 
 # Regenerate api/openapi.json and the MQTT payload schema (api container up)
 contract:

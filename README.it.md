@@ -419,9 +419,19 @@ docker-compose exec api ruff format .         # riformatta
 
 Le nuove revisioni Alembic passano da Ruff appena generate (`alembic.ini`).
 
+Ruff esegue anche le sue **regole di sicurezza** (`S`, da bandit), il controllo locale
+più vicino al security rating di SonarQube Cloud. Una segnalazione innocua riceve un
+`# noqa: Sxxx` sulla riga, con il motivo; i test e le revisioni delle migrazioni saltano
+le regole pensate solo per il codice di produzione (`ruff.toml`).
+
+**Vulnerabilità note nelle dipendenze:** `just audit` esegue
+[pip-audit](https://pypi.org/project/pip-audit/) nell'immagine dell'api, che contiene
+tutte le dipendenze. Gli avvisi che ignora, e perché, sono in
+`.github/scripts/pip_audit.sh`.
+
 **Tutta la CI in un colpo**, prima di un push: `just ci` costruisce entrambe le immagini,
-controlla il livello compose di produzione, avvia `postgres-test`, poi esegue Ruff e
-l'intera suite in un container `api` usa e getta. Lo stack non deve essere avviato, e il
+controlla il livello compose di produzione, avvia `postgres-test`, poi esegue Ruff,
+l'intera suite e pip-audit in un container `api` usa e getta. Lo stack non deve essere avviato, e il
 database di sviluppo non viene toccato.
 
 **Dopo aver cambiato una rotta, uno schema o la forma del payload**, rigenera gli
@@ -604,13 +614,17 @@ PR crea il tag (`1.3.0`, senza `v`) e la release su GitHub. Quindi:
   un Conventional Commit resta fuori dal changelog.
 - **Per scegliere tu la versione**, metti `Release-As: 2.0.0` nel corpo di un commit.
 
-Ogni pull request esegue quattro controlli, che devono passare tutti prima del merge:
+Ogni pull request esegue cinque controlli, che devono passare tutti prima del merge:
 
 - **`ci / test`**: l'intera suite di test su un PostgreSQL usa e getta
   ([dettagli](tests/README.it.md#esecuzione)). Comprende i controlli che
   `api/openapi.json` e `mqtt_handler/mqtt-payload.schema.json` committati
   corrispondano al codice.
 - **`ci / lint`**: `ruff check` e `ruff format --check` non segnalano nulla.
+- **`ci / audit`**: pip-audit non trova vulnerabilità note nelle dipendenze fissate.
+  Un nuovo avviso può far fallire una PR che non ha cambiato nulla: aggiorna il
+  pacchetto indicato oppure, se non c'è una correzione e non ci riguarda, ignoralo in
+  `.github/scripts/pip_audit.sh` con il motivo.
 - **`ci / images`**: entrambe le immagini Docker si costruiscono ancora.
 - **`pr-title`**: il titolo della PR è un Conventional Commit, perché diventa il
   commit squashato che release-please legge.

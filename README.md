@@ -410,9 +410,18 @@ docker-compose exec api ruff format .         # reformat
 
 New Alembic revisions are run through Ruff as they are generated (`alembic.ini`).
 
+Ruff also runs its **security rules** (`S`, from bandit), the nearest local check to
+the SonarQube Cloud security rating. A finding that is safe gets an inline
+`# noqa: Sxxx` with the reason; tests and migration revisions skip the rules that only
+fit production code (`ruff.toml`).
+
+**Known vulnerabilities in the dependencies:** `just audit` runs
+[pip-audit](https://pypi.org/project/pip-audit/) in the api image, which carries every
+dependency. The advisories it ignores, and why, are in `.github/scripts/pip_audit.sh`.
+
 **The whole CI at once**, before a push: `just ci` builds both images, checks the
-production compose layer, starts `postgres-test`, then runs Ruff and the full suite in a
-one-off `api` container. The stack doesn't need to be up, and the dev database isn't
+production compose layer, starts `postgres-test`, then runs Ruff, the full suite and
+pip-audit in a one-off `api` container. The stack doesn't need to be up, and the dev database isn't
 touched.
 
 **After changing a route, a schema or the payload shape**, regenerate the committed
@@ -586,12 +595,16 @@ in `pyproject.toml` and a new entry in `CHANGELOG.md`. Merging that PR creates t
   left out of the changelog.
 - **To pick a version yourself**, put `Release-As: 2.0.0` in the body of a commit.
 
-Every pull request runs four checks, all of which should pass before merging:
+Every pull request runs five checks, all of which should pass before merging:
 
 - **`ci / test`**: the whole test suite against a throwaway PostgreSQL
   ([details](tests/README.md#running)). It includes the checks that the committed
   `api/openapi.json` and `mqtt_handler/mqtt-payload.schema.json` match the code.
 - **`ci / lint`**: `ruff check` and `ruff format --check` are clean.
+- **`ci / audit`**: pip-audit finds no known vulnerability in the pinned dependencies.
+  A new advisory can fail a PR that changed nothing: bump the package it names, or,
+  if there is no fix and it doesn't apply, ignore it in `.github/scripts/pip_audit.sh`
+  with the reason.
 - **`ci / images`**: both Docker images still build.
 - **`pr-title`**: the PR title is a Conventional Commit, since it becomes the
   squashed commit release-please reads.
