@@ -72,9 +72,9 @@ services:
   # Every service that touches the database waits for it to exit 0, so none of
   # them ever sees a half-built schema. Re-running it at head is a no-op.
   migrate:
-    build:
-      context: .
-      dockerfile: api/Dockerfile
+    # The api image (see `api` below): one build serves api, migrate and seed.
+    image: ${COMPOSE_PROJECT_NAME}-api
+    pull_policy: never
     container_name: meshbee-migrate
     restart: "no"
     depends_on:
@@ -86,6 +86,11 @@ services:
       DB_NAME: beehive_iot
       DB_USER: beehive_user
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Error reporting (#56), off unless ERROR_REPORTING_ENABLED=true in .env.
+      ERROR_REPORTING_ENABLED: ${ERROR_REPORTING_ENABLED:-false}
+      ERROR_REPORTER: ${ERROR_REPORTER:-}
+      ERROR_REPORTER_ENVIRONMENT: ${ERROR_REPORTER_ENVIRONMENT:-development}
+      ROLLBAR_ACCESS_TOKEN: ${ROLLBAR_ACCESS_TOKEN:-}
     networks:
       - beehive-network
     volumes:
@@ -96,9 +101,9 @@ services:
 
   # Seed: crea utenti con hash bcrypt reali (gira una sola volta)
   seed:
-    build:
-      context: .
-      dockerfile: api/Dockerfile
+    # The api image, like migrate.
+    image: ${COMPOSE_PROJECT_NAME}-api
+    pull_policy: never
     container_name: meshbee-seed
     profiles: ["seed"]
     restart: "no"
@@ -113,6 +118,11 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       USER_PASSWORD: ${USER_PASSWORD}
+      # Error reporting (#56), off unless ERROR_REPORTING_ENABLED=true in .env.
+      ERROR_REPORTING_ENABLED: ${ERROR_REPORTING_ENABLED:-false}
+      ERROR_REPORTER: ${ERROR_REPORTER:-}
+      ERROR_REPORTER_ENVIRONMENT: ${ERROR_REPORTER_ENVIRONMENT:-development}
+      ROLLBAR_ACCESS_TOKEN: ${ROLLBAR_ACCESS_TOKEN:-}
       # No JWT_SECRET_KEY: the seed reads SeedSettings, which extends
       # CoreSettings (database only) and knows nothing about tokens.
     networks:
@@ -127,6 +137,8 @@ services:
     build:
       context: .
       dockerfile: mqtt_handler/Dockerfile
+    # Rebuilt (from cache when nothing changed) on every `up`, like api.
+    pull_policy: build
     container_name: meshbee-mqtt-handler
     restart: unless-stopped
     depends_on:
@@ -146,6 +158,11 @@ services:
       DB_USER: beehive_user
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DEDUP_WINDOW_SECONDS: ${DEDUP_WINDOW_SECONDS:-300}
+      # Error reporting (#56), off unless ERROR_REPORTING_ENABLED=true in .env.
+      ERROR_REPORTING_ENABLED: ${ERROR_REPORTING_ENABLED:-false}
+      ERROR_REPORTER: ${ERROR_REPORTER:-}
+      ERROR_REPORTER_ENVIRONMENT: ${ERROR_REPORTER_ENVIRONMENT:-development}
+      ROLLBAR_ACCESS_TOKEN: ${ROLLBAR_ACCESS_TOKEN:-}
     networks:
       - beehive-network
     volumes:
@@ -157,6 +174,13 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
+    # Named so migrate and seed run this same image instead of building their
+    # own copy, which went stale whenever only `api` was rebuilt. The project
+    # name keeps two checkouts on one host apart.
+    image: ${COMPOSE_PROJECT_NAME}-api
+    # Never pulled: a registry image with this name is not ours. Built on every
+    # `up` instead, from cache when nothing changed, so it is never out of date.
+    pull_policy: build
     container_name: meshbee-api
     restart: unless-stopped
     depends_on:
@@ -196,6 +220,11 @@ services:
       INVITE_EXPIRE_DAYS: ${INVITE_EXPIRE_DAYS:-7}
       INVITE_MAX_PER_DAY: ${INVITE_MAX_PER_DAY:-20}
       NOTICE_MAX_PER_DAY: ${NOTICE_MAX_PER_DAY:-20}
+      # Error reporting (#56), off unless ERROR_REPORTING_ENABLED=true in .env.
+      ERROR_REPORTING_ENABLED: ${ERROR_REPORTING_ENABLED:-false}
+      ERROR_REPORTER: ${ERROR_REPORTER:-}
+      ERROR_REPORTER_ENVIRONMENT: ${ERROR_REPORTER_ENVIRONMENT:-development}
+      ROLLBAR_ACCESS_TOKEN: ${ROLLBAR_ACCESS_TOKEN:-}
     ports:
       - "8000:8000"
     networks:

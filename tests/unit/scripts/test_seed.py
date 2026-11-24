@@ -37,6 +37,7 @@ def seed_env(monkeypatch, required_env):
     monkeypatch.setattr(seed_script, "create_users", lambda users: ids)
     monkeypatch.setattr(seed_script, "add_sample_apiary", record("apiary", [10, 11]))
     monkeypatch.setattr(seed_script, "add_sample_activity", record("activity"))
+    monkeypatch.setattr(seed_script.reporting, "setup_reporting", lambda *a, **k: None)
     return events
 
 
@@ -115,3 +116,45 @@ def test_a_failed_account_stops_the_seed_and_still_releases_the_pool(
     assert exc_info.value.code == 1
     assert f"Errore per {seed_script.ADMIN_EMAIL}" in caplog.text
     assert names(seed_env) == ["init_db_pool", "close_db_pool"]
+
+
+def test_reporting_is_set_up_as_the_seed_service_before_the_database(
+    seed_env, monkeypatch
+):
+    monkeypatch.setattr(
+        seed_script.reporting,
+        "setup_reporting",
+        lambda settings, service: seed_env.append(("setup_reporting", service)),
+    )
+
+    seed_script.seed()
+
+    assert seed_env[0] == ("setup_reporting", "seed")
+    assert seed_env[1][0] == "init_db_pool"
+
+
+def test_an_unexpected_failure_is_reported_raised_and_flushed(
+    seed_env, monkeypatch, reporter
+):
+    def crash(users):
+        raise RuntimeError("database non raggiungibile")
+
+    monkeypatch.setattr(seed_script, "create_users", crash)
+
+    with pytest.raises(RuntimeError):
+        seed_script.seed()
+
+    [(exc, _, _)] = reporter.reports
+    assert str(exc) == "database non raggiungibile"
+    assert reporter.flushed == 1
+    assert names(seed_env)[-1] == "close_db_pool"
+
+
+def test_an_invalid_configuration_is_not_reported(seed_env, monkeypatch, reporter):
+    """An operator's .env to fix, shown in the container's own output."""
+    monkeypatch.setenv("ADMIN_PASSWORD", "short")
+
+    with pytest.raises(SystemExit):
+        seed_script.seed()
+
+    assert reporter.reports == []

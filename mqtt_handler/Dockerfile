@@ -12,10 +12,11 @@ WORKDIR /app
 COPY mqtt_handler/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Shared library, editable so the bind-mounted source is what actually runs.
+# Shared library, editable so the bind-mounted source is what actually runs,
+# with the error-reporting backend (an optional extra; off until configured).
 COPY pyproject.toml ./
 COPY meshbee_core ./meshbee_core
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e ".[rollbar]"
 
 # Copia il codice dell'applicazione
 COPY mqtt_handler ./mqtt_handler

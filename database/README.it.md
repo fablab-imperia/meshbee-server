@@ -254,6 +254,7 @@ fino a `migrate_v5.sql`, è esattamente alla revisione di partenza — marcala u
 
 ```bash
 docker-compose exec postgres pg_dump -U beehive_user beehive_iot > backup.sql   # prima
+docker-compose build                                                            # migrate usa l'immagine dell'api
 docker-compose run --rm migrate alembic stamp 0001
 docker-compose up -d
 ```

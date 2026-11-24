@@ -112,7 +112,11 @@ Shared ones are in `tests/conftest.py`; the database ones in
 - `build_settings()` / `build_core_settings()` — explicit kwargs plus `_env_file=None`.
 - `required_env` — the minimum for a valid `Settings`.
 - `isolated_settings_env` — **autouse**: strips every `Settings` field from the
-  environment and clears the `lru_cache`s before and after each test.
+  environment and clears the `lru_cache`s before and after each test. It also sets
+  `ERROR_REPORTING_ENABLED=false`, so no test can report to a real provider, and
+  afterwards drops any reporter, logging bridge or bound request a test left behind.
+- `reporter` — error reporting on, through a `FakeReporter`. What would have been sent
+  lands in `reporter.reports` as `(exception, context, person_id)` tuples.
 
 That autouse fixture is not optional decoration. Compose injects `DB_HOST=postgres` and
 friends into the container, so **without it every assertion about a default value would

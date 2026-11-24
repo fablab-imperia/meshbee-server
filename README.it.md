@@ -232,6 +232,7 @@ processo fuori da Docker.
 | `MESHBEE_DOMAIN` | caddy, api | Solo in produzione: il nome host pubblico. |
 | `ACME_EMAIL` | caddy | Solo in produzione: indirizzo di contatto per Let's Encrypt. |
 | `SMTP_*`, `MAIL_FROM`, `PUBLIC_BASE_URL` | api | Email in uscita, opzionale; vedi [sotto](#email-in-uscita). |
+| `ERROR_REPORTING_ENABLED`, `ERROR_REPORTER`, `ERROR_REPORTER_ENVIRONMENT`, `ROLLBAR_ACCESS_TOKEN` | api, mqtt-handler, migrate, seed | Segnalazione degli errori, opzionale; vedi [sotto](#segnalazione-degli-errori). |
 
 Le impostazioni sono **divise per servizio**: `CoreSettings` in
 `meshbee_core/config.py` tiene i campi del database, e ogni entry point la estende con i
@@ -304,6 +305,81 @@ SMTP_USER=resend
 SMTP_PASSWORD=re_...           # la API key
 MAIL_FROM=Meshbee <noreply@mail.example.org>
 ```
+
+### Segnalazione degli errori
+
+Ogni servizio può segnalare le eccezioni **inattese** a un servizio di tracciamento
+degli errori, che le raggruppa e avvisa i manutentori (email, Slack, …) con lo stack
+trace. Il codice chiama un'unica interfaccia indipendente dal fornitore
+(`meshbee_core/reporting/`). Il fornitore è un backend scelto per nome. Quello incluso è
+**Rollbar**.
+
+| Variabile | Default | Note |
+|---|---|---|
+| `ERROR_REPORTING_ENABLED` | `false`; `true` con il livello di produzione | L'interruttore di questo ambiente. Con `false` non si invia nulla, anche se un fornitore è configurato, così sviluppo e test possono tenere lo stesso `.env`. |
+| `ERROR_REPORTER` | non impostata | Il backend: `rollbar`. Se non è impostata non si invia nulla, con un avviso nel log se l'interruttore è acceso. |
+| `ERROR_REPORTER_ENVIRONMENT` | `development`; `production` con il livello di produzione | L'etichetta di ogni segnalazione. |
+| `ROLLBAR_ACCESS_TOKEN` | non impostata | Obbligatoria con `ERROR_REPORTER=rollbar`: il token `post_server_item` di un progetto. |
+
+Tutte e quattro arrivano ad `api`, `mqtt-handler`, `migrate` e `seed`. All'avvio ogni
+servizio scrive `Error reporting: …` nel log. Un backend sconosciuto o un token mancante
+fermano subito il servizio, invece di lasciarlo girare senza le segnalazioni che gli
+sono state chieste.
+
+**Cosa viene segnalato:**
+
+- un 500 dell'API;
+- una lettura che l'handler MQTT non è riuscito a salvare;
+- un crash del ciclo dell'handler;
+- una migrazione o un seed falliti;
+- qualunque altra cosa registrata nel log con un traceback.
+
+Una segnalazione porta la release (`code_version`), il servizio e la route o il topic
+MQTT. Nell'API porta anche l'**id** dell'utente.
+
+**Cosa non viene segnalato:**
+
+- le risposte 4xx: non trovato, conflitto, validazione, autenticazione;
+- le letture rifiutate o malformate;
+- le righe di errore registrate senza traceback, come l'health check.
+
+**Rollbar, passo per passo:**
+
+1. Crea un progetto su <https://rollbar.com>. Il piano gratuito ha 5.000 occorrenze al
+   mese e utenti illimitati.
+2. In *Project Settings → Project Access Tokens*, copia il token `post_server_item`.
+3. Nel `.env`:
+   ```bash
+   ERROR_REPORTING_ENABLED=true
+   ERROR_REPORTER=rollbar
+   ROLLBAR_ACCESS_TOKEN=...
+   ```
+4. Esegui `docker compose up -d`, così ogni servizio legge le impostazioni.
+5. In *Settings → Notifications*, scegli dove arrivano gli avvisi (email, Slack,
+   Discord, …). Rollbar avvisa per gli errori **nuovi** e **riattivati**, non a ogni
+   ripetizione.
+6. Imposta un limite di frequenza per progetto. Altrimenti un guasto del database, che
+   fa fallire ogni messaggio, può esaurire la quota del mese.
+
+**Privacy.** Le segnalazioni lasciano il server per una terza parte. Prima di attivarle,
+verifica dove il fornitore conserva i dati e il suo DPA: gli utenti di Meshbee sono
+nell'UE. Cosa una segnalazione lascia fuori:
+
+- gli indirizzi email: l'utente è indicato per id;
+- la richiesta: niente header, corpo o IP del client;
+- le variabili locali dei frame, che Rollbar raccoglie per default;
+- il testo dei messaggi di log.
+
+Le chiavi di contesto che sembrano sensibili (password, token, secret, authorization,
+cookie, email, DSN) vengono oscurate prima dell'invio.
+
+**Un altro fornitore** è un modulo con una funzione
+`build(environment, code_version, service)` che restituisce un oggetto con
+`report(exc, context, person_id)` e `flush(timeout)`. Registralo nel gruppo di entry
+point `meshbee.error_reporters` nel `pyproject.toml` di un qualunque pacchetto
+installato, poi imposta `ERROR_REPORTER` al suo nome. Ogni SDK è un extra opzionale,
+così un'installazione porta solo quello del proprio fornitore: le immagini installano
+`.[rollbar]`.
 
 ## Sviluppo
 
@@ -433,6 +509,12 @@ le impostazioni `SMTP_*` arrivano all'API dal `.env` come in sviluppo (vedi
 deve essere il nome pubblico in HTTPS, mai un IP o un indirizzo in HTTP semplice.
 Esegui `docker compose run --rm api python -m scripts.send_test_mail tu@example.org`
 per verificarla prima di farci affidamento.
+
+**La segnalazione degli errori è accesa dal livello**: imposta
+`ERROR_REPORTING_ENABLED=true` e `ERROR_REPORTER_ENVIRONMENT=production`. Non si invia
+nulla finché il `.env` non indica anche un fornitore e il suo token (vedi
+[Segnalazione degli errori](#segnalazione-degli-errori)). Imposta
+`ERROR_REPORTING_ENABLED=false` nel `.env` per tenerla spenta.
 
 In entrambe le configurazioni l'API prende l'indirizzo del client dall'`X-Forwarded-For`
 di Caddy (`FORWARDED_ALLOW_IPS: "*"`), quindi l'IP registrato da un login è quello

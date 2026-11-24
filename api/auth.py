@@ -17,6 +17,7 @@ from jose import JWTError, jwt
 from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
+from meshbee_core import reporting
 from meshbee_core.db import get_session
 from meshbee_core.models import TokenData
 from meshbee_core.services import auth as auth_service
@@ -219,6 +220,8 @@ def get_current_user(
             if user is None:
                 raise credentials_exception
 
+            # An error report from this request names the user, by id only.
+            reporting.set_person(user["id_utente"])
             return user
     except HTTPException:
         raise

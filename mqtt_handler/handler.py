@@ -16,6 +16,7 @@ from datetime import timedelta
 
 import paho.mqtt.client as mqtt
 
+from meshbee_core import reporting
 from meshbee_core.db import close_db_pool, get_session, init_db_pool
 from meshbee_core.errors import CoreError
 from meshbee_core.services import ingest
@@ -100,6 +101,10 @@ class BeehiveMQTTHandler:
             logger.warning(f"Lettura scartata: {exc}")
             return
         except Exception as exc:
+            # The reading is lost: the one failure here worth telling someone about.
+            reporting.report_exception(
+                exc, topic=msg.topic, id_nodo=payload.get("id_nodo")
+            )
             logger.exception(f"Errore salvataggio dati: {exc}")
             return
 
@@ -140,6 +145,7 @@ class BeehiveMQTTHandler:
         except KeyboardInterrupt:
             logger.info("Interruzione da tastiera ricevuta")
         except Exception as e:
+            reporting.report_exception(e, broker=self.settings.MQTT_BROKER)
             logger.exception(f"Errore durante esecuzione: {e}")
         finally:
             self.stop()
@@ -150,6 +156,7 @@ class BeehiveMQTTHandler:
         self.running = False
         self.client.loop_stop()
         self.client.disconnect()
+        reporting.flush()
         logger.info("MQTT handler fermato")
 
 
@@ -166,6 +173,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     settings = get_settings()
+    reporting.setup_reporting(settings, service="mqtt-handler")
 
     # Inizializza database
     logger.info(
@@ -174,7 +182,9 @@ def main():
     try:
         init_db_pool(settings, maxconn=DB_POOL_SIZE)
     except Exception:
-        logger.error("Impossibile inizializzare database. Uscita.")
+        # With the traceback, which the reporting bridge sends on.
+        logger.exception("Impossibile inizializzare database. Uscita.")
+        reporting.flush()
         sys.exit(1)
 
     try:

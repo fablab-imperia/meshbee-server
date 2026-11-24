@@ -228,6 +228,11 @@ needed) and `tests/integration/test_ingest_parity.py` — see [`tests/`](../test
   `Lettura scartata` with no traceback and the message is gone: the broker got its
   acknowledgement before the handler ever looked at the payload. There is no
   dead-letter queue.
+- **A reading that fails to save is lost too, but reported.** A database error while
+  storing a valid message is logged with its traceback and, with
+  [error reporting](../README.md#error-reporting) on, sent with the topic and node id.
+  A rejected or malformed message is never reported: that is the node's problem, not
+  the server's.
 - **`beehive/+/data` matches exactly one level** — see [The topic](#the-topic).
 - **`contract.py` is documentation, not validation.** Editing it changes no behaviour;
   editing `payload.py` changes no contract. A payload-shape change is both, plus

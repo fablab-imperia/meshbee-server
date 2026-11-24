@@ -23,7 +23,7 @@ scripts/ ───────┘
 
 | Percorso | Cos'è |
 |---|---|
-| `config.py` | `CoreSettings` — i campi del database, e nient'altro. |
+| `config.py` | `CoreSettings` — i campi del database e l'interruttore della segnalazione degli errori, che servono a ogni processo. |
 | `db.py` | L'engine SQLAlchemy, `get_session()` e `integrity_errors()`. |
 | `limits.py` | Ogni limite e insieme di valori, dichiarato una volta sola. Letto da `models.py` e da `mqtt_handler/contract.py`. |
 | `paging.py` | `Paging` (quale finestra di un elenco, e se contarlo) e `Page` (le sue righe, e il totale). |
@@ -33,6 +33,7 @@ scripts/ ───────┘
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData`, `Unavailable` — il vocabolario che sollevano i service. |
 | `mail.py` | Email in uscita tramite qualsiasi server SMTP (`SmtpConfig`, `Mailer`). Solo libreria standard; ogni errore diventa `Unavailable`. L'API costruisce la configurazione dalle proprie impostazioni. |
 | `emails.py` | Il testo di ogni email che il server invia, come oggetto e corpo. Semplici stringhe in italiano. |
+| `reporting/` | Segnalazione degli errori indipendente dal fornitore: `setup_reporting()`, `report_exception()`, un ponte verso il logging e i backend (`rollbar.py`), trovati tramite entry point. Infrastruttura, come `mail.py`. La chiamano gli entry point; service e repository mai. Vedi [Segnalazione degli errori](../README.it.md#segnalazione-degli-errori). |
 | `repository/` | SQL. Un modulo per tabella. |
 | `services/` | Decisioni di dominio. Un modulo per area. |
 
@@ -132,7 +133,9 @@ dall'esterno.
 
 ## Configurazione
 
-`CoreSettings` contiene **solo** ciò che serve a ogni processo — il database:
+`CoreSettings` contiene **solo** ciò che serve a ogni processo: il database, e la
+segnalazione degli errori, perché ogni processo segnala. I campi della segnalazione sono
+tutti opzionali:
 
 | Variabile | Tipo | Default |
 |---|---|---|
@@ -141,6 +144,13 @@ dall'esterno.
 | `DB_NAME` | str | `beehive_iot` |
 | `DB_USER` | str | `beehive_user` |
 | `DB_PASSWORD` | secret | **obbligatoria** |
+| `ERROR_REPORTING_ENABLED` | bool | `false` |
+| `ERROR_REPORTER` | str | non impostata |
+| `ERROR_REPORTER_ENVIRONMENT` | str | `development` |
+
+Le impostazioni proprie di un backend (`ROLLBAR_ACCESS_TOKEN`) stanno nel suo modulo, e
+si leggono solo quando è selezionato, così aggiungere un fornitore non tocca mai
+`CoreSettings`.
 
 Ogni entry point la estende con i propri extra: `api/config.py` aggiunge i campi JWT e
 CORS, `mqtt_handler/config.py` i campi `MQTT_*`, `scripts/seed.py` le due password

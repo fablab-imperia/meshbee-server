@@ -230,6 +230,7 @@ directly when you run a process outside Docker.
 | `MESHBEE_DOMAIN` | caddy, api | Production only: the public host name. |
 | `ACME_EMAIL` | caddy | Production only: Let's Encrypt contact address. |
 | `SMTP_*`, `MAIL_FROM`, `PUBLIC_BASE_URL` | api | Optional outgoing email; see [below](#outgoing-email). |
+| `ERROR_REPORTING_ENABLED`, `ERROR_REPORTER`, `ERROR_REPORTER_ENVIRONMENT`, `ROLLBAR_ACCESS_TOKEN` | api, mqtt-handler, migrate, seed | Optional error reporting; see [below](#error-reporting). |
 
 Settings are **split by service**: `CoreSettings` in `meshbee_core/config.py` holds the
 database fields, and each entry point subclasses it with its own extras — JWT and CORS
@@ -300,6 +301,77 @@ SMTP_USER=resend
 SMTP_PASSWORD=re_...           # the API key
 MAIL_FROM=Meshbee <noreply@mail.example.org>
 ```
+
+### Error reporting
+
+Every service can report **unexpected** exceptions to an error-tracking service, which
+groups them and notifies the maintainers (email, Slack, …) with the stack trace. The
+code calls one provider-neutral interface (`meshbee_core/reporting/`). The provider is a
+backend chosen by name. **Rollbar** is the one built in.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ERROR_REPORTING_ENABLED` | `false`; `true` with the production layer | The switch for this environment. `false` sends nothing, even with a provider configured, so development and test can keep the same `.env`. |
+| `ERROR_REPORTER` | unset | The backend: `rollbar`. Unset = nothing sent, with a warning in the log if the switch is on. |
+| `ERROR_REPORTER_ENVIRONMENT` | `development`; `production` with the production layer | The label each report carries. |
+| `ROLLBAR_ACCESS_TOKEN` | unset | Required with `ERROR_REPORTER=rollbar`: a project's `post_server_item` token. |
+
+All four reach `api`, `mqtt-handler`, `migrate` and `seed`. Each service logs
+`Error reporting: …` at startup. An unknown backend or a missing token stops the service
+right away, rather than leaving it running without the reports it was asked to send.
+
+**What is reported:**
+
+- a 500 from the API;
+- a reading the MQTT handler could not save;
+- a crash of the handler's loop;
+- a failed migration or seed;
+- anything else logged with a traceback.
+
+A report carries the release (`code_version`), the service, and the route or MQTT topic.
+In the API it also carries the user's **id**.
+
+**What is not reported:**
+
+- 4xx answers: not found, conflict, validation, authentication;
+- readings that are rejected or malformed;
+- error lines logged without a traceback, such as the health check.
+
+**Rollbar, step by step:**
+
+1. Create a project at <https://rollbar.com>. The free plan has 5,000 occurrences a
+   month and unlimited users.
+2. In *Project Settings → Project Access Tokens*, copy the `post_server_item` token.
+3. In `.env`:
+   ```bash
+   ERROR_REPORTING_ENABLED=true
+   ERROR_REPORTER=rollbar
+   ROLLBAR_ACCESS_TOKEN=...
+   ```
+4. Run `docker compose up -d`, so every service picks the settings up.
+5. In *Settings → Notifications*, choose where alerts go (email, Slack, Discord, …).
+   Rollbar notifies on **new** and **reactivated** errors, not on every repeat.
+6. Set a per-project rate limit. Otherwise a database outage, which fails every message,
+   can use up the month's quota.
+
+**Privacy.** Reports leave the server for a third party. Before turning it on, check
+where the provider stores data and its DPA: Meshbee's users are in the EU. What a report
+leaves out:
+
+- email addresses: the user is named by id;
+- the request: no headers, body or client IP;
+- frame locals, which Rollbar collects by default;
+- log message text.
+
+Context keys that look sensitive (password, token, secret, authorization, cookie, email,
+DSN) are scrubbed before sending.
+
+**Another provider** is a module with a `build(environment, code_version, service)`
+function that returns an object with `report(exc, context, person_id)` and
+`flush(timeout)`. Register it in the `meshbee.error_reporters` entry-point group of any
+installed package's `pyproject.toml`, then set `ERROR_REPORTER` to its name. Each SDK is
+an optional extra, so an install carries only its own provider's: the images install
+`.[rollbar]`.
 
 ## Development
 
@@ -426,6 +498,11 @@ What the layer changes:
 must be the public HTTPS name, never an IP or a plain-HTTP address. Run
 `docker compose run --rm api python -m scripts.send_test_mail you@example.org` to check
 before relying on it.
+
+**Error reporting is switched on by the layer**: it sets `ERROR_REPORTING_ENABLED=true`
+and `ERROR_REPORTER_ENVIRONMENT=production`. Nothing is sent until `.env` also names a
+provider and its token (see [Error reporting](#error-reporting)). Set
+`ERROR_REPORTING_ENABLED=false` in `.env` to keep it off.
 
 In both setups the API takes the client address from Caddy's `X-Forwarded-For`
 (`FORWARDED_ALLOW_IPS: "*"`), so the IP a login records is the user's, not Caddy's.

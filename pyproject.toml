@@ -26,9 +26,20 @@ dependencies = [
     "bcrypt==5.0.0",
 ]
 
+# Error-reporting backends (#56), one extra each: an install carries only the
+# SDK of the provider it reports to. The images install `.[rollbar]`.
+[project.optional-dependencies]
+rollbar = ["rollbar==1.5.0"]
+
+# How `meshbee_core.reporting` finds a backend by its ERROR_REPORTER name. A
+# provider from another package registers in this same group.
+[project.entry-points."meshbee.error_reporters"]
+rollbar = "meshbee_core.reporting.rollbar:build"
+
 [tool.setuptools]
 packages = [
     "meshbee_core",
+    "meshbee_core.reporting",
     "meshbee_core.repository",
     "meshbee_core.services",
     "meshbee_core.migrations",

@@ -76,3 +76,51 @@ def test_running_the_script_migrates(monkeypatch, required_env):
     runpy.run_module("scripts.migrate", run_name="__main__")
 
     assert len(upgraded) == 1
+
+
+def test_an_unexpected_failure_is_reported_then_raised(
+    monkeypatch, required_env, reporter
+):
+    """A failed migration stops the whole stack: the maintainers hear of it."""
+    monkeypatch.setattr(migrate.reporting, "setup_reporting", lambda *a, **k: None)
+
+    def broken(url):
+        raise RuntimeError("revision non applicabile")
+
+    monkeypatch.setattr(migrate, "upgrade", broken)
+
+    with pytest.raises(RuntimeError):
+        migrate.main()
+
+    [(exc, _, _)] = reporter.reports
+    assert str(exc) == "revision non applicabile"
+    assert reporter.flushed == 1
+
+
+def test_an_unstamped_database_is_not_reported(monkeypatch, required_env, reporter):
+    """An install to stamp by hand: the operator sees it, nobody else needs to."""
+    monkeypatch.setattr(migrate.reporting, "setup_reporting", lambda *a, **k: None)
+
+    def unstamped(url):
+        raise UnstampedDatabase("... alembic stamp 0001 ...")
+
+    monkeypatch.setattr(migrate, "upgrade", unstamped)
+
+    with pytest.raises(SystemExit):
+        migrate.main()
+
+    assert reporter.reports == []
+
+
+def test_reporting_is_set_up_as_the_migrate_service(monkeypatch, required_env):
+    calls = []
+    monkeypatch.setattr(
+        migrate.reporting,
+        "setup_reporting",
+        lambda settings, service: calls.append(service),
+    )
+    monkeypatch.setattr(migrate, "upgrade", lambda url: None)
+
+    migrate.main()
+
+    assert calls == ["migrate"]
