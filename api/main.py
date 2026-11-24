@@ -19,10 +19,12 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     FastAPI,
+    File,
     HTTPException,
     Query,
     Request,
     Response,
+    UploadFile,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,11 +44,14 @@ from api.config import Settings, get_settings, settings
 from api.mail import get_mailer, send_later
 from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
 from api.ratelimit import SlidingWindowLimiter, client_address, enforce
+from api.storage import BodySizeLimitMiddleware, get_storage, local_storage, too_large
 from meshbee_core import emails, reporting
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound, Unavailable
+from meshbee_core.limits import FOTO_MAX_BYTES
 from meshbee_core.mail import Mailer
 from meshbee_core.models import (
+    AllegatoResponse,
     ApiarioAdminCreate,
     ApiarioConAccesso,
     ApiarioCreate,
@@ -120,6 +125,7 @@ from meshbee_core.services import (
 from meshbee_core.services import (
     utenti as utenti_service,
 )
+from meshbee_core.storage import Storage
 
 # Configurazione logging
 logging.basicConfig(
@@ -136,6 +142,11 @@ async def lifespan(app: FastAPI):
     logger.info("Avvio applicazione...")
     reporting.setup_reporting(settings, service="api")
     init_db_pool(settings)
+    if not local_storage(settings.STORAGE_DIR).is_writable():
+        logger.warning(
+            f"STORAGE_DIR {settings.STORAGE_DIR} non è scrivibile: "
+            "il caricamento delle foto fallirà"
+        )
     yield
     # Shutdown
     logger.info("Chiusura applicazione...")
@@ -177,6 +188,7 @@ class ReportingContextMiddleware:
 
 
 app.add_middleware(ReportingContextMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)
 
 # Configurazione CORS. Added last, so it is the outermost middleware and every
 # response, an error included, carries the CORS headers.
@@ -1570,6 +1582,97 @@ def update_arnia_user(
         return arnie_service.update_arnia(
             session, id_arnia, arnia, allow_attiva=allow_attiva
         )
+
+
+# ============================================
+# ENDPOINT USER - FOTO ARNIA (#3)
+# ============================================
+
+FOTO_RESPONSES = {
+    400: {"description": "Il file non è un'immagine JPEG, PNG o WebP"},
+    413: {"description": f"File oltre {FOTO_MAX_BYTES // (1024 * 1024)} MB"},
+}
+
+
+@app.put(
+    "/api/user/arnie/{id_arnia}/foto",
+    response_model=AllegatoResponse,
+    tags=["Utente"],
+    responses=FOTO_RESPONSES,
+)
+def upload_foto_arnia(
+    id_arnia: int,
+    storage: Annotated[Storage, Depends(get_storage)],
+    file: Annotated[UploadFile, File(description="JPEG, PNG o WebP, al massimo 5 MB")],
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    Set the hive's photo, replacing the one it had (manager or above).
+
+    The image is stored upright, at most 1600 px on its longer side, as WebP and
+    without its metadata (a phone's GPS position included). The new `id_allegato`
+    becomes the hive's `id_foto`.
+    """
+    require_arnia_access(current_user, id_arnia, "arnia.update")
+    # One byte over the limit is enough to know it is too large.
+    data = file.file.read(FOTO_MAX_BYTES + 1)
+    if len(data) > FOTO_MAX_BYTES:
+        raise too_large()
+
+    with db_operation("caricamento foto arnia") as session:
+        return arnie_service.set_foto(
+            session, storage, id_arnia, data, current_user["id_utente"]
+        )
+
+
+@app.get(
+    "/api/user/arnie/{id_arnia}/foto",
+    response_class=FileResponse,
+    tags=["Utente"],
+    responses={
+        200: {"content": {"image/webp": {}}, "description": "La foto"},
+        404: {"description": "Arnia inesistente o senza foto"},
+    },
+)
+def get_foto_arnia(
+    id_arnia: int,
+    storage: Annotated[Storage, Depends(get_storage)],
+    current_user: dict = Depends(get_current_active_user),
+):
+    """
+    The hive's photo. Its `ETag` is the hive's `id_foto`, which changes with
+    every new photo, so a client may cache it under that id.
+    """
+    require_arnia_access(current_user, id_arnia, "arnia.read")
+
+    with db_operation("recupero foto arnia") as session:
+        foto = arnie_service.get_foto(session, storage, id_arnia)
+    return FileResponse(
+        foto["path"],
+        media_type=foto["content_type"],
+        headers={
+            "ETag": f'"{foto["id_allegato"]}"',
+            "Cache-Control": "private, max-age=86400",
+        },
+    )
+
+
+@app.delete(
+    "/api/user/arnie/{id_arnia}/foto",
+    response_model=MessageResponse,
+    tags=["Utente"],
+)
+def delete_foto_arnia(
+    id_arnia: int,
+    storage: Annotated[Storage, Depends(get_storage)],
+    current_user: dict = Depends(get_current_active_user),
+):
+    """Remove the hive's photo (manager or above)."""
+    require_arnia_access(current_user, id_arnia, "arnia.update")
+
+    with db_operation("eliminazione foto arnia") as session:
+        arnie_service.delete_foto(session, storage, id_arnia)
+        return {"message": "Foto dell'arnia eliminata"}
 
 
 @app.put("/api/user/password", response_model=MessageResponse, tags=["Utente"])

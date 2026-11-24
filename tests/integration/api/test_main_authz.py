@@ -10,6 +10,17 @@ try again", **403** means "you are authenticated but not allowed".
 
 import pytest
 
+from tests.conftest import image_bytes
+
+
+class Upload(dict):
+    """A multipart body: sent as files, not JSON."""
+
+
+# A real photo, so a route that lets the caller through answers 200, not a 422
+# for a missing file that would hide whether the gate ran.
+PHOTO = Upload(file=("hive.jpg", image_bytes(), "image/jpeg"))
+
 # Reachable without a token and always 200. Login and refresh are public too, but
 # answer 401 on bad credentials, and the password-reset pair is public on purpose
 # (#54), so those get their own tests below.
@@ -91,6 +102,9 @@ ARNIA_SCOPED = [
     ("patch", "/api/user/arnie/{}/attivita/1", {}, "collaborator"),
     ("delete", "/api/user/arnie/{}/attivita/1", None, "collaborator"),
     ("put", "/api/user/arnie/{}/apiario", {"id_apiario": 1}, "owner"),
+    ("put", "/api/user/arnie/{}/foto", PHOTO, "manager"),
+    ("get", "/api/user/arnie/{}/foto", None, "viewer"),
+    ("delete", "/api/user/arnie/{}/foto", None, "manager"),
 ]
 
 # Scoped to {id_apiario}, guarded by check_user_apiario_access, likewise.
@@ -120,6 +134,8 @@ PROTECTED = (
 
 def call(client, method, path, body):
     """Issue the request, sending `body` as JSON when the endpoint takes one."""
+    if isinstance(body, Upload):
+        return getattr(client, method)(path, files=body)
     return getattr(client, method)(path, **({"json": body} if body is not None else {}))
 
 

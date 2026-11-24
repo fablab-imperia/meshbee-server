@@ -198,7 +198,15 @@ def make_attivita(db):
 
 
 @pytest.fixture
-def client(use_db):
+def storage(tmp_path):
+    """Where uploads land during a test: a fresh directory, never /app/storage."""
+    from meshbee_core.storage import LocalStorage
+
+    return LocalStorage(tmp_path / "storage")
+
+
+@pytest.fixture
+def client(use_db, storage):
     """
     A TestClient whose requests run inside the rolled-back test transaction.
 
@@ -210,6 +218,7 @@ def client(use_db):
     """
     from api import auth, main
     from api.config import Settings, get_settings
+    from api.storage import get_storage
     from tests.conftest import REQUIRED_ENV
 
     use_db(main)
@@ -219,6 +228,7 @@ def client(use_db):
     main.app.dependency_overrides[get_settings] = lambda: Settings(
         _env_file=None, **REQUIRED_ENV
     )
+    main.app.dependency_overrides[get_storage] = lambda: storage
     # In memory, so it would carry one test's requests into the next.
     main.forgot_limiter.clear()
     main.share_limiter.clear()

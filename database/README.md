@@ -79,6 +79,7 @@ joined to `arnie` and never read.
 | `attiva` | BOOLEAN | Soft delete — readings survive. |
 | `metadati` | JSONB | Queen's race and year, hive colour, whatever the beekeeper tracks. |
 | `id_apiario` | INTEGER | FK → `apiari`. The hive's owner is this apiary's owner; null while its node is unassigned. The service keeps a node's hives in its owner's apiaries. |
+| `id_foto` | INTEGER | FK → `allegati` ON DELETE SET NULL. The hive's photo (#3); null without one. |
 
 ### `apiari` — where an owner's hives stand
 
@@ -191,6 +192,19 @@ One row per link emailed by the server, written and read by
 - Rows are deleted a day after `data_scadenza`. Until then they count towards the caps
   on requests.
 
+### `allegati` — stored files
+
+One row per uploaded file (#3), today a hive's photo. The bytes are not in the database:
+they are in the storage directory (`STORAGE_DIR`, `./storage` in compose), under
+`chiave`. **Back that directory up together with the database.**
+
+- `chiave` is UNIQUE and new for every upload, so a file is never overwritten.
+- `content_type`, `dimensione` (bytes, CHECK `> 0`), `larghezza`/`altezza` describe the
+  file as stored, after processing.
+- `id_utente_caricamento` is who uploaded it, null once that account is deleted.
+- Nothing here says what a file belongs to: the owner points at it (`arnie.id_foto`).
+  Rows and files are added and removed by `services/allegati.py`, never by the database.
+
 ## No views, no triggers
 
 **The database holds no logic**: no view, no trigger, no function of ours.
@@ -280,6 +294,7 @@ docker-compose down -v && docker-compose up -d      # DESTROYS every reading
 | `0006` | `token_monouso`, single-use tokens sent by email: password reset (#54) and apiary invitations (#55). |
 | `0007` | `inviti_apiari`, pending shares to emails with no account yet (#40). |
 | `0008` | Coordinates only on `apiari` (#84): an apiary with none gets the average of its hives', then `arnie.latitudine`/`longitudine` and their CHECKs are dropped. Downgrade gives each hive its apiary's. |
+| `0009` | `allegati`, the records of stored files, and `arnie.id_foto`, a hive's photo (#3). |
 
 Before Alembic the schema moved through hand-written scripts, applied with `psql`;
 they are in git history:

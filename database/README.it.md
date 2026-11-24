@@ -79,6 +79,7 @@ modello alternativo, mai collegato ad `arnie` né letto da alcuna query.
 | `attiva` | BOOLEAN | Soft delete — le letture restano. |
 | `metadati` | JSONB | Razza e anno della regina, colore dell'arnia, quello che l'apicoltore vuole tracciare. |
 | `id_apiario` | INTEGER | FK → `apiari`. Il proprietario dell'arnia è il proprietario di questo apiario; null finché il suo nodo non è assegnato. Il service tiene le arnie di un nodo negli apiari del suo proprietario. |
+| `id_foto` | INTEGER | FK → `allegati` ON DELETE SET NULL. La foto dell'arnia (#3); null se non ne ha. |
 
 ### `apiari` — dove stanno le arnie di un proprietario
 
@@ -195,6 +196,20 @@ Una riga per ogni link inviato per email dal server, scritta e letta da
 - Le righe vengono cancellate un giorno dopo `data_scadenza`. Fino ad allora contano per
   i limiti sulle richieste.
 
+### `allegati` — file salvati
+
+Una riga per ogni file caricato (#3), oggi la foto di un'arnia. I byte non sono nel
+database: stanno nella directory dello storage (`STORAGE_DIR`, `./storage` in compose),
+sotto `chiave`. **Fai il backup di quella directory insieme al database.**
+
+- `chiave` è UNIQUE e nuova a ogni caricamento, quindi un file non viene mai sovrascritto.
+- `content_type`, `dimensione` (byte, CHECK `> 0`), `larghezza`/`altezza` descrivono il
+  file come è salvato, dopo l'elaborazione.
+- `id_utente_caricamento` è chi l'ha caricato, null una volta eliminato quell'account.
+- Niente qui dice a cosa appartiene un file: è il proprietario a puntarlo
+  (`arnie.id_foto`). Righe e file li aggiunge e rimuove `services/allegati.py`, mai il
+  database.
+
 ## Niente viste, niente trigger
 
 **Il database non contiene logica**: nessuna vista, nessun trigger, nessuna funzione
@@ -285,6 +300,7 @@ docker-compose down -v && docker-compose up -d      # DISTRUGGE tutte le letture
 | `0006` | `token_monouso`, token monouso inviati per email: reset della password (#54) e inviti agli apiari (#55). |
 | `0007` | `inviti_apiari`, condivisioni in attesa verso email ancora senza account (#40). |
 | `0008` | Coordinate solo su `apiari` (#84): un apiario che non ne ha riceve la media di quelle delle sue arnie, poi `arnie.latitudine`/`longitudine` e i loro CHECK vengono eliminati. Il downgrade dà a ogni arnia quelle del suo apiario. |
+| `0009` | `allegati`, i record dei file salvati, e `arnie.id_foto`, la foto di un'arnia (#3). |
 
 Prima di Alembic lo schema cambiava con script scritti a mano, applicati con `psql`;
 sono nella cronologia git:

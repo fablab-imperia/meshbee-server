@@ -24,6 +24,8 @@ dependencies = [
     "pydantic==2.14.3",
     "pydantic-settings==2.16.3",
     "bcrypt==5.0.0",
+    # Hive photos (#3): decoded, scaled and re-encoded in meshbee_core/images.py.
+    "pillow==13.0.0",
 ]
 
 # Error-reporting backends (#56), one extra each: an install carries only the

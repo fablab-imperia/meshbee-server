@@ -50,7 +50,10 @@ services:
   api:
     # Caddy owns 80/443/8000 and forwards to api:8000 on the network.
     ports: !reset []
-    volumes: !reset []
+    # Only the uploaded files (hive photos, #3), none of the source mounts.
+    # Back ./storage up together with the database.
+    volumes: !override
+      - ./storage:/app/storage
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     environment:
       # Trust X-Forwarded-* from any peer: only Caddy can reach the API. It keeps

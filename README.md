@@ -497,8 +497,12 @@ What the layer changes:
 - **Plain HTTP stays available, by IP on :80 and on :8000.** Clients configured before
   the domain existed keep working while they move to `https://`. Close these once
   nobody uses them.
-- **The images' own code runs.** There is no `--reload` and no bind mounts, so a
+- **The images' own code runs.** There is no `--reload` and no source bind mounts, so a
   change reaches the server only through a rebuild (`docker compose build`).
+- **Uploaded hive photos are kept in `./storage`,** the one directory the `api`
+  container mounts. The database only records them, so **back up `./storage` together
+  with the database**: a restored database without it has photos that answer 404.
+  Caddy refuses request bodies over 6 MB.
 - **CORS is limited to `https://MESHBEE_DOMAIN`,** and container logs rotate (3 × 10 MB
   per service).
 
@@ -567,6 +571,11 @@ scartata`) only when its hive can't be resolved or the payload itself is unusabl
 **The whole integration tier fails to connect.** `postgres-test` is behind a compose
 profile and is not started by a plain `up`:
 `docker-compose --profile test up -d postgres-test`.
+
+**Uploading a photo answers 500; the `api` log says `STORAGE_DIR` is not writable.** The
+API runs as uid 1000 and writes into `./storage`. The directory comes with the checkout,
+but if it was removed, Docker recreates it owned by root. On Linux:
+`sudo chown 1000:1000 storage`.
 
 **`/health` says `unhealthy`.** The API is up but the database is not reachable. The
 reason is in `docker-compose logs api`, not in the body: the endpoint is public and the

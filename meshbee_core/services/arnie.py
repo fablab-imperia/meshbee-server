@@ -6,9 +6,11 @@ from meshbee_core.db import integrity_errors
 from meshbee_core.errors import Conflict, InvalidData, NotFound
 from meshbee_core.paging import EVERYTHING, Page, Paging
 from meshbee_core.repository import arnie, nodi
-from meshbee_core.services import apiari
+from meshbee_core.services import allegati, apiari
+from meshbee_core.storage import Storage
 
 NOT_FOUND = "Arnia non trovata"
+NO_PHOTO = "L'arnia non ha una foto"
 
 
 def list_for_utente(
@@ -170,3 +172,55 @@ def placement(session, id_nodo: str, id_apiario: int | None) -> int | None:
     if id_apiario is None:
         return apiari.ensure_predefinito(session, owner)["id_apiario"]
     return apiari.owned_by(session, id_apiario, owner)["id_apiario"]
+
+
+def set_foto(
+    session, storage: Storage, id_arnia: int, data: bytes, id_utente: int | None
+) -> dict[str, Any]:
+    """
+    Give the hive a new photo, replacing the one it had.
+
+    The image is processed before the hive row is locked, so the lock is held
+    only for the swap. The old photo's file goes once the swap has committed.
+
+    Raises:
+        InvalidData: if the bytes are not an accepted image.
+        NotFound: if the hive does not exist.
+    """
+    foto = allegati.store_image(session, storage, data, f"arnie/{id_arnia}", id_utente)
+    current = arnie.get_foto(session, id_arnia, lock=True)
+    if current is None:
+        raise NotFound(NOT_FOUND)
+    arnie.set_foto(session, id_arnia, foto["id_allegato"])
+    if current["id_foto"] is not None:
+        allegati.remove(session, storage, current["id_foto"])
+    return foto
+
+
+def delete_foto(session, storage: Storage, id_arnia: int) -> None:
+    """
+    Raises:
+        NotFound: if the hive does not exist, or has no photo.
+    """
+    current = arnie.get_foto(session, id_arnia, lock=True)
+    if current is None:
+        raise NotFound(NOT_FOUND)
+    if current["id_foto"] is None:
+        raise NotFound(NO_PHOTO)
+    arnie.set_foto(session, id_arnia, None)
+    allegati.remove(session, storage, current["id_foto"])
+
+
+def get_foto(session, storage: Storage, id_arnia: int) -> dict[str, Any]:
+    """
+    The hive photo's record and the `path` of its file.
+
+    Raises:
+        NotFound: if the hive does not exist, or has no photo.
+    """
+    row = arnie.get_foto(session, id_arnia)
+    if row is None:
+        raise NotFound(NOT_FOUND)
+    if row["id_foto"] is None:
+        raise NotFound(NO_PHOTO)
+    return allegati.locate(session, storage, row["id_foto"])

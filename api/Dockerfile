@@ -35,7 +35,9 @@ COPY alembic.ini ./
 # container writes into bind mounts (openapi.json, new revisions) stay editable.
 # The code stays root-owned; only /app itself is writable, for the caches that
 # pytest and ruff create in the working directory.
-RUN useradd --create-home --uid 1000 meshbee && chown meshbee /app
+# /app/storage holds uploaded photos; compose mounts ./storage over it.
+RUN useradd --create-home --uid 1000 meshbee && chown meshbee /app \
+    && mkdir /app/storage && chown meshbee /app/storage
 USER meshbee
 
 # Espone la porta 8000

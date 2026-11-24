@@ -6,6 +6,7 @@ has no use for a JWT signing key (nor for the SMTP settings: only the API sends 
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 
@@ -78,6 +79,10 @@ class Settings(CoreSettings):
     # Share requests (POST …/condivisioni) one user may make per hour, so sharing
     # cannot be used to try addresses in bulk (#40). In memory, per API process.
     SHARE_MAX_PER_HOUR: int = Field(default=30, gt=0)
+
+    # Where uploaded files (hive photos, #3) are kept. Compose mounts ./storage
+    # here; back it up together with the database.
+    STORAGE_DIR: Path = Path("/app/storage")
 
     @field_validator(*EMPTY_MEANS_UNSET, mode="before")
     @classmethod

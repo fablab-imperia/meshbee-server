@@ -24,6 +24,10 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+	# The API refuses bodies over a 5 MB photo too; this stops one at the edge.
+	request_body {
+		max_size 6MB
+	}
 	reverse_proxy api:8000
 }
 
@@ -32,5 +36,8 @@
 # http:// requests are not served here: Caddy's automatic redirect to https wins.
 http://:80, http://:8000 {
 	header -Server
+	request_body {
+		max_size 6MB
+	}
 	reverse_proxy api:8000
 }

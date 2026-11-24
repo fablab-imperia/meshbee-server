@@ -15,10 +15,11 @@ here.
 
 | Path | What it is |
 |---|---|
-| `main.py` | The application: lifespan, CORS, error translation and all 62 routes, and the `/reset-password` and `/invite` pages. |
+| `main.py` | The application: lifespan, CORS, error translation and all 65 routes, and the `/reset-password` and `/invite` pages. |
 | `auth.py` | JWT minting/decoding and the FastAPI dependencies that guard the routes. |
 | `mail.py` | `get_mailer` and `send_later`: email off the request path — see [Configuration](#configuration). |
 | `ratelimit.py` | In-memory request limits: per client address on the forgot-password route ([Password reset](#password-reset)), per user on sharing. |
+| `storage.py` | Uploads: `get_storage` (the `Storage` behind `STORAGE_DIR`) and the request body limit — see [Hive photos](#hive-photos). |
 | `paging.py` | The optional `limit`/`offset` parameters of the list routes, and their `X-Total-Count` header — see [Paging](#paging). |
 | `config.py` | `Settings(CoreSettings)` — JWT, API metadata and CORS on top of the DB fields. |
 | `openapi.json` | The generated API contract. **Committed** — see [OpenAPI contract](#openapi-contract). |
@@ -28,7 +29,7 @@ here.
 
 ## Endpoints
 
-62 operations. `Auth` says what a request must carry:
+65 operations. `Auth` says what a request must carry:
 
 - **none** — public.
 - **user** — a valid bearer token for an active account (`get_current_active_user`).
@@ -63,6 +64,9 @@ the caller's access to that hive's apiary, or that apiary.
 | GET | `/api/user/arnie/{id_arnia}` | user + viewer | One hive with its latest reading. |
 | PUT | `/api/user/arnie/{id_arnia}` | user + manager | Rename a hive or edit its details (`posizione` is a free-text note). Coordinates are the apiary's: sending `latitudine`/`longitudine` is a 422. `attiva` (retiring it) is applied only for the owner. |
 | PUT | `/api/user/arnie/{id_arnia}/apiario` | user + owner | Move the hive into another apiary of its owner. Who can see it follows the apiary. |
+| PUT | `/api/user/arnie/{id_arnia}/foto` | user + manager | Set the hive's photo (multipart, field `file`: JPEG, PNG or WebP, at most 5 MB), replacing the old one. Returns the stored file's record; its `id_allegato` is the hive's new `id_foto`. **400** if not an image, **413** if too large. See [Hive photos](#hive-photos). |
+| GET | `/api/user/arnie/{id_arnia}/foto` | user + viewer | The photo, `image/webp`, with `ETag` = `id_foto`. 404 if the hive has none. |
+| DELETE | `/api/user/arnie/{id_arnia}/foto` | user + manager | Remove the photo. 404 if the hive has none. |
 | GET | `/api/user/arnie/{id_arnia}/letture` | user + viewer | Readings. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). **Paged**. |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | user + viewer | `{timestamp, temperatura}` only — sized for charts. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | user + viewer | `{timestamp, umidita}` only. |
@@ -326,6 +330,28 @@ message of its own. A share is to **one** plain address: a list such as
 `a@x.org, b@y.org` is a 422, since it would be one invitation reaching many people past
 the caps. The mailer refuses anything else too.
 
+## Hive photos
+
+Each hive can have one photo (#3). Uploading a new one replaces the old one, file
+included. Hive responses carry `id_foto`, null without a photo. It changes with every
+upload, so a client can cache the image under it and skip the download while it stays
+the same.
+
+What is stored is not what was uploaded. `meshbee_core/images.py` decodes the image,
+turns it upright from its EXIF orientation and scales it to at most 1600 px on its
+longer side. It then re-encodes it as WebP **without any metadata**, which drops the
+GPS position a phone records. A 12 MP phone photo usually ends up at a few hundred KB.
+
+Size is checked twice. `BodySizeLimitMiddleware` (`storage.py`) answers 413 to any
+request body over 5 MB plus the multipart framing, before it is read. That has to
+happen in middleware: FastAPI parses a multipart form, file included, before the
+route's dependencies run. The route then refuses a *file* over 5 MB. In production,
+Caddy also caps request bodies at 6 MB.
+
+The files are in `STORAGE_DIR` (`./storage` in compose), and their records are in the
+`allegati` table. The services tie the two to the request's transaction. See
+[`meshbee_core/`](../meshbee_core/README.md#stored-files).
+
 ## Error translation
 
 Services raise vocabulary from `meshbee_core.errors` and know nothing about HTTP. The
@@ -338,6 +364,7 @@ meet:
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
 | `Unavailable` (the mail server failed) | 503 |
+| a request body over the upload limit (`storage.py`, not a service) | 413 |
 | `SQLAlchemyError` during login | 503 |
 | anything else | 500 `Errore interno del server`, with the real error logged |
 
@@ -380,6 +407,7 @@ README.
 | `INVITE_EXPIRE_DAYS` | int | `7` (at most 30) |
 | `INVITE_MAX_PER_DAY` | int | `20` invitation emails per user |
 | `NOTICE_MAX_PER_DAY` | int | `20` share notices per user |
+| `STORAGE_DIR` | path | `/app/storage` — uploaded files; compose mounts `./storage` there |
 
 `CORS_ORIGINS` is a list, so from the environment it must be **JSON**, not a
 comma-separated string:

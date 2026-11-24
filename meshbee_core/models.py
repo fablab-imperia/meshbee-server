@@ -504,6 +504,43 @@ class Apiario(ApiarioResponse, table=True):
 
 
 # ============================================
+# Allegati
+# ============================================
+
+
+# The table knows nothing of what a file is attached to: whatever carries one
+# points at it by a foreign key of its own (`arnie.id_foto`), so the next kind of
+# attachment is a column, not a new table.
+class AllegatoResponse(SQLModel):
+    """A stored file: a hive's photo"""
+
+    id_allegato: int = Field(primary_key=True)
+    content_type: str = Field(sa_type=String(100))
+    # Bytes as stored, after processing.
+    dimensione: int
+    larghezza: int | None = None
+    altezza: int | None = None
+    data_caricamento: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
+    id_utente_caricamento: int | None = Field(
+        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Allegato(AllegatoResponse, table=True):
+    __tablename__ = "allegati"
+    __table_args__ = (
+        CheckConstraint("dimensione > 0", name="allegati_dimensione_check"),
+        {"comment": "File caricati: foto delle arnie"},
+    )
+
+    # Where the bytes are in the storage (`meshbee_core/storage.py`); never
+    # leaves the server.
+    chiave: str = Field(sa_type=String(255), unique=True)
+
+
+# ============================================
 # Arnie
 # ============================================
 
@@ -576,6 +613,12 @@ class ArniaResponse(ArniaBase):
     data_rimozione: datetime | None = Field(None, sa_type=DateTime)
     attiva: bool = Field(sa_column_kwargs=TRUE)
     metadati: dict[str, Any] | None = Field(None, sa_type=JSONB)
+    # The hive's photo (#3), served by GET /api/user/arnie/{id_arnia}/foto.
+    # A new upload is a new attachment, so the id changes with the picture:
+    # clients can cache on it.
+    id_foto: int | None = Field(
+        None, foreign_key="allegati.id_allegato", ondelete="SET NULL"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
