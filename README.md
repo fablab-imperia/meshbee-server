@@ -304,10 +304,10 @@ and `tests/` are bind-mounted, so editing a file is enough. **The MQTT handler h
 reload** and must be restarted:
 
 ```bash
-docker-compose logs -f                       # everything (make logs)
-docker-compose logs -f api                   # make logs-api
-docker-compose restart mqtt-handler          # make restart-mqtt — after every edit there
-docker-compose exec postgres psql -U beehive_user -d beehive_iot     # make db-shell
+docker-compose logs -f                       # everything
+docker-compose logs -f api
+docker-compose restart mqtt-handler          # after every edit there
+docker-compose exec postgres psql -U beehive_user -d beehive_iot
 ```
 
 **Tests** run in the container, always — `config.py` builds its `Settings` at import, so
@@ -343,8 +343,8 @@ touched.
 contract artifacts:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi        # make openapi
-docker-compose exec api python -m scripts.export_mqtt_schema    # make mqtt-schema
+docker-compose exec api python -m scripts.export_openapi
+docker-compose exec api python -m scripts.export_mqtt_schema
 make contract                                                   # both at once
 ```
 
@@ -371,7 +371,7 @@ make db-backup                                          # → backups/backup_<ti
 make db-restore FILE=backups/backup_20260805_120000.sql
 ```
 
-**Stopping:** `docker-compose stop` pauses; `docker-compose down` (`make clean`) removes
+**Stopping:** `docker-compose stop` pauses; `docker-compose down` removes
 the containers and **keeps the data**; `make clean-all` runs `down -v` and **destroys
 the database**.
 

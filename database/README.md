@@ -310,7 +310,7 @@ main [README](../README.md#setup).
 ## Development
 
 ```bash
-docker-compose exec postgres psql -U beehive_user -d beehive_iot      # or: make db-shell
+docker-compose exec postgres psql -U beehive_user -d beehive_iot
 make db-backup                                                        # → backups/backup_<timestamp>.sql
 make db-restore FILE=backups/backup_20260805_120000.sql
 ```

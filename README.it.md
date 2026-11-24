@@ -308,10 +308,10 @@ Il container `api` esegue uvicorn con `--reload` e `api/`, `admin/`, `meshbee_co
 reload** e va riavviato:
 
 ```bash
-docker-compose logs -f                       # tutto (make logs)
-docker-compose logs -f api                   # make logs-api
-docker-compose restart mqtt-handler          # make restart-mqtt — dopo ogni modifica lì
-docker-compose exec postgres psql -U beehive_user -d beehive_iot     # make db-shell
+docker-compose logs -f                       # tutto
+docker-compose logs -f api
+docker-compose restart mqtt-handler          # dopo ogni modifica lì
+docker-compose exec postgres psql -U beehive_user -d beehive_iot
 ```
 
 **I test** girano nel container, sempre — `config.py` costruisce le `Settings`
@@ -347,8 +347,8 @@ database di sviluppo non viene toccato.
 artefatti del contratto committati:
 
 ```bash
-docker-compose exec api python -m scripts.export_openapi        # make openapi
-docker-compose exec api python -m scripts.export_mqtt_schema    # make mqtt-schema
+docker-compose exec api python -m scripts.export_openapi
+docker-compose exec api python -m scripts.export_mqtt_schema
 make contract                                                   # entrambi in un colpo
 ```
 
@@ -378,7 +378,7 @@ make db-restore FILE=backups/backup_20260805_120000.sql
 ```
 
 **Spegnere:** `docker-compose stop` mette in pausa; `docker-compose down`
-(`make clean`) rimuove i container e **mantiene i dati**; `make clean-all` esegue
+rimuove i container e **mantiene i dati**; `make clean-all` esegue
 `down -v` e **distrugge il database**.
 
 ### HTTPS locale

@@ -93,7 +93,7 @@ Seguire broker e handler affiancati:
 
 ```bash
 docker-compose logs -f mosquitto
-docker-compose logs -f mqtt-handler     # oppure: make logs-mqtt
+docker-compose logs -f mqtt-handler
 ```
 
 Verificare che l'autenticazione sia davvero attiva — questo deve essere

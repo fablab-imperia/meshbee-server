@@ -1,146 +1,33 @@
-# Makefile per Beehive IoT
-# Comandi rapidi per sviluppo
+# Shortcuts for multi-step or hard-to-remember actions. Anything that is a single
+# docker-compose command is documented as that command instead (see README.md).
 
-.PHONY: help start stop restart restart-api restart-mqtt logs logs-api logs-mqtt \
-        status build clean clean-all certs db-shell db-backup db-restore \
-        dev-setup dev-api dev-mqtt test test-health lint ci format openapi mqtt-schema contract \
-        mqtt-passwd setup install info endpoints
+.PHONY: help setup start mqtt-passwd certs test lint format ci contract \
+        db-backup db-restore clean-all
 
-# Variabili
 COMPOSE = docker compose
-PYTHON = python3
 
-help: ## Mostra questo messaggio di aiuto
-	@echo "Beehive IoT - Comandi Disponibili:"
-	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-# Docker Commands
-start: ## Avvia tutti i servizi
+# Setup
+setup: ## First-time setup: .env from the example, broker password, start the stack
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "✓ File .env creato da .env.example"; \
+		echo ""; \
+		echo "⚠️  IMPORTANTE: Apri .env e imposta password sicure prima di continuare!"; \
+		echo "   Poi riesegui: make setup"; \
+		exit 0; \
+	fi
+	$(MAKE) mqtt-passwd
+	$(MAKE) start
+
+start: ## Start every service
 	$(COMPOSE) up -d
-	@echo "✓ Servizi avviati!"
-	@echo "API HTTPS: https://localhost:8443/docs (requires 'make certs')"
 	@echo "API HTTP:  http://localhost:8000/docs"
+	@echo "API HTTPS: https://localhost:8443/docs (requires 'make certs')"
 
-stop: ## Ferma tutti i servizi
-	$(COMPOSE) stop
-	@echo "✓ Servizi fermati"
-
-restart: ## Riavvia tutti i servizi
-	$(COMPOSE) restart
-	@echo "✓ Servizi riavviati"
-
-restart-api: ## Riavvia solo l'API
-	$(COMPOSE) restart api
-	@echo "✓ API riavviata"
-
-restart-mqtt: ## Riavvia solo MQTT handler
-	$(COMPOSE) restart mqtt-handler
-	@echo "✓ MQTT handler riavviato"
-
-logs: ## Visualizza log in tempo reale
-	$(COMPOSE) logs -f
-
-logs-api: ## Log solo API
-	$(COMPOSE) logs -f api
-
-logs-mqtt: ## Log solo MQTT handler
-	$(COMPOSE) logs -f mqtt-handler
-
-status: ## Stato servizi
-	$(COMPOSE) ps
-
-build: ## Build immagini Docker
-	$(COMPOSE) build
-
-clean: ## Ferma e rimuove container (MANTIENE i dati)
-	$(COMPOSE) down
-	@echo "✓ Container rimossi (dati preservati)"
-
-clean-all: ## Ferma e rimuove tutto (CANCELLA ANCHE I DATI!)
-	@echo "⚠️  ATTENZIONE: Questo comando cancellerà tutti i dati!"
-	@read -p "Sei sicuro? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		$(COMPOSE) down -v; \
-		echo "✓ Tutto rimosso"; \
-	else \
-		echo "Operazione annullata"; \
-	fi
-
-# HTTPS Commands
-certs: ## Generate the local HTTPS certificate for the Caddy proxy (requires mkcert)
-	./caddy/make-certs.sh
-
-# Database Commands
-db-shell: ## Accedi alla shell PostgreSQL
-	$(COMPOSE) exec postgres psql -U beehive_user -d beehive_iot
-
-db-backup: ## Backup database
-	@mkdir -p backups
-	$(COMPOSE) exec postgres pg_dump -U beehive_user beehive_iot > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
-	@echo "✓ Backup creato in backups/"
-
-db-restore: ## Ripristina database (richiede FILE=path/to/backup.sql)
-	@if [ -z "$(FILE)" ]; then \
-		echo "❌ Errore: specifica FILE=path/to/backup.sql"; \
-		exit 1; \
-	fi
-	cat $(FILE) | $(COMPOSE) exec -T postgres psql -U beehive_user beehive_iot
-	@echo "✓ Database ripristinato da $(FILE)"
-
-# Development Commands
-dev-setup: ## Setup ambiente di sviluppo locale
-	$(PYTHON) -m venv venv
-	./venv/bin/pip install --upgrade pip
-	./venv/bin/pip install -r api/requirements.txt -r api/requirements-dev.txt
-	./venv/bin/pip install -r mqtt_handler/requirements.txt
-	./venv/bin/pip install -e .
-	@echo "✓ Virtual environment creato in venv/"
-	@echo "Attiva con: source venv/bin/activate"
-
-dev-api: ## Avvia API in modalità sviluppo (senza Docker)
-	uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-
-dev-mqtt: ## Avvia MQTT handler in modalità sviluppo (senza Docker)
-	$(PYTHON) -m mqtt_handler
-
-# Test Commands
-test: ## Esegue tutti i test dell'API nel container
-	$(COMPOSE) exec api pytest
-
-lint: ## Controlla lint e formattazione con ruff nel container
-	$(COMPOSE) exec api ruff check .
-	$(COMPOSE) exec api ruff format --check .
-
-# What .github/workflows/ci.yml runs, locally. One-off containers (`run --rm
-# --no-deps`), so the stack doesn't have to be up and the dev database isn't touched.
-ci: ## Run the whole CI locally: image builds, compose check, ruff, tests (stack need not be up)
-	$(COMPOSE) build api mqtt-handler
-	MESHBEE_DOMAIN=ci.example.org ACME_EMAIL=ci@example.org \
-		$(COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml config -q
-	$(COMPOSE) --profile test up -d --wait postgres-test
-	$(COMPOSE) run --rm --no-deps api sh -c \
-		'ruff check . && ruff format --check . && pytest'
-
-format: ## Applica le correzioni automatiche e la formattazione di ruff nel container
-	$(COMPOSE) exec api ruff check --fix .
-	$(COMPOSE) exec api ruff format .
-
-test-health: ## Test health endpoint
-	@curl -s http://localhost:8000/health | $(PYTHON) -m json.tool
-
-# Documentation Commands
-openapi: ## Rigenera api/openapi.json dallo schema FastAPI (richiede il container api attivo)
-	$(COMPOSE) exec api python -m scripts.export_openapi
-
-mqtt-schema: ## Rigenera mqtt_handler/mqtt-payload.schema.json dal modello del contratto (richiede il container api attivo)
-	$(COMPOSE) exec api python -m scripts.export_mqtt_schema
-
-contract: openapi mqtt-schema ## Rigenera entrambi gli artefatti del contratto (OpenAPI + payload MQTT)
-
-# Setup Commands
-mqtt-passwd: ## Genera il file password per il broker Mosquitto (richiede .env)
+mqtt-passwd: ## Generate mosquitto/config/passwd from MQTT_USER / MQTT_PASSWORD in .env
 	@if [ ! -f .env ]; then \
 		echo "❌ File .env non trovato. Esegui prima 'make setup'"; \
 		exit 1; \
@@ -153,60 +40,58 @@ mqtt-passwd: ## Genera il file password per il broker Mosquitto (richiede .env)
 		mosquitto_passwd -b -c /mosquitto/config/passwd "$$MQTT_USER" "$$MQTT_PASSWORD"; \
 	echo "✓ File password Mosquitto generato in mosquitto/config/passwd"
 
-setup: ## Setup iniziale completo
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo "✓ File .env creato da .env.example"; \
-		echo ""; \
-		echo "⚠️  IMPORTANTE: Apri .env e imposta password sicure prima di continuare!"; \
-		echo "   Poi riesegui: make setup"; \
-		exit 0; \
+certs: ## Generate the local HTTPS certificate for the Caddy proxy (requires mkcert)
+	./caddy/make-certs.sh
+
+# Quality
+test: ## Run the whole test suite in the api container
+	$(COMPOSE) exec api pytest
+
+lint: ## Check lint and formatting with ruff in the api container
+	$(COMPOSE) exec api ruff check .
+	$(COMPOSE) exec api ruff format --check .
+
+format: ## Apply ruff's safe fixes and formatting in the api container
+	$(COMPOSE) exec api ruff check --fix .
+	$(COMPOSE) exec api ruff format .
+
+# What .github/workflows/ci.yml runs, locally. One-off containers (`run --rm
+# --no-deps`), so the stack doesn't have to be up and the dev database isn't touched.
+ci: ## Run the whole CI locally: image builds, compose check, ruff, tests (stack need not be up)
+	$(COMPOSE) build api mqtt-handler
+	MESHBEE_DOMAIN=ci.example.org ACME_EMAIL=ci@example.org \
+		$(COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml config -q
+	$(COMPOSE) --profile test up -d --wait postgres-test
+	$(COMPOSE) run --rm --no-deps api sh -c \
+		'ruff check . && ruff format --check . && pytest'
+
+contract: ## Regenerate api/openapi.json and the MQTT payload schema (api container up)
+	$(COMPOSE) exec api python -m scripts.export_openapi
+	$(COMPOSE) exec api python -m scripts.export_mqtt_schema
+
+# Database
+db-backup: ## Dump the database to backups/backup_<timestamp>.sql
+	@mkdir -p backups
+	$(COMPOSE) exec postgres pg_dump -U beehive_user beehive_iot > backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "✓ Backup creato in backups/"
+
+db-restore: ## Restore a plain SQL dump (FILE=path/to/backup.sql)
+	@if [ -z "$(FILE)" ]; then \
+		echo "❌ Errore: specifica FILE=path/to/backup.sql"; \
+		exit 1; \
 	fi
-	$(MAKE) mqtt-passwd
-	$(MAKE) start
-	@echo ""
-	@echo "✓ Setup completato!"
-	@echo "API disponibile su: http://localhost:8000"
-	@echo "Documentazione: http://localhost:8000/docs"
+	cat $(FILE) | $(COMPOSE) exec -T postgres psql -U beehive_user beehive_iot
+	@echo "✓ Database ripristinato da $(FILE)"
 
-install: setup ## Alias per setup
+clean-all: ## Remove containers AND volumes (DESTROYS ALL DATA, asks first)
+	@echo "⚠️  ATTENZIONE: Questo comando cancellerà tutti i dati!"
+	@read -p "Sei sicuro? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		$(COMPOSE) down -v; \
+		echo "✓ Tutto rimosso"; \
+	else \
+		echo "Operazione annullata"; \
+	fi
 
-# Info Commands
-info: ## Informazioni sul sistema
-	@echo "=== Beehive IoT - System Info ==="
-	@echo ""
-	@echo "Docker:"
-	@docker --version
-	@echo ""
-	@echo "Docker Compose:"
-	@$(COMPOSE) version
-	@echo ""
-	@echo "Python:"
-	@$(PYTHON) --version
-	@echo ""
-	@echo "Servizi:"
-	@$(COMPOSE) ps
-	@echo ""
-	@echo "Volumi Docker:"
-	@docker volume ls | grep beehive || echo "Nessun volume trovato"
-
-endpoints: ## Mostra endpoints disponibili
-	@echo "=== Beehive IoT - Endpoints ==="
-	@echo ""
-	@echo "Web:"
-	@echo "  https://localhost:8443         - API Root (HTTPS, requires 'make certs')"
-	@echo "  https://localhost:8443/docs    - Swagger UI (HTTPS)"
-	@echo "  http://localhost:8000          - API Root (HTTP)"
-	@echo "  http://localhost:8000/docs     - Swagger UI (HTTP)"
-	@echo "  http://localhost:8000/redoc    - ReDoc"
-	@echo "  http://localhost:8000/health   - Health Check"
-	@echo ""
-	@echo "MQTT:"
-	@echo "  mqtt://localhost:1883          - MQTT Broker"
-	@echo "  ws://localhost:9001            - MQTT WebSocket"
-	@echo ""
-	@echo "Database:"
-	@echo "  postgresql://localhost:5432    - PostgreSQL"
-
-# Default target
 .DEFAULT_GOAL := help

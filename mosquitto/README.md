@@ -89,7 +89,7 @@ Follow the broker and the handler side by side:
 
 ```bash
 docker-compose logs -f mosquitto
-docker-compose logs -f mqtt-handler     # or: make logs-mqtt
+docker-compose logs -f mqtt-handler
 ```
 
 Confirm authentication is really enforced — this must be refused:

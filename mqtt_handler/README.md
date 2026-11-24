@@ -119,7 +119,7 @@ database.
 **Regenerate it after any change to the payload shape** — nothing does it automatically:
 
 ```bash
-docker-compose exec api python -m scripts.export_mqtt_schema   # or: make mqtt-schema
+docker-compose exec api python -m scripts.export_mqtt_schema
 ```
 
 The output is sorted and indented, so regenerating an unchanged contract leaves an empty
@@ -197,8 +197,8 @@ restarts — this is the single most common way to spend ten minutes debugging c
 is not running:
 
 ```bash
-docker-compose restart mqtt-handler        # or: make restart-mqtt
-docker-compose logs -f mqtt-handler        # or: make logs-mqtt
+docker-compose restart mqtt-handler
+docker-compose logs -f mqtt-handler
 ```
 
 Publish a test reading from inside the broker container, so no client install is needed:
@@ -231,7 +231,7 @@ needed) and `tests/integration/test_ingest_parity.py` — see [`tests/`](../test
 - **`beehive/+/data` matches exactly one level** — see [The topic](#the-topic).
 - **`contract.py` is documentation, not validation.** Editing it changes no behaviour;
   editing `payload.py` changes no contract. A payload-shape change is both, plus
-  `make mqtt-schema`.
+  `make contract`.
 - **Every node shares one credential.** A compromised node cannot be revoked
   individually, and any account that authenticates can publish to any topic (no ACLs).
   See [`mosquitto/`](../mosquitto/README.md).
