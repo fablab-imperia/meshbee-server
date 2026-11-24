@@ -334,6 +334,11 @@ docker-compose exec api ruff format .         # reformat
 
 New Alembic revisions are run through Ruff as they are generated (`alembic.ini`).
 
+**The whole CI at once**, before a push: `make ci` builds both images, checks the
+production compose layer, starts `postgres-test`, then runs Ruff and the full suite in a
+one-off `api` container. The stack doesn't need to be up, and the dev database isn't
+touched.
+
 **After changing a route, a schema or the payload shape**, regenerate the committed
 contract artifacts:
 

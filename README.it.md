@@ -338,6 +338,11 @@ docker-compose exec api ruff format .         # riformatta
 
 Le nuove revisioni Alembic passano da Ruff appena generate (`alembic.ini`).
 
+**Tutta la CI in un colpo**, prima di un push: `make ci` costruisce entrambe le immagini,
+controlla il livello compose di produzione, avvia `postgres-test`, poi esegue Ruff e
+l'intera suite in un container `api` usa e getta. Lo stack non deve essere avviato, e il
+database di sviluppo non viene toccato.
+
 **Dopo aver cambiato una rotta, uno schema o la forma del payload**, rigenera gli
 artefatti del contratto committati:
 

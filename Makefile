@@ -3,7 +3,7 @@
 
 .PHONY: help start stop restart restart-api restart-mqtt logs logs-api logs-mqtt \
         status build clean clean-all certs db-shell db-backup db-restore \
-        dev-setup dev-api dev-mqtt test test-health lint format openapi mqtt-schema contract \
+        dev-setup dev-api dev-mqtt test test-health lint ci format openapi mqtt-schema contract \
         mqtt-passwd setup install info endpoints
 
 # Variabili
@@ -112,6 +112,16 @@ test: ## Esegue tutti i test dell'API nel container
 lint: ## Controlla lint e formattazione con ruff nel container
 	$(COMPOSE) exec api ruff check .
 	$(COMPOSE) exec api ruff format --check .
+
+# What .github/workflows/ci.yml runs, locally. One-off containers (`run --rm
+# --no-deps`), so the stack doesn't have to be up and the dev database isn't touched.
+ci: ## Run the whole CI locally: image builds, compose check, ruff, tests (stack need not be up)
+	$(COMPOSE) build api mqtt-handler
+	MESHBEE_DOMAIN=ci.example.org ACME_EMAIL=ci@example.org \
+		$(COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml config -q
+	$(COMPOSE) --profile test up -d --wait postgres-test
+	$(COMPOSE) run --rm --no-deps api sh -c \
+		'ruff check . && ruff format --check . && pytest'
 
 format: ## Applica le correzioni automatiche e la formattazione di ruff nel container
 	$(COMPOSE) exec api ruff check --fix .
