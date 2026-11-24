@@ -12,3 +12,6 @@ httpx2==2.16.0
 paho-mqtt==2.2.0
 # Lint and format; config in /ruff.toml. CI installs this same pin.
 ruff==0.17.5
+# Known vulnerabilities in the installed dependencies (PyPI advisory database).
+# Run in the api image, which carries every runtime and dev dependency.
+pip-audit==2.10.1

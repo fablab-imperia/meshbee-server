@@ -7,9 +7,19 @@ line-length = 88
 target-version = "py314" # ruff supports py315 only in preview; bump when it is stable
 
 [lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+# S: the security rules (bandit's), the nearest local check to SonarCloud's
+# security rating. A finding that is safe gets an inline `# noqa: Sxxx` saying why.
+select = ["E", "F", "W", "I", "UP", "B", "S"]
 # The formatter owns line length; what it can't wrap (long strings, comments) stays.
 ignore = ["E501"]
+
+[lint.per-file-ignores]
+# Tests assert, use made-up passwords and tokens, and build SQL from their own
+# parameters (column and schema names, never input).
+"tests/**" = ["S101", "S105", "S106", "S107", "S608"]
+# Revisions are frozen SQL composed from constants in the same file; nothing
+# reaches them from outside.
+"meshbee_core/migrations/versions/*" = ["S608"]
 
 [lint.flake8-bugbear]
 # FastAPI declares dependencies and parameters as call defaults by design.

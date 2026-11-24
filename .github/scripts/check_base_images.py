@@ -25,7 +25,8 @@ def tag_exists(repository: str, tag: str) -> bool:
     url = f"https://hub.docker.com/v2/repositories/{repository}/tags/{tag}"
     request = urllib.request.Request(url, headers={"User-Agent": "meshbee-base-images"})
     try:
-        with urllib.request.urlopen(request, timeout=30):
+        # S310 is about file: and custom schemes; this URL is always https://hub.docker.com/.
+        with urllib.request.urlopen(request, timeout=30):  # noqa: S310
             return True
     except urllib.error.HTTPError as error:
         if error.code == 404:
