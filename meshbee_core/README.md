@@ -23,7 +23,7 @@ scripts/ ───────┘
 
 | Path | What it is |
 |---|---|
-| `config.py` | `CoreSettings` — the database fields, and nothing else. |
+| `config.py` | `CoreSettings` — the database fields and the error-reporting switch, which every process needs. |
 | `db.py` | The SQLAlchemy engine, `get_session()`, and `integrity_errors()`. |
 | `limits.py` | Every bound and value set, declared once. Read by `models.py` and by `mqtt_handler/contract.py`. |
 | `paging.py` | `Paging` (which window of a list, and whether to count it) and `Page` (its rows, and the total). |
@@ -33,6 +33,7 @@ scripts/ ───────┘
 | `errors.py` | `NotFound`, `Conflict`, `InvalidData`, `Unavailable` — the vocabulary services raise. |
 | `mail.py` | Outgoing email over any SMTP server (`SmtpConfig`, `Mailer`). Standard library only; every failure becomes `Unavailable`. The API builds the config from its own settings. |
 | `emails.py` | The text of each email the server sends, as subject and body. Plain Italian strings. |
+| `reporting/` | Provider-neutral error reporting: `setup_reporting()`, `report_exception()`, a logging bridge, and the backends (`rollbar.py`), found by entry point. Infrastructure, like `mail.py`. The entry points call it; services and repositories never do. See [Error reporting](../README.md#error-reporting). |
 | `repository/` | SQL. One module per table. |
 | `services/` | Business decisions. One module per domain area. |
 
@@ -127,7 +128,8 @@ plain `def` and run in FastAPI's threadpool. The library never picks its own con
 
 ## Configuration
 
-`CoreSettings` holds **only** what every process needs — the database:
+`CoreSettings` holds **only** what every process needs: the database, and error
+reporting, since every process reports. The reporting fields are all optional:
 
 | Variable | Type | Default |
 |---|---|---|
@@ -136,6 +138,12 @@ plain `def` and run in FastAPI's threadpool. The library never picks its own con
 | `DB_NAME` | str | `beehive_iot` |
 | `DB_USER` | str | `beehive_user` |
 | `DB_PASSWORD` | secret | **required** |
+| `ERROR_REPORTING_ENABLED` | bool | `false` |
+| `ERROR_REPORTER` | str | unset |
+| `ERROR_REPORTER_ENVIRONMENT` | str | `development` |
+
+A backend's own settings (`ROLLBAR_ACCESS_TOKEN`) live in its module, read only when it
+is selected, so adding a provider never touches `CoreSettings`.
 
 Each entry point subclasses it with its own extras: `api/config.py` adds the JWT and
 CORS fields, `mqtt_handler/config.py` the `MQTT_*` fields, `scripts/seed.py` the two

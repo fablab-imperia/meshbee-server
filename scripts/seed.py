@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 
 from pydantic import Field, SecretStr, ValidationError
 
+from meshbee_core import reporting
 from meshbee_core.config import CoreSettings
 from meshbee_core.db import close_db_pool, get_session, init_db_pool
 from meshbee_core.models import (
@@ -226,6 +227,7 @@ def seed() -> None:
         )
         sys.exit(1)
 
+    reporting.setup_reporting(settings, service="seed")
     init_db_pool(settings, maxconn=DB_POOL_SIZE)
     try:
         user_ids = create_users(users)
@@ -243,8 +245,12 @@ def seed() -> None:
 
         logger.info("\n=== Seed completato ===")
         logger.info("Utenti creati: " + ", ".join(user.email for user in users))
+    except Exception as e:
+        reporting.report_exception(e)
+        raise
     finally:
         close_db_pool()
+        reporting.flush()
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ again is a no-op when the schema is already at head.
 import logging
 import sys
 
+from meshbee_core import reporting
 from meshbee_core.config import CoreSettings
 from meshbee_core.migrations import UnstampedDatabase, upgrade
 
@@ -18,11 +19,20 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    settings = CoreSettings()
+    reporting.setup_reporting(settings, service="migrate")
     try:
-        upgrade(CoreSettings().database_url)
+        upgrade(settings.database_url)
     except UnstampedDatabase as e:
+        # An install to stamp by hand, not a fault: the operator sees it at once.
         logger.error(str(e))
         sys.exit(1)
+    except Exception as e:
+        # A failed migration stops the whole stack: worth a report.
+        reporting.report_exception(e)
+        raise
+    finally:
+        reporting.flush()
     logger.info("Schema aggiornato")
 
 

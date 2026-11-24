@@ -44,6 +44,8 @@ jobs:
       # default. Dummy values — the tests never reach a real database or token.
       DB_PASSWORD: ci-not-a-secret
       JWT_SECRET_KEY: ci-not-a-secret
+      # CI never reports errors anywhere (tests/conftest.py forces it off too).
+      ERROR_REPORTING_ENABLED: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

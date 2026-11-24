@@ -26,7 +26,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.auth import (
@@ -42,7 +42,7 @@ from api.config import Settings, get_settings, settings
 from api.mail import get_mailer, send_later
 from api.paging import PAGED_RESPONSES, TOTAL_HEADER, page_items, paging_query
 from api.ratelimit import SlidingWindowLimiter, client_address, enforce
-from meshbee_core import emails
+from meshbee_core import emails, reporting
 from meshbee_core.db import close_db_pool, get_session, init_db_pool, ping
 from meshbee_core.errors import Conflict, InvalidData, NotFound, Unavailable
 from meshbee_core.mail import Mailer
@@ -134,11 +134,13 @@ async def lifespan(app: FastAPI):
     """Gestione startup e shutdown dell'applicazione"""
     # Startup
     logger.info("Avvio applicazione...")
+    reporting.setup_reporting(settings, service="api")
     init_db_pool(settings)
     yield
     # Shutdown
     logger.info("Chiusura applicazione...")
     close_db_pool()
+    reporting.flush()
 
 
 # Creazione app FastAPI
@@ -149,7 +151,35 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configurazione CORS
+
+def route_of(scope) -> str:
+    """The route template (/api/arnie/{id_arnia}) once routing has run, else the path."""
+    route = scope.get("route")
+    return getattr(route, "path", None) or scope.get("path", "")
+
+
+class ReportingContextMiddleware:
+    """
+    Give each request's error reports its method and route (meshbee_core.reporting).
+
+    Plain ASGI rather than BaseHTTPMiddleware, so the context it binds is the one
+    the routes, their threadpool and the 500 handler below all run in. The route
+    is resolved only if a report is sent.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            reporting.bind_request(scope["method"], lambda: route_of(scope))
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(ReportingContextMiddleware)
+
+# Configurazione CORS. Added last, so it is the outermost middleware and every
+# response, an error included, carries the CORS headers.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -159,6 +189,20 @@ app.add_middleware(
     # A cross-origin client can read a paged list's total only if it is exposed.
     expose_headers=[TOTAL_HEADER],
 )
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    """
+    A crash outside `db_operation`: report it, answer the same 500 it does.
+
+    Starlette calls this from its outermost middleware and then re-raises, so
+    uvicorn still logs the traceback; that log is not reported a second time.
+    """
+    reporting.report_exception(exc)
+    return JSONResponse(
+        status_code=500, content={"detail": "Errore interno del server"}
+    )
 
 
 # ============================================
@@ -192,6 +236,9 @@ def db_operation(descrizione: str):
     except tuple(ERROR_STATUS) as e:
         raise HTTPException(status_code=ERROR_STATUS[type(e)], detail=str(e)) from e
     except Exception as e:
+        # Before the log line, which the reporting bridge would otherwise send
+        # without the operation's name.
+        reporting.report_exception(e, operation=descrizione)
         logger.exception(f"Errore {descrizione}: {e}")
         raise HTTPException(status_code=500, detail="Errore interno del server") from e
 

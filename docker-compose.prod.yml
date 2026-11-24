@@ -15,6 +15,12 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
+# Error reporting (#56) on by default here; it still needs ERROR_REPORTER and
+# the provider's token in .env. ERROR_REPORTING_ENABLED=false turns it off.
+x-error-reporting: &error-reporting
+  ERROR_REPORTING_ENABLED: ${ERROR_REPORTING_ENABLED:-true}
+  ERROR_REPORTER_ENVIRONMENT: ${ERROR_REPORTER_ENVIRONMENT:-production}
+
 services:
   postgres:
     ports: !reset []
@@ -28,14 +34,17 @@ services:
 
   migrate:
     volumes: !reset []
+    environment: *error-reporting
     logging: *logging
 
   seed:
     volumes: !reset []
+    environment: *error-reporting
     logging: *logging
 
   mqtt-handler:
     volumes: !reset []
+    environment: *error-reporting
     logging: *logging
 
   api:
@@ -50,6 +59,7 @@ services:
       FORWARDED_ALLOW_IPS: "*"
       # The app is native and /admin is same-origin; no other site may call the API.
       CORS_ORIGINS: '["https://${MESHBEE_DOMAIN:?set MESHBEE_DOMAIN in .env}"]'
+      <<: *error-reporting
     logging: *logging
 
   caddy:

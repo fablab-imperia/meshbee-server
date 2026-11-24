@@ -250,6 +250,7 @@ An install created before Alembic has the tables but no `alembic_version`, and
 
 ```bash
 docker-compose exec postgres pg_dump -U beehive_user beehive_iot > backup.sql   # first
+docker-compose build                                                            # migrate runs the api image
 docker-compose run --rm migrate alembic stamp 0001
 docker-compose up -d
 ```

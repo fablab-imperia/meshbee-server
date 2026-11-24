@@ -261,6 +261,38 @@ def test_arnia_access_reports_a_database_outage_as_unavailable(fake_db):
     assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
+def outage():
+    """A fresh exception each time: a reported one is marked and never sent twice."""
+    return OperationalError("SELECT 1", {}, Exception("could not connect to server"))
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda: authenticate_user("apicoltore@example.org", PASSWORD),
+        lambda: get_current_user(bearer(create_access_token({"sub": "a@b.org"}))),
+        lambda: check_user_arnia_access(7, 99, "arnia.read"),
+    ],
+    ids=["login", "current user", "arnia access"],
+)
+def test_a_database_outage_is_reported(fake_db, reporter, call):
+    """
+    The 503 still goes to the client, and the outage to the maintainers (#56).
+
+    Every authenticated request passes through here first, so without this an
+    API-side outage would never be reported at all.
+    """
+    error = outage()
+    fake_db(auth, error=error)
+
+    with pytest.raises(HTTPException) as exc_info:
+        call()
+
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    [(sent, _, _)] = reporter.reports
+    assert sent is error
+
+
 def test_an_unknown_action_is_rejected(fake_db):
     """
     Asking for an action that does not exist raises instead of granting access.

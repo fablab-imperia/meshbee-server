@@ -17,6 +17,7 @@ from jose import JWTError, jwt
 from sqlalchemy.exc import SQLAlchemyError
 
 from api.config import settings
+from meshbee_core import reporting
 from meshbee_core.db import get_session
 from meshbee_core.models import TokenData
 from meshbee_core.services import auth as auth_service
@@ -38,7 +39,12 @@ def database_unavailable_error(exc: Exception) -> HTTPException:
     A connection problem must not be reported as wrong credentials or a missing
     permission: clients would log the user out and retry the login, hammering the
     database exactly when it is already struggling.
+
+    Reported as an error (#56): a 503 here is an outage, not normal traffic, and
+    every authenticated request passes through here first, so nothing else in
+    the API would report it.
     """
+    reporting.report_exception(exc)
     logger.error(f"Database non raggiungibile: {exc}")
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -219,6 +225,8 @@ def get_current_user(
             if user is None:
                 raise credentials_exception
 
+            # An error report from this request names the user, by id only.
+            reporting.set_person(user["id_utente"])
             return user
     except HTTPException:
         raise

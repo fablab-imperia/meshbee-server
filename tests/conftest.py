@@ -68,11 +68,53 @@ def isolated_settings_env(monkeypatch):
     """
     for field_name in Settings.model_fields:
         monkeypatch.delenv(field_name, raising=False)
+    # Error reporting off whatever a `.env` says, so no test ever sends a report.
+    monkeypatch.setenv("ERROR_REPORTING_ENABLED", "false")
+    monkeypatch.delenv("ROLLBAR_ACCESS_TOKEN", raising=False)
     get_settings.cache_clear()
     get_core_settings.cache_clear()
     yield
     get_settings.cache_clear()
     get_core_settings.cache_clear()
+    reset_reporting()
+
+
+def reset_reporting():
+    """Back to no reporter, no logging bridge and no bound request."""
+    import logging
+
+    from meshbee_core import reporting
+
+    reporting.activate(reporting.NullReporter())
+    reporting.unbind_request()
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        if isinstance(handler, reporting.ReportingHandler):
+            root.removeHandler(handler)
+
+
+class FakeReporter:
+    """Records what would have been sent: (exception, context, person_id) each."""
+
+    def __init__(self):
+        self.reports = []
+        self.flushed = 0
+
+    def report(self, exc, context, person_id):
+        self.reports.append((exc, context, person_id))
+
+    def flush(self, timeout):
+        self.flushed += 1
+
+
+@pytest.fixture
+def reporter():
+    """Error reporting on, through a fake: reports land in `reporter.reports`."""
+    from meshbee_core import reporting
+
+    fake = FakeReporter()
+    reporting.activate(fake)
+    return fake
 
 
 @pytest.fixture

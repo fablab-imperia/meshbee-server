@@ -235,6 +235,11 @@ broker) e in `tests/integration/test_ingest_parity.py` — vedi
   come `Lettura scartata` senza traceback e il messaggio è perso: il broker ha ricevuto
   la sua conferma prima ancora che l'handler guardasse il payload. Non c'è nessuna coda
   di messaggi morti.
+- **Anche una lettura che non si riesce a salvare è persa, ma viene segnalata.** Un
+  errore del database durante il salvataggio di un messaggio valido finisce nel log con
+  il traceback e, con la [segnalazione degli errori](../README.it.md#segnalazione-degli-errori)
+  accesa, viene inviato con il topic e l'id del nodo. Un messaggio rifiutato o malformato
+  non viene mai segnalato: è un problema del nodo, non del server.
 - **`beehive/+/data` copre esattamente un livello** — vedi [Il topic](#il-topic).
 - **`contract.py` è documentazione, non validazione.** Modificarlo non cambia nessun
   comportamento; modificare `payload.py` non cambia nessun contratto. Cambiare la forma

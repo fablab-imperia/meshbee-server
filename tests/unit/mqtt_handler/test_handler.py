@@ -98,6 +98,49 @@ def test_a_rejected_reading_does_not_propagate(monkeypatch, caplog):
     assert "Temperatura deve essere tra -50 e 100" in caplog.text
 
 
+def test_a_database_failure_is_reported_with_topic_and_node(monkeypatch, reporter):
+    """The reading is lost: the maintainers hear of it, once (#56)."""
+
+    @contextmanager
+    def _broken_session():
+        raise RuntimeError("database non raggiungibile")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(mqtt_handler, "get_session", _broken_session)
+
+    deliver(message({"id_sensore": "SENSOR01", "temperatura": 20}))
+
+    [(exc, context, person_id)] = reporter.reports
+    assert str(exc) == "database non raggiungibile"
+    assert context == {"topic": TOPIC, "id_nodo": "NODE001"}
+    assert person_id is None
+
+
+def test_a_rejected_reading_is_not_reported(monkeypatch, reporter):
+    """An out-of-range or unresolvable reading is the node's problem, not a fault."""
+    from meshbee_core.errors import NotFound
+
+    @contextmanager
+    def _session():
+        yield object()
+
+    def _reject(session, payload, **kwargs):
+        raise NotFound("Arnia non trovata")
+
+    monkeypatch.setattr(mqtt_handler, "get_session", _session)
+    monkeypatch.setattr(mqtt_handler.ingest, "record_node_reading", _reject)
+
+    deliver(message({"id_sensore": "SENSOR01"}))
+
+    assert reporter.reports == []
+
+
+def test_a_malformed_message_is_not_reported(session_calls, reporter):
+    deliver(message(b"{not json"))
+
+    assert reporter.reports == []
+
+
 def test_a_stored_reading_is_logged_with_its_measurements(monkeypatch, caplog):
     """The success line is how an operator confirms a node is reporting."""
     import logging
@@ -350,6 +393,31 @@ def test_run_stops_cleanly_when_it_fails_or_is_interrupted(monkeypatch, caplog, 
     assert handler.client.calls[-2:] == [("loop_stop",), ("disconnect",)]
 
 
+def test_a_crash_in_run_is_reported_and_flushed(monkeypatch, reporter):
+    handler = running_handler(
+        monkeypatch,
+        broker_settings(),
+        FakeClient(connect_error=ConnectionRefusedError("broker non raggiungibile")),
+    )
+
+    handler.run()
+
+    [(exc, context, _)] = reporter.reports
+    assert isinstance(exc, ConnectionRefusedError)
+    assert context == {"broker": "broker"}
+    assert reporter.flushed == 1
+
+
+def test_ctrl_c_is_not_reported(monkeypatch, reporter):
+    handler = running_handler(
+        monkeypatch, broker_settings(), FakeClient(connect_error=KeyboardInterrupt())
+    )
+
+    handler.run()
+
+    assert reporter.reports == []
+
+
 def test_a_termination_signal_exits_cleanly():
     """
     `docker stop` sends SIGTERM; exiting with SystemExit(0) runs main()'s finally.
@@ -368,7 +436,14 @@ def main_env(monkeypatch):
     """main() with its collaborators recorded: signals, settings, pool, handler."""
     events = []
     signals = {}
-    settings = SimpleNamespace(DB_HOST="db", DB_PORT=5432, DB_NAME="beehive_test")
+    settings = SimpleNamespace(
+        DB_HOST="db",
+        DB_PORT=5432,
+        DB_NAME="beehive_test",
+        ERROR_REPORTING_ENABLED=False,
+        ERROR_REPORTER=None,
+        ERROR_REPORTER_ENVIRONMENT="test",
+    )
 
     class FakeHandler:
         run_error = None
@@ -404,6 +479,21 @@ def test_main_opens_the_pool_runs_and_closes_it(main_env):
         "run",
         "close",
     ]
+
+
+def test_main_starts_error_reporting_with_its_settings(main_env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        mqtt_handler.reporting,
+        "setup_reporting",
+        lambda settings, service: calls.append((settings, service)),
+    )
+
+    mqtt_handler.main()
+
+    [(settings, service)] = calls
+    assert settings is mqtt_handler.get_settings()
+    assert service == "mqtt-handler"
 
 
 def test_main_handles_both_termination_signals(main_env):
@@ -448,3 +538,25 @@ def test_main_exits_without_a_database_before_touching_the_broker(
 
     assert exc_info.value.code == 1
     assert "handler" not in main_env.events
+
+
+def test_main_reports_a_database_it_cannot_reach(main_env, monkeypatch, reporter):
+    """Logged with its traceback, so the bridge sends it; flushed before exit."""
+    from meshbee_core import reporting
+
+    reporting.install_logging_bridge()
+
+    def unreachable(settings, maxconn):
+        raise RuntimeError("database non raggiungibile")
+
+    monkeypatch.setattr(mqtt_handler, "init_db_pool", unreachable)
+    # main() would replace the fake with the (disabled) configured reporter.
+    monkeypatch.setattr(mqtt_handler.reporting, "setup_reporting", lambda *a, **k: None)
+
+    with pytest.raises(SystemExit):
+        mqtt_handler.main()
+
+    [(exc, context, _)] = reporter.reports
+    assert str(exc) == "database non raggiungibile"
+    assert context["logger"] == "mqtt_handler.handler"
+    assert reporter.flushed == 1
