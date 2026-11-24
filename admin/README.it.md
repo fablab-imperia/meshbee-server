@@ -12,6 +12,8 @@ Una piccola **pagina statica per gli amministratori**, servita dall'API su `/adm
 - reimpostare una password;
 - letture, come tabella o come grafici, e attività;
 - con chi è condiviso un apiario, e gli inviti in attesa verso email ancora senza account;
+- la foto di un'arnia: vederla, caricarla o sostituirla, rimuoverla
+  ([#3](https://github.com/fablab-imperia/meshbee-server/issues/3));
 - letture a mano: inserirne una, correggerne una, eliminarle una alla volta o come
   selezione
   ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
@@ -36,7 +38,7 @@ Swagger UI su `/docs` resta il ripiego completo.
 | `index.html` | Il markup, con i binding di [Alpine.js](https://alpinejs.dev). |
 | `resources.js` | `RESOURCES`: per ogni scheda, la rotta, le colonne, i campi dei form e le azioni sulle righe. Una nuova operazione admin di solito è una voce qui. |
 | `admin.js` | Il nucleo dell'unico componente Alpine: login, richieste, la tabella e il form generico guidati da `RESOURCES`. `admin()` vi unisce i file di funzionalità qui sotto. |
-| `overview.js`, `charts.js`, `shares.js`, `pagination.js`, `url.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario, la paginazione sotto ogni tabella e la vista tenuta nell'URL. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
+| `overview.js`, `charts.js`, `shares.js`, `photos.js`, `pagination.js`, `url.js` | Una funzionalità ciascuno, con il proprio stato: la scheda Panoramica, i grafici delle letture, il pannello di condivisione di un apiario, il pannello della foto di un'arnia, la paginazione sotto ogni tabella e la vista tenuta nell'URL. Una nuova funzionalità con stato proprio ha un file come questi, non altri rami in `admin.js`. |
 | `admin.css` | Il poco che [Pico CSS](https://picocss.com) non copre. |
 | `vendor/` | Alpine.js e Pico CSS, **inclusi nel repo** con la versione nel nome del file. Per aggiornarli vedi [Trappole](#trappole). |
 
@@ -92,6 +94,15 @@ pannello di condivisione segna gli inviti in attesa e può inviarne uno di nuovo
   `/api/user/apiari/{id_apiario}/condivisioni`, che gli admin superano anch'esse. Non
   esistono copie admin. Lo stesso vale per **Sposta** di un'arnia, tramite
   `PUT /api/user/arnie/{id_arnia}/apiario`.
+- **Foto di un'arnia** apre un pannello su `/api/user/arnie/{id_arnia}/foto`, che gli
+  admin superano anch'esse. La colonna Foto della tabella Arnie mostra quali arnie ne
+  hanno una.
+  - Un `<img src>` non può mandare il bearer token, quindi il pannello scarica la foto
+    come qualsiasi altra richiesta e la mostra da un object URL, rilasciato quando il
+    pannello si chiude.
+  - Il caricamento parte come `FormData`, così l'header multipart lo imposta il browser.
+    La pagina manda il file così com'è: l'API lo riduce, ne toglie i metadati e applica
+    il limite di 5 MB, e il pannello mostra il suo messaggio su un 400 o un 413.
 - **I grafici** caricano le proprie letture, perché la tabella ne contiene solo una
   pagina.
   - Disegnano le letture dell'arnia scelta nel periodo scelto (l'ultimo anno senza

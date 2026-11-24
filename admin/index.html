@@ -10,6 +10,7 @@
     <script src="overview.js"></script>
     <script src="charts.js"></script>
     <script src="shares.js"></script>
+    <script src="photos.js"></script>
     <script src="pagination.js"></script>
     <script src="url.js"></script>
     <script src="admin.js"></script>
@@ -197,8 +198,8 @@
 
         <!-- Create / edit form -->
         <!-- Modal: showModal() traps focus and Escape closes it. -->
-        <dialog x-effect="dialog ? $el.open || $el.showModal() : $el.open && $el.close()" @close="dialog = null">
-          <template x-if="dialog && dialog.kind !== 'shares'">
+        <dialog x-effect="dialog ? $el.open || $el.showModal() : $el.open && $el.close()" @close="dialog = null; closePhoto()">
+          <template x-if="dialog && !dialog.kind">
             <article>
               <header>
                 <button aria-label="Chiudi" rel="prev" @click="dialog = null"></button>
@@ -306,6 +307,38 @@
               <p><small>Condividere di nuovo con la stessa email ne cambia il ruolo. Un'email senza account resta in attesa finché l'account non viene creato.</small></p>
               <p class="notice" x-show="shares.notice" x-text="shares.notice"></p>
               <p class="error" x-show="dialogError" x-text="dialogError"></p>
+            </article>
+          </template>
+
+          <!-- A hive's photo -->
+          <template x-if="dialog && dialog.kind === 'photo'">
+            <article>
+              <header>
+                <button aria-label="Chiudi" rel="prev" @click="dialog = null"></button>
+                <strong x-text="dialog.title"></strong>
+              </header>
+              <figure class="photo" x-show="photo.url">
+                <img :src="photo.url" :alt="dialog.title" />
+              </figure>
+              <p x-show="photo.id_foto == null"><em>L'arnia non ha una foto.</em></p>
+              <form @submit.prevent="uploadPhoto()">
+                <fieldset role="group">
+                  <input
+                    type="file"
+                    x-ref="photoFile"
+                    accept="image/jpeg,image/png,image/webp"
+                    aria-label="Nuova foto"
+                    required
+                    @change="photo.file = $event.target.files[0] || null"
+                  />
+                  <button type="submit" :disabled="!photo.file || photo.busy" x-text="photo.id_foto == null ? 'Carica' : 'Sostituisci'"></button>
+                </fieldset>
+              </form>
+              <p><small>JPEG, PNG o WebP, al massimo 5 MB. Viene salvata raddrizzata, ridotta a 1600 px e senza metadati (posizione GPS compresa).</small></p>
+              <p class="error" x-show="dialogError" x-text="dialogError"></p>
+              <footer x-show="photo.id_foto != null">
+                <button class="outline contrast" :disabled="!!photo.busy" @click="removePhoto()">Rimuovi foto</button>
+              </footer>
             </article>
           </template>
         </dialog>

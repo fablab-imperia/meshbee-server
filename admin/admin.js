@@ -6,7 +6,7 @@
 //
 // This file is the core: login, requests, the table and the generic form, all
 // driven by RESOURCES (resources.js). Each feature with state of its own lives
-// in a mixin file (overview.js, charts.js, shares.js, pagination.js, url.js)
+// in a mixin file (overview.js, charts.js, shares.js, photos.js, pagination.js, url.js)
 // that admin() merges in.
 
 const TOKEN_KEY = "meshbee-admin-token";
@@ -15,7 +15,7 @@ const TOKEN_KEY = "meshbee-admin-token";
 // Property descriptors, not a spread: a spread would freeze the getters.
 function admin() {
   const component = {};
-  for (const part of [adminCore(), overviewMixin(), chartsMixin(), sharesMixin(), paginationMixin(), urlMixin()]) {
+  for (const part of [adminCore(), overviewMixin(), chartsMixin(), sharesMixin(), photosMixin(), paginationMixin(), urlMixin()]) {
     Object.defineProperties(component, Object.getOwnPropertyDescriptors(part));
   }
   return component;
@@ -132,15 +132,31 @@ function adminCore() {
 
     // Returns { res, data }, or null after showing the error.
     async request(method, path, body, onError) {
+      const res = await this.send(method, path, body, onError);
+      if (!res) return null;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        onError(describeError(res.status, data));
+        return null;
+      }
+      return { res, data };
+    },
+
+    // The authenticated fetch under request(): the response whatever its
+    // status, or null when there was none or the session has expired. A
+    // FormData body (an upload) goes as it is, so the browser sets the
+    // multipart Content-Type with its boundary; anything else goes as JSON.
+    async send(method, path, body, onError) {
+      const form = body instanceof FormData;
       let res;
       try {
         res = await fetch(path, {
           method,
           headers: {
             Authorization: `Bearer ${this.token}`,
-            ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+            ...(body === undefined || form ? {} : { "Content-Type": "application/json" }),
           },
-          body: body === undefined ? undefined : JSON.stringify(body),
+          body: body === undefined || form ? body : JSON.stringify(body),
         });
       } catch {
         onError(UNREACHABLE);
@@ -150,12 +166,7 @@ function adminCore() {
         this.signOut("Sessione scaduta: accedi di nuovo");
         return null;
       }
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        onError(describeError(res.status, data));
-        return null;
-      }
-      return { res, data };
+      return res;
     },
 
     // Returns false after showing the error: without the enums the forms
@@ -440,6 +451,9 @@ function adminCore() {
       switch (col.fmt) {
         case "bool":
           return v ? "✓" : "✗";
+        // Whether a reference is set, such as a hive's id_foto.
+        case "present":
+          return v == null ? "—" : "✓";
         case "date":
           return v ? new Date(v).toLocaleString("it-IT") : "—";
         case "utente":
