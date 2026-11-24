@@ -249,6 +249,8 @@ services:
       - ./ruff.toml:/app/ruff.toml:ro
       # For the alembic CLI: `docker-compose exec api alembic revision --autogenerate ...`
       - ./alembic.ini:/app/alembic.ini:ro
+      # Uploaded files (hive photos, #3). Back it up together with the database.
+      - ./storage:/app/storage
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Mailpit: a fake SMTP server with a web inbox, for trying email locally.

@@ -14,10 +14,11 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 | Percorso | Cos'è |
 |---|---|
-| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 62 rotte, e le pagine `/reset-password` e `/invite`. |
+| `main.py` | L'applicazione: lifespan, CORS, traduzione degli errori e tutte le 65 rotte, e le pagine `/reset-password` e `/invite`. |
 | `auth.py` | Emissione e verifica dei JWT, e le dipendenze FastAPI che proteggono le rotte. |
 | `mail.py` | `get_mailer` e `send_later`: le email fuori dal percorso della richiesta — vedi [Configurazione](#configurazione). |
 | `ratelimit.py` | Limiti alle richieste, in memoria: per indirizzo client sulla rotta di password dimenticata ([Reimpostare la password](#reimpostare-la-password)), per utente sulla condivisione. |
+| `storage.py` | I caricamenti: `get_storage` (lo `Storage` dietro `STORAGE_DIR`) e il limite al corpo delle richieste — vedi [Foto delle arnie](#foto-delle-arnie). |
 | `paging.py` | I parametri opzionali `limit`/`offset` delle rotte di elenco, e il loro header `X-Total-Count` — vedi [Paginazione](#paginazione). |
 | `config.py` | `Settings(CoreSettings)` — JWT, metadati dell'API e CORS sopra ai campi del database. |
 | `openapi.json` | Il contratto API generato. **Committato** — vedi [Contratto OpenAPI](#contratto-openapi). |
@@ -27,7 +28,7 @@ solo* service e traduce il risultato in uno status code. Qui non c'è SQL.
 
 ## Endpoint
 
-62 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
+65 operazioni. La colonna `Auth` dice cosa deve portare una richiesta:
 
 - **nessuna** — pubblico.
 - **utente** — un bearer token valido di un account attivo (`get_current_active_user`).
@@ -63,6 +64,9 @@ sull'accesso del chiamante all'apiario di quell'arnia, o a quell'apiario.
 | GET | `/api/user/arnie/{id_arnia}` | utente + viewer | Una singola arnia con l'ultima lettura. |
 | PUT | `/api/user/arnie/{id_arnia}` | utente + manager | Rinomina un'arnia o ne modifica i dettagli (`posizione` è una nota libera). Le coordinate sono dell'apiario: inviare `latitudine`/`longitudine` dà 422. `attiva` (dismetterla) vale solo per il proprietario. |
 | PUT | `/api/user/arnie/{id_arnia}/apiario` | utente + owner | Sposta l'arnia in un altro apiario del suo proprietario. Chi può vederla segue l'apiario. |
+| PUT | `/api/user/arnie/{id_arnia}/foto` | utente + manager | Imposta la foto dell'arnia (multipart, campo `file`: JPEG, PNG o WebP, al massimo 5 MB), sostituendo la precedente. Restituisce il record del file salvato; il suo `id_allegato` è il nuovo `id_foto` dell'arnia. **400** se non è un'immagine, **413** se è troppo grande. Vedi [Foto delle arnie](#foto-delle-arnie). |
+| GET | `/api/user/arnie/{id_arnia}/foto` | utente + viewer | La foto, `image/webp`, con `ETag` = `id_foto`. 404 se l'arnia non ne ha. |
+| DELETE | `/api/user/arnie/{id_arnia}/foto` | utente + manager | Rimuove la foto. 404 se l'arnia non ne ha. |
 | GET | `/api/user/arnie/{id_arnia}/letture` | utente + viewer | Letture. `data_inizio`, `data_fine`, `limit` (1–10000, default 1000). **Paginata**. |
 | GET | `/api/user/arnie/{id_arnia}/letture/temperatura` | utente + viewer | Solo `{timestamp, temperatura}` — dimensionato per i grafici. |
 | GET | `/api/user/arnie/{id_arnia}/letture/umidita` | utente + viewer | Solo `{timestamp, umidita}`. |
@@ -333,6 +337,29 @@ non può portare un messaggio suo. Una condivisione è verso **un solo** indiriz
 lista come `a@x.org, b@y.org` è un 422, perché sarebbe un invito che raggiunge molte
 persone oltre i limiti. Anche il mailer rifiuta tutto il resto.
 
+## Foto delle arnie
+
+Ogni arnia può avere una foto (#3). Caricarne una nuova sostituisce la precedente,
+file compreso. Le risposte sulle arnie portano `id_foto`, null senza foto. Cambia a ogni
+caricamento, quindi un client può tenere l'immagine in cache sotto quell'id e non
+riscaricarla finché resta lo stesso.
+
+Quello che si salva non è quello che è stato caricato. `meshbee_core/images.py` decodifica
+l'immagine, la raddrizza secondo l'orientamento EXIF e la riduce ad al massimo 1600 px
+sul lato lungo. Poi la ricodifica in WebP **senza alcun metadato**, il che elimina la
+posizione GPS che un telefono registra. Una foto da 12 MP di solito diventa di qualche
+centinaio di KB.
+
+La dimensione si controlla due volte. `BodySizeLimitMiddleware` (`storage.py`) risponde 413
+a qualsiasi corpo di richiesta oltre 5 MB più l'involucro multipart, prima di leggerlo.
+Deve stare in un middleware: FastAPI legge un form multipart, file compreso, prima che
+girino le dipendenze della rotta. La rotta poi rifiuta un *file* oltre 5 MB. In produzione,
+anche Caddy limita i corpi delle richieste a 6 MB.
+
+I file stanno in `STORAGE_DIR` (`./storage` in compose) e i loro record nella tabella
+`allegati`. I service li legano alla transazione della richiesta. Vedi
+[`meshbee_core/`](../meshbee_core/README.it.md#file-salvati).
+
 ## Traduzione degli errori
 
 I service sollevano il vocabolario di `meshbee_core.errors` e non sanno nulla di HTTP.
@@ -345,6 +372,7 @@ si incontrano:
 | `Conflict` | 409 |
 | `InvalidData` | 400 |
 | `Unavailable` (il server di posta ha fallito) | 503 |
+| un corpo di richiesta oltre il limite di caricamento (`storage.py`, non un service) | 413 |
 | `SQLAlchemyError` durante il login | 503 |
 | qualsiasi altra cosa | 500 `Errore interno del server`, con l'errore vero nel log |
 
@@ -388,6 +416,7 @@ README.
 | `INVITE_EXPIRE_DAYS` | int | `7` (al massimo 30) |
 | `INVITE_MAX_PER_DAY` | int | `20` email di invito per utente |
 | `NOTICE_MAX_PER_DAY` | int | `20` avvisi di condivisione per utente |
+| `STORAGE_DIR` | path | `/app/storage` — i file caricati; compose ci monta `./storage` |
 
 `CORS_ORIGINS` è una lista, quindi dall'ambiente va passata in **JSON**, non come
 stringa separata da virgole:

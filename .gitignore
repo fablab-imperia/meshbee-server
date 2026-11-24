@@ -12,6 +12,11 @@ caddy/certs/
 .env
 .env.local
 
+# Uploaded files (hive photos). The directory itself is kept, so the checkout
+# owns it: a bind-mount source Docker has to create belongs to root.
+storage/*
+!storage/.gitkeep
+
 # File runtime Mosquitto (generati, non committare)
 mosquitto/config/passwd
 mosquitto/data/

@@ -34,7 +34,7 @@ _latest = (
 # An arnia with its node's name and its current state: what the hive list shows.
 # The columns are those of the former `v_arnie_stato` view, in the same order
 # but without the coordinates (they are the apiary's, #84), followed by the
-# hive's apiary.
+# hive's apiary and its photo (#3).
 STATO = (
     select(
         Arnia.id_arnia,
@@ -54,6 +54,7 @@ STATO = (
         _latest.c.batteria.label("ultima_batteria"),
         Arnia.id_apiario,
         Apiario.nome_apiario,
+        Arnia.id_foto,
     )
     .select_from(Arnia)
     .outerjoin(Nodo, Nodo.id_nodo == Arnia.id_nodo)
@@ -288,3 +289,25 @@ def get_proprietario(session: Session, id_arnia: int) -> dict[str, Any] | None:
         .where(Arnia.id_arnia == id_arnia)
     ).first()
     return mapping(row)
+
+
+def get_foto(
+    session: Session, id_arnia: int, *, lock: bool = False
+) -> dict[str, Any] | None:
+    """
+    The hive's photo id; None if the hive does not exist.
+
+    `lock` holds the hive row until the transaction ends. It serialises two
+    changes to the same hive's photo: without it both would read the same old
+    photo, and each would delete it while one new photo was left unreferenced.
+    """
+    query = select(Arnia.id_arnia, Arnia.id_foto).where(Arnia.id_arnia == id_arnia)
+    if lock:
+        query = query.with_for_update()
+    return mapping(session.exec(query).first())
+
+
+def set_foto(session: Session, id_arnia: int, id_foto: int | None) -> None:
+    session.exec(
+        sql_update(Arnia).where(Arnia.id_arnia == id_arnia).values(id_foto=id_foto)
+    )

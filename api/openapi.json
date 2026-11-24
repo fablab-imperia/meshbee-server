@@ -1,6 +1,69 @@
 {
   "components": {
     "schemas": {
+      "AllegatoResponse": {
+        "description": "A stored file: a hive's photo",
+        "properties": {
+          "altezza": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altezza"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "data_caricamento": {
+            "format": "date-time",
+            "title": "Data Caricamento",
+            "type": "string"
+          },
+          "dimensione": {
+            "title": "Dimensione",
+            "type": "integer"
+          },
+          "id_allegato": {
+            "title": "Id Allegato",
+            "type": "integer"
+          },
+          "id_utente_caricamento": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Utente Caricamento"
+          },
+          "larghezza": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Larghezza"
+          }
+        },
+        "required": [
+          "id_allegato",
+          "content_type",
+          "dimensione",
+          "data_caricamento"
+        ],
+        "title": "AllegatoResponse",
+        "type": "object"
+      },
       "ApiarioAdminCreate": {
         "description": "New apiary created by an admin on behalf of a user.",
         "properties": {
@@ -22,8 +85,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90,
-                "minimum": -90,
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
@@ -39,8 +102,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180,
-                "minimum": -180,
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
@@ -209,8 +272,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90,
-                "minimum": -90,
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
@@ -226,8 +289,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180,
-                "minimum": -180,
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
@@ -384,8 +447,8 @@
           "latitudine": {
             "anyOf": [
               {
-                "maximum": 90,
-                "minimum": -90,
+                "maximum": 90.0,
+                "minimum": -90.0,
                 "type": "number"
               },
               {
@@ -401,8 +464,8 @@
           "longitudine": {
             "anyOf": [
               {
-                "maximum": 180,
-                "minimum": -180,
+                "maximum": 180.0,
+                "minimum": -180.0,
                 "type": "number"
               },
               {
@@ -527,6 +590,17 @@
           "id_arnia": {
             "title": "Id Arnia",
             "type": "integer"
+          },
+          "id_foto": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Foto"
           },
           "id_nodo": {
             "title": "Id Nodo",
@@ -772,6 +846,17 @@
           "id_arnia": {
             "title": "Id Arnia",
             "type": "integer"
+          },
+          "id_foto": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Foto"
           },
           "id_nodo": {
             "title": "Id Nodo",
@@ -1088,6 +1173,21 @@
           }
         },
         "title": "AttivitaUpdate",
+        "type": "object"
+      },
+      "Body_upload_foto_arnia_api_user_arnie__id_arnia__foto_put": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "JPEG, PNG o WebP, al massimo 5 MB",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_foto_arnia_api_user_arnie__id_arnia__foto_put",
         "type": "object"
       },
       "CondivisioneCreate": {
@@ -5486,6 +5586,161 @@
           }
         ],
         "summary": "Update User Attivita",
+        "tags": [
+          "Utente"
+        ]
+      }
+    },
+    "/api/user/arnie/{id_arnia}/foto": {
+      "delete": {
+        "description": "Remove the hive's photo (manager or above).",
+        "operationId": "delete_foto_arnia_api_user_arnie__id_arnia__foto_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Foto Arnia",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "get": {
+        "description": "The hive's photo. Its `ETag` is the hive's `id_foto`, which changes with\nevery new photo, so a client may cache it under that id.",
+        "operationId": "get_foto_arnia_api_user_arnie__id_arnia__foto_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/webp": {}
+            },
+            "description": "La foto"
+          },
+          "404": {
+            "description": "Arnia inesistente o senza foto"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Foto Arnia",
+        "tags": [
+          "Utente"
+        ]
+      },
+      "put": {
+        "description": "Set the hive's photo, replacing the one it had (manager or above).\n\nThe image is stored upright, at most 1600 px on its longer side, as WebP and\nwithout its metadata (a phone's GPS position included). The new `id_allegato`\nbecomes the hive's `id_foto`.",
+        "operationId": "upload_foto_arnia_api_user_arnie__id_arnia__foto_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_arnia",
+            "required": true,
+            "schema": {
+              "title": "Id Arnia",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_foto_arnia_api_user_arnie__id_arnia__foto_put"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllegatoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Il file non è un'immagine JPEG, PNG o WebP"
+          },
+          "413": {
+            "description": "File oltre 5 MB"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Foto Arnia",
         "tags": [
           "Utente"
         ]

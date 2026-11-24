@@ -11,6 +11,8 @@ A small **static page for administrators**, served by the API at `/admin/`
 - resetting a password;
 - readings, as a table or as charts, and activities;
 - who an apiary is shared with, and pending invitations to emails with no account yet;
+- a hive's photo: see it, upload or replace it, remove it
+  ([#3](https://github.com/fablab-imperia/meshbee-server/issues/3));
 - readings by hand: insert one, correct one, delete one at a time or a selection
   ([#42](https://github.com/fablab-imperia/meshbee-server/issues/42),
   [#21](https://github.com/fablab-imperia/meshbee-server/issues/21)).
@@ -35,7 +37,7 @@ It is **a client of the API, not a second one**:
 | `index.html` | The markup, with [Alpine.js](https://alpinejs.dev) bindings. |
 | `resources.js` | `RESOURCES`: for each tab, its route, columns, form fields and row actions. A new admin operation is usually one entry here. |
 | `admin.js` | The core of the one Alpine component: login, requests, the table and the generic form that `RESOURCES` drives. `admin()` merges the feature files below into it. |
-| `overview.js`, `charts.js`, `shares.js`, `pagination.js`, `url.js` | One feature each, with its own state: the Panoramica tab, the readings charts, an apiary's sharing panel, the pager under each table, and the view kept in the URL. A new feature with state of its own gets a file like these, not more branches in `admin.js`. |
+| `overview.js`, `charts.js`, `shares.js`, `photos.js`, `pagination.js`, `url.js` | One feature each, with its own state: the Panoramica tab, the readings charts, an apiary's sharing panel, a hive's photo panel, the pager under each table, and the view kept in the URL. A new feature with state of its own gets a file like these, not more branches in `admin.js`. |
 | `admin.css` | The little that [Pico CSS](https://picocss.com) does not cover. |
 | `vendor/` | Alpine.js and Pico CSS, **vendored** with the version in the file name. See [Gotchas](#gotchas) for upgrading. |
 
@@ -88,6 +90,13 @@ sharing panel marks pending invitations and can send one again ("Reinvia"). See
   `/api/user/apiari/{id_apiario}/condivisioni` routes, which admins pass too. There are
   no admin copies of them. A hive's **Sposta** works the same way, through
   `PUT /api/user/arnie/{id_arnia}/apiario`.
+- **A hive's Foto** opens a panel on `/api/user/arnie/{id_arnia}/foto`, which admins
+  pass too. The Arnie table's Foto column shows which hives have one.
+  - An `<img src>` cannot send the bearer token, so the panel fetches the photo like
+    any other request and shows it from an object URL, released when the panel closes.
+  - The upload goes as `FormData`, so the browser sets the multipart header itself.
+    The page sends the file as it is: the API scales it, strips its metadata and
+    enforces the 5 MB limit, and the panel shows its message on a 400 or 413.
 - **The charts** load their own readings, since the table holds only one page.
   - They draw the picked hive's readings in the picked period (the last year without
     dates), up to the newest 10000.

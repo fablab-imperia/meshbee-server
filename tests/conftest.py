@@ -55,6 +55,20 @@ REQUIRED_ENV = {
 }
 
 
+def image_bytes(
+    size=(64, 48), fmt="JPEG", mode="RGB", exif=None, color="orange"
+) -> bytes:
+    """An encoded image, as a client would upload it (hive photos, #3)."""
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    options = {"exif": exif} if exif is not None else {}
+    Image.new(mode, size, color).save(out, format=fmt, **options)
+    return out.getvalue()
+
+
 @pytest.fixture(autouse=True)
 def isolated_settings_env(monkeypatch):
     """

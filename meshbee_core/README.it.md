@@ -34,6 +34,8 @@ scripts/ ───────┘
 | `mail.py` | Email in uscita tramite qualsiasi server SMTP (`SmtpConfig`, `Mailer`). Solo libreria standard; ogni errore diventa `Unavailable`. L'API costruisce la configurazione dalle proprie impostazioni. |
 | `emails.py` | Il testo di ogni email che il server invia, come oggetto e corpo. Semplici stringhe in italiano. |
 | `reporting/` | Segnalazione degli errori indipendente dal fornitore: `setup_reporting()`, `report_exception()`, un ponte verso il logging e i backend (`rollbar.py`), trovati tramite entry point. Infrastruttura, come `mail.py`. La chiamano gli entry point; service e repository mai. Vedi [Segnalazione degli errori](../README.it.md#segnalazione-degli-errori). |
+| `storage.py` | Dove stanno i file caricati: il protocollo `Storage`, `LocalStorage` (una directory) e gli hook che legano un file alla transazione che lo registra. Vedi [File salvati](#file-salvati). |
+| `images.py` | `process_photo`: un'immagine caricata, decodificata, raddrizzata, ridotta e ricodificata in WebP senza metadati (Pillow). Ogni errore diventa `InvalidData`. |
 | `repository/` | SQL. Un modulo per tabella. |
 | `services/` | Decisioni di dominio. Un modulo per area. |
 
@@ -51,6 +53,7 @@ scripts/ ───────┘
 | `inviti.py` | `inviti_apiari`: condivisioni in attesa verso email senza account (#40). `take_for_email` le cancella e le restituisce in un'unica istruzione. |
 | `sessioni.py` | `token_sessione`: i refresh token, cercati per il loro SHA-256. |
 | `token_monouso.py` | `token_monouso`: i token monouso inviati per email. `spend` è un unico UPDATE condizionale, così un token non si usa due volte nemmeno in concorrenza. |
+| `allegati.py` | `allegati`: i record dei file salvati. |
 
 ### `services/` — decisioni
 
@@ -59,7 +62,8 @@ scripts/ ───────┘
 | `auth.py` | Autenticazione, e autorizzazione: `ROLE_ACTIONS`, cosa consente ogni ruolo, e `can_on_arnia` / `can_on_apiario`. |
 | `utenti.py` | Ciclo di vita degli account, incluso il rifiuto di disattivare se stessi; ogni nuovo account riceve il suo apiario `Default`. |
 | `nodi.py` | I nodi, e l'assegnazione di uno a un proprietario — le sue arnie lo seguono. |
-| `arnie.py` | Le arnie: quali vede un utente, dove finisce una nuova, lo spostamento tra gli apiari del suo proprietario. |
+| `arnie.py` | Le arnie: quali vede un utente, dove finisce una nuova, lo spostamento tra gli apiari del suo proprietario, e la loro foto. |
+| `allegati.py` | I file salvati, a qualunque cosa appartengano: elaborare e salvare un'immagine, rimuoverne una, trovarne il file. |
 | `apiari.py` | Gli apiari: il `Default` di ogni utente, e le regole per eliminarne uno. |
 | `letture.py` | Le letture, la finestra di default di un anno, la validazione dei limiti. |
 | `attivita.py` | Il log attività. |
@@ -130,6 +134,27 @@ Il pool viene aperto da ogni processo all'avvio con la propria dimensione:
 Il pool è il `QueuePool` di SQLAlchemy, che è thread-safe: le rotte dell'API sono `def`
 semplici e girano nel threadpool di FastAPI. La libreria non sceglie mai la propria configurazione: le impostazioni le riceve sempre
 dall'esterno.
+
+### File salvati
+
+Un file non fa parte di nessuna transazione, quindi i service lo legano alla sessione
+che lo registra (`storage.py`):
+
+- **un file nuovo** si scrive prima della sua riga, e `discard_on_rollback` lo rimuove se
+  la transazione fa rollback;
+- **un file sostituito o eliminato** resta finché la transazione non ha fatto commit, e
+  `delete_after_commit` lo rimuove allora.
+
+Una richiesta fallita quindi non lascia mai una riga che punta a un file mancante. Un
+crash tra il commit e la cancellazione può lasciare un file senza riga: spazio sprecato,
+mai una foto rotta. Le chiavi sono nuove a ogni caricamento (`arnie/<id>/<uuid>.webp`),
+quindi un file non viene mai sovrascritto mentre un client potrebbe leggerlo.
+
+`allegati` non dice a cosa appartiene un file. Il proprietario lo indica con una propria
+chiave esterna (`arnie.id_foto`, `ON DELETE SET NULL`). Il prossimo tipo di allegato, per
+esempio una foto del profilo, è un'altra colonna così più qualche riga nel suo service
+attorno a `services/allegati.py`. La directory dello storage la sceglie il chiamante:
+l'API passa uno `Storage` costruito da `STORAGE_DIR`.
 
 ## Configurazione
 

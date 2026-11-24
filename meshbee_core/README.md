@@ -34,6 +34,8 @@ scripts/ ───────┘
 | `mail.py` | Outgoing email over any SMTP server (`SmtpConfig`, `Mailer`). Standard library only; every failure becomes `Unavailable`. The API builds the config from its own settings. |
 | `emails.py` | The text of each email the server sends, as subject and body. Plain Italian strings. |
 | `reporting/` | Provider-neutral error reporting: `setup_reporting()`, `report_exception()`, a logging bridge, and the backends (`rollbar.py`), found by entry point. Infrastructure, like `mail.py`. The entry points call it; services and repositories never do. See [Error reporting](../README.md#error-reporting). |
+| `storage.py` | Where uploaded files live: the `Storage` protocol, `LocalStorage` (a directory), and the hooks that tie a file to the transaction recording it. See [Stored files](#stored-files). |
+| `images.py` | `process_photo`: an uploaded image decoded, turned upright, scaled down and re-encoded as WebP without metadata (Pillow). Every failure becomes `InvalidData`. |
 | `repository/` | SQL. One module per table. |
 | `services/` | Business decisions. One module per domain area. |
 
@@ -51,6 +53,7 @@ scripts/ ───────┘
 | `inviti.py` | `inviti_apiari`: pending shares to emails with no account (#40). `take_for_email` deletes and returns them in one statement. |
 | `sessioni.py` | `token_sessione`: refresh tokens, found by their SHA-256. |
 | `token_monouso.py` | `token_monouso`: single-use emailed tokens. `spend` is one conditional UPDATE, so a token cannot be used twice even concurrently. |
+| `allegati.py` | `allegati`: the records of stored files. |
 
 ### `services/` — decisions
 
@@ -59,7 +62,8 @@ scripts/ ───────┘
 | `auth.py` | Authentication, and authorization: `ROLE_ACTIONS`, what each role allows, and `can_on_arnia` / `can_on_apiario`. |
 | `utenti.py` | Account lifecycle, including the refusal to deactivate yourself; every new account gets its `Default` apiary. |
 | `nodi.py` | Nodes, and assigning one to an owner — its hives follow. |
-| `arnie.py` | Hives: which ones a user sees, where a new one goes, moving one between its owner's apiaries. |
+| `arnie.py` | Hives: which ones a user sees, where a new one goes, moving one between its owner's apiaries, and their photo. |
+| `allegati.py` | Stored files, whatever they belong to: process and store an image, remove one, find one's file. |
 | `apiari.py` | Apiaries: every user's `Default`, and the rules for deleting one. |
 | `letture.py` | Readings, the default one-year window, range validation. |
 | `attivita.py` | The activity log. |
@@ -125,6 +129,27 @@ The pool is opened by each process at startup with its own size:
 `init_db_pool(settings, maxconn=...)` — 20 for the API, 10 for the handler, 2 for the
 seed. The pool is SQLAlchemy's `QueuePool`, which is thread-safe: the API's routes are
 plain `def` and run in FastAPI's threadpool. The library never picks its own configuration; settings are always passed in.
+
+### Stored files
+
+A file is not part of any transaction, so the services tie it to the session that
+records it (`storage.py`):
+
+- **a new file** is written before its row, and `discard_on_rollback` removes it if the
+  transaction rolls back;
+- **a replaced or deleted file** stays until the transaction has committed, and
+  `delete_after_commit` removes it then.
+
+A failed request therefore never leaves a row pointing at a missing file. A crash
+between commit and delete can leave a file with no row: wasted space, never a broken
+photo. Keys are new for every upload (`arnie/<id>/<uuid>.webp`), so a file is never
+overwritten while a client may be reading it.
+
+`allegati` does not say what a file belongs to. The owner points at it with a foreign
+key of its own (`arnie.id_foto`, `ON DELETE SET NULL`). The next kind of attachment, a
+profile photo say, is one more such column plus a few lines in its service around
+`services/allegati.py`. The storage directory is the caller's to choose: the API passes
+a `Storage` built from `STORAGE_DIR`.
 
 ## Configuration
 

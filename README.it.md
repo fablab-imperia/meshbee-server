@@ -508,8 +508,12 @@ Cosa cambia lo strato:
 - **L'HTTP in chiaro resta disponibile, per IP sulla :80 e sulla :8000.** I client
   configurati prima che esistesse il dominio continuano a funzionare mentre passano a
   `https://`. Chiudile quando nessuno le usa più.
-- **Gira il codice delle immagini.** Niente `--reload` e niente bind mount: una modifica
-  arriva sul server solo con una ricompilazione (`docker compose build`).
+- **Gira il codice delle immagini.** Niente `--reload` e niente bind mount del codice: una
+  modifica arriva sul server solo con una ricompilazione (`docker compose build`).
+- **Le foto delle arnie caricate stanno in `./storage`,** l'unica directory che il
+  container `api` monta. Il database le registra soltanto, quindi **fai il backup di
+  `./storage` insieme al database**: un database ripristinato senza di essa ha foto che
+  rispondono 404. Caddy rifiuta i corpi delle richieste oltre 6 MB.
 - **Il CORS è limitato a `https://MESHBEE_DOMAIN`,** e i log dei container ruotano
   (3 × 10 MB per servizio).
 
@@ -583,6 +587,11 @@ non è utilizzabile.
 **Tutto il livello di integrazione non riesce a connettersi.** `postgres-test` sta
 dietro un profilo compose e non parte con un semplice `up`:
 `docker-compose --profile test up -d postgres-test`.
+
+**Caricare una foto risponde 500; il log di `api` dice che `STORAGE_DIR` non è scrivibile.**
+L'API gira come uid 1000 e scrive in `./storage`. La directory arriva con il checkout, ma
+se è stata rimossa Docker la ricrea di proprietà di root. Su Linux:
+`sudo chown 1000:1000 storage`.
 
 **`/health` risponde `unhealthy`.** L'API è su ma il database non è raggiungibile. Il
 motivo sta in `docker-compose logs api`, non nel corpo: l'endpoint è pubblico e l'errore

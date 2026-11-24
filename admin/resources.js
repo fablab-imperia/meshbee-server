@@ -140,6 +140,7 @@ const RESOURCES = {
       { name: "id_sensore_fisico", label: "Sensore" },
       { name: "id_apiario", label: "Apiario", fmt: "apiario" },
       { name: "attiva", label: "Attiva", fmt: "bool" },
+      { name: "id_foto", label: "Foto", fmt: "present" },
       { name: "ultima_temperatura", label: "°C" },
       { name: "ultima_umidita", label: "%" },
       { name: "ultimo_peso", label: "kg" },
@@ -184,6 +185,11 @@ const RESOURCES = {
         ],
         note: "Solo verso un apiario dello stesso proprietario. Chi vede l'arnia segue l'apiario.",
         when: (r) => r.id_apiario != null,
+      },
+      {
+        // The hive photo (#3), through the hive's own routes like Sposta.
+        label: "Foto",
+        panel: "openPhoto",
       },
       {
         label: "Disattiva",

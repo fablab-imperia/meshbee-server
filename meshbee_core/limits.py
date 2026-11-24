@@ -24,6 +24,15 @@ BATTERIA_MIN, BATTERIA_MAX = 0, 5  # V
 LATITUDINE_MIN, LATITUDINE_MAX = -90, 90
 LONGITUDINE_MIN, LONGITUDINE_MAX = -180, 180
 
+# Photos (#3). An upload larger than FOTO_MAX_BYTES is refused before it is
+# decoded; FOTO_MAX_PIXELS refuses a small file that would decode into a huge
+# bitmap. What is stored is re-encoded, its longer side at most FOTO_MAX_LATO.
+FOTO_MAX_BYTES = 5 * 1024 * 1024
+FOTO_MAX_PIXELS = 40_000_000
+FOTO_MAX_LATO = 1600
+# Pillow's format names of the images accepted on upload.
+FOTO_FORMATI = ("JPEG", "PNG", "WEBP")
+
 # Length of `nodi.id_nodo` and `arnie.id_sensore_fisico`, which the MQTT
 # contract publishes as maxLength.
 ID_MAX_LENGTH = 50
