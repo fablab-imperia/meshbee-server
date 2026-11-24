@@ -91,6 +91,7 @@ FALSE = {"server_default": text("false")}
 ID = String(ID_MAX_LENGTH)
 
 APIARIO_FK = "apiari.id_apiario"
+UTENTE_FK = "utenti.id_utente"
 
 
 def in_range(column: str, low=None, high=None) -> str:
@@ -394,7 +395,7 @@ class NodoResponse(NodoBase):
     ultimo_messaggio: datetime | None = Field(None, sa_type=DateTime)
     # Null until an admin assigns the node; its hives follow its owner.
     id_proprietario: int | None = Field(
-        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+        None, foreign_key=UTENTE_FK, ondelete="SET NULL"
     )
     attivo: bool = Field(sa_column_kwargs=TRUE)
     configurazione: dict[str, Any] | None = Field(None, sa_type=JSONB)
@@ -475,9 +476,7 @@ class ApiarioResponse(ApiarioBase):
     """An apiary as the API returns it."""
 
     id_apiario: int = Field(primary_key=True)
-    id_utente_proprietario: int = Field(
-        foreign_key="utenti.id_utente", ondelete="CASCADE"
-    )
+    id_utente_proprietario: int = Field(foreign_key=UTENTE_FK, ondelete="CASCADE")
     # The apiary a user starts with, where the hives of their newly assigned
     # nodes land. It cannot be deleted.
     predefinito: bool = Field(sa_column_kwargs=FALSE)
@@ -522,7 +521,7 @@ class AllegatoResponse(SQLModel):
     altezza: int | None = None
     data_caricamento: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
     id_utente_caricamento: int | None = Field(
-        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
+        None, foreign_key=UTENTE_FK, ondelete="SET NULL"
     )
 
     model_config = ConfigDict(from_attributes=True)
@@ -848,9 +847,7 @@ class AttivitaResponse(AttivitaBase):
 
     id_log: int = Field(primary_key=True, sa_type=BigInteger)
     # Nullable on purpose: ON DELETE SET NULL keeps the entry when the account goes.
-    id_utente: int | None = Field(
-        None, foreign_key="utenti.id_utente", ondelete="SET NULL"
-    )
+    id_utente: int | None = Field(None, foreign_key=UTENTE_FK, ondelete="SET NULL")
     id_arnia: int = Field(foreign_key="arnie.id_arnia", ondelete="CASCADE")
     timestamp: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
 
@@ -910,7 +907,7 @@ class CondivisioneUpdate(BaseModel):
 
 
 class CondivisioneBase(SQLModel):
-    id_utente: int = Field(foreign_key="utenti.id_utente", ondelete="CASCADE")
+    id_utente: int = Field(foreign_key=UTENTE_FK, ondelete="CASCADE")
     id_apiario: int = Field(foreign_key=APIARIO_FK, ondelete="CASCADE")
     ruolo: str = Field(sa_type=String(20), sa_column_kwargs=default("viewer"))
     data_condivisione: datetime = Field(sa_type=DateTime, sa_column_kwargs=NOW)
@@ -1026,7 +1023,7 @@ class TokenSessione(SQLModel, table=True):
 
     id_token: int | None = Field(default=None, primary_key=True)
     id_utente: int | None = Field(
-        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+        default=None, foreign_key=UTENTE_FK, ondelete="CASCADE"
     )
     refresh_token: str = Field(sa_type=String(500), unique=True)
     data_creazione: datetime | None = Field(
@@ -1068,11 +1065,11 @@ class TokenMonouso(SQLModel, table=True):
 
     id_token: int | None = Field(default=None, primary_key=True)
     id_utente: int | None = Field(
-        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+        default=None, foreign_key=UTENTE_FK, ondelete="CASCADE"
     )
     email: str = Field(sa_type=String(255))
     id_mittente: int | None = Field(
-        default=None, foreign_key="utenti.id_utente", ondelete="CASCADE"
+        default=None, foreign_key=UTENTE_FK, ondelete="CASCADE"
     )
     token_hash: str = Field(sa_type=String(64), unique=True)
     scopo: ScopoToken = Field(sa_type=String(20))

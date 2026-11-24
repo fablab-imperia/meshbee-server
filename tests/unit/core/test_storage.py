@@ -32,8 +32,10 @@ def test_deleting_a_file_that_is_already_gone_is_not_an_error(tmp_path):
 )
 def test_a_key_cannot_reach_outside_the_directory(tmp_path, key):
     """Keys are built by the services, but a bug there must not become a path traversal."""
+    storage = LocalStorage(tmp_path / "root")
+
     with pytest.raises(ValueError):
-        LocalStorage(tmp_path / "root").path(key)
+        storage.path(key)
 
 
 def test_a_missing_directory_is_reported_as_not_writable(tmp_path):

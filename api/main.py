@@ -255,10 +255,13 @@ def db_operation(descrizione: str):
         raise HTTPException(status_code=500, detail="Errore interno del server") from e
 
 
+# Editing a hive: its details and its photo.
+ARNIA_UPDATE = "arnia.update"
+
 # The 403 detail for each action an arnia-scoped route checks.
 ARNIA_DENIED = {
     "arnia.read": "Non hai accesso a questa arnia",
-    "arnia.update": "Permessi insufficienti su questa arnia",
+    ARNIA_UPDATE: "Permessi insufficienti su questa arnia",
     "arnia.move": "Solo il proprietario può spostare l'arnia",
     "attivita.write": "Non hai permessi di scrittura su questa arnia",
 }
@@ -1571,7 +1574,7 @@ def update_arnia_user(
     Le coordinate sono dell'apiario: inviarle qui restituisce 422.
     Non è possibile modificare attiva (usa admin per quello).
     """
-    require_arnia_access(current_user, id_arnia, "arnia.update")
+    require_arnia_access(current_user, id_arnia, ARNIA_UPDATE)
     # Retiring or reviving a hive is the owner's call; for anyone else
     # `attiva` is ignored, as it always was on this route.
     allow_attiva = check_user_arnia_access(
@@ -1613,7 +1616,7 @@ def upload_foto_arnia(
     without its metadata (a phone's GPS position included). The new `id_allegato`
     becomes the hive's `id_foto`.
     """
-    require_arnia_access(current_user, id_arnia, "arnia.update")
+    require_arnia_access(current_user, id_arnia, ARNIA_UPDATE)
     # One byte over the limit is enough to know it is too large.
     data = file.file.read(FOTO_MAX_BYTES + 1)
     if len(data) > FOTO_MAX_BYTES:
@@ -1668,7 +1671,7 @@ def delete_foto_arnia(
     current_user: dict = Depends(get_current_active_user),
 ):
     """Remove the hive's photo (manager or above)."""
-    require_arnia_access(current_user, id_arnia, "arnia.update")
+    require_arnia_access(current_user, id_arnia, ARNIA_UPDATE)
 
     with db_operation("eliminazione foto arnia") as session:
         arnie_service.delete_foto(session, storage, id_arnia)

@@ -14,7 +14,7 @@ import io
 import warnings
 from dataclasses import dataclass
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
 from meshbee_core.errors import InvalidData
 from meshbee_core.limits import FOTO_FORMATI, FOTO_MAX_LATO, FOTO_MAX_PIXELS
@@ -48,8 +48,8 @@ def process_photo(data: bytes) -> ProcessedImage:
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             image = _open(data)
             image = ImageOps.exif_transpose(image)
+    # OSError covers UnidentifiedImageError (not an image) and a truncated file.
     except (
-        UnidentifiedImageError,
         Image.DecompressionBombError,
         Image.DecompressionBombWarning,
         OSError,

@@ -448,14 +448,8 @@ function adminCore() {
 
     cell(row, col) {
       const v = row[col.name];
+      if (col.fmt in VALUE_FORMATS) return VALUE_FORMATS[col.fmt](v);
       switch (col.fmt) {
-        case "bool":
-          return v ? "✓" : "✗";
-        // Whether a reference is set, such as a hive's id_foto.
-        case "present":
-          return v == null ? "—" : "✓";
-        case "date":
-          return v ? new Date(v).toLocaleString("it-IT") : "—";
         case "utente":
           return this.userName(v);
         case "coordinate":
@@ -476,6 +470,15 @@ function adminCore() {
     },
   };
 }
+
+// The column formats that need only the value; cell() handles those that
+// read the lookups or another column of the row.
+const VALUE_FORMATS = {
+  bool: (v) => (v ? "✓" : "✗"),
+  // Whether a reference is set, such as a hive's id_foto.
+  present: (v) => (v == null ? "—" : "✓"),
+  date: (v) => (v ? new Date(v).toLocaleString("it-IT") : "—"),
+};
 
 // A fetch that rejects: no answer at all, not an error status.
 const UNREACHABLE = "Server non raggiungibile";
