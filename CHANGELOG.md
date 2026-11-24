@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/fablab-imperia/meshbee-server/compare/2.1.0...2.1.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **security:** run PostgreSQL 18 on a new pgdata volume ([#34](https://github.com/fablab-imperia/meshbee-server/issues/34)) ([#87](https://github.com/fablab-imperia/meshbee-server/issues/87)) ([398641f](https://github.com/fablab-imperia/meshbee-server/commit/398641f83e81590cff9bdbf5dc0f0ab25d55da08))
+
 ## [2.1.0](https://github.com/fablab-imperia/meshbee-server/compare/2.0.0...2.1.0) (2026-11-19)
 
 
