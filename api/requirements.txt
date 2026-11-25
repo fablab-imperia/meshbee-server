@@ -1,10 +1,10 @@
 # Only what the FastAPI entry point needs on top of the shared library.
 # psycopg, pydantic, pydantic-settings and bcrypt come from meshbee-core
 # (pyproject.toml), which the Dockerfile installs editable.
-fastapi==0.163.1
+fastapi==0.165.0
 uvicorn[standard]==0.54.0
 PyJWT==2.15.1
-python-multipart==0.0.33
+python-multipart==0.0.34
 python-dotenv==1.2.4
 # Transitive (starlette), pinned so the test client's event loop is reproducible.
 anyio==4.16.0
